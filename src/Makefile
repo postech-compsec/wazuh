@@ -174,18 +174,21 @@ DEFINES=-DOSSECHIDS
 DEFINES+=-DUSER=\"${WAZUH_USER}\"
 DEFINES+=-DGROUPGLOBAL=\"${WAZUH_GROUP}\"
 
-# FOR FUZZING @COMPSEC
-FUZZ_FLAGS=-g -O0 -fsanitize=address -fsanitize=undefined
-OSSEC_CFLAGS+=${FUZZ_FLAGS}
-OSSEC_LDFLAGS+=${FUZZ_FLAGS}
-AR_LDFLAGS+=${FUZZ_FLAGS}
+# FUZZING @COMPSEC
+OSSEC_CFLAGS+=-O0
 
-CFLAGS+=${FUZZ_FLAGS}
-LDFLAGS+=${FUZZ_FLAGS}
-AR_LDFLAGS+=${FUZZ_FLAGS}
-OSSEC_LIBS+=${FUZZ_FLAGS}
+# TO COMPILE w/ ASAN & UBSAN @COMPSEC
+# FUZZ_FLAGS=-g -O0 -fsanitize=address -fsanitize=undefined
+# OSSEC_CFLAGS+=${FUZZ_FLAGS}
+# OSSEC_LDFLAGS+=${FUZZ_FLAGS}
+# AR_LDFLAGS+=${FUZZ_FLAGS}
 
-CMAKE_OPTS+=-DFSANITIZE=ON
+# CFLAGS+=${FUZZ_FLAGS}
+# LDFLAGS+=${FUZZ_FLAGS}
+# AR_LDFLAGS+=${FUZZ_FLAGS}
+# OSSEC_LIBS+=${FUZZ_FLAGS}
+
+# CMAKE_OPTS+=-DFSANITIZE=ON
 ###
 
 ifneq (${TARGET},winagent)
@@ -532,9 +535,12 @@ endif
 
 endif #winagent
 
-OSSEC_CC      		=${QUIET_CC}${MING_BASE}${CC}
-OSSEC_CCBIN   		=${QUIET_CCBIN}${MING_BASE}${CC}
-OSSEC_CXXBIN  		=${QUIET_CCBIN}${MING_BASE}${CXX}
+# OSSEC_CC      		=${QUIET_CC}${MING_BASE}${CC}
+OSSEC_CC      		=afl-clang-fast
+# OSSEC_CCBIN   		=${QUIET_CCBIN}${MING_BASE}${CC}
+OSSEC_CCBIN   		=afl-clang-fast
+# OSSEC_CXXBIN  		=${QUIET_CCBIN}${MING_BASE}${CXX}
+OSSEC_CXXBIN  		=afl-clang-fast++
 OSSEC_SHARED  		=${QUIET_CCBIN}${MING_BASE}${CC} -shared
 OSSEC_LINK    		=${QUIET_LINK}${MING_BASE}ar -crus
 OSSEC_REMOVE_OBJECT =${QUIET_LINK}${MING_BASE}ar -d
@@ -791,41 +797,43 @@ settings:
 	@echo "    CC                ${CC}"
 	@echo "    MAKE              ${MAKE}"
 
-BUILD_SERVER+=wazuh-maild -
-BUILD_SERVER+=wazuh-csyslogd -
-BUILD_SERVER+=wazuh-agentlessd -
-BUILD_SERVER+=wazuh-execd -
-BUILD_SERVER+=wazuh-logcollector -
+# COMPSEC changed below
+# BUILD_SERVER+=wazuh-maild -
+# BUILD_SERVER+=wazuh-csyslogd -
+# BUILD_SERVER+=wazuh-agentlessd -
+# BUILD_SERVER+=wazuh-execd -
+# BUILD_SERVER+=wazuh-logcollector -
 BUILD_SERVER+=wazuh-remoted
-BUILD_SERVER+=wazuh-agentd
-BUILD_SERVER+=manage_agents
-BUILD_SERVER+=utils
-BUILD_SERVER+=active-responses
-BUILD_SERVER+=wazuh-syscheckd
-BUILD_SERVER+=wazuh-monitord
-BUILD_SERVER+=wazuh-reportd
-BUILD_SERVER+=wazuh-authd
-BUILD_SERVER+=wazuh-analysisd
-BUILD_SERVER+=wazuh-logtest-legacy
-BUILD_SERVER+=wazuh-dbd -
-BUILD_SERVER+=wazuh-integratord
-BUILD_SERVER+=wazuh-modulesd
-BUILD_SERVER+=wazuh-db
-BUILD_SERVER+=wazuh-keystore
+# BUILD_SERVER+=wazuh-agentd
+# BUILD_SERVER+=manage_agents
+# BUILD_SERVER+=utils
+# BUILD_SERVER+=active-responses
+# BUILD_SERVER+=wazuh-syscheckd
+# BUILD_SERVER+=wazuh-monitord
+# BUILD_SERVER+=wazuh-reportd
+# BUILD_SERVER+=wazuh-authd
+# BUILD_SERVER+=wazuh-analysisd
+# BUILD_SERVER+=wazuh-logtest-legacy
+# BUILD_SERVER+=wazuh-dbd -
+# BUILD_SERVER+=wazuh-integratord
+# BUILD_SERVER+=wazuh-modulesd
+# BUILD_SERVER+=wazuh-db
+# BUILD_SERVER+=wazuh-keystore
+BUILD_SERVER+=fuzz-remoted
 
-BUILD_AGENT+=wazuh-agentd
-BUILD_AGENT+=agent-auth
-BUILD_AGENT+=wazuh-logcollector
-BUILD_AGENT+=wazuh-syscheckd
-BUILD_AGENT+=wazuh-execd
-BUILD_AGENT+=manage_agents
-BUILD_AGENT+=active-responses
-BUILD_AGENT+=wazuh-modulesd
+# BUILD_AGENT+=wazuh-agentd
+# BUILD_AGENT+=agent-auth
+# BUILD_AGENT+=wazuh-logcollector
+# BUILD_AGENT+=wazuh-syscheckd
+# BUILD_AGENT+=wazuh-execd
+# BUILD_AGENT+=manage_agents
+# BUILD_AGENT+=active-responses
+# BUILD_AGENT+=wazuh-modulesd
 
 BUILD_CMAKE_PROJECTS+=build_sysinfo
 BUILD_CMAKE_PROJECTS+=build_shared_modules
 ifeq (${TARGET},server)
-BUILD_CMAKE_PROJECTS+=build_wazuh_cmake
+# BUILD_CMAKE_PROJECTS+=build_wazuh_cmake # @compsec Commented out to omit the compilation of vulnerability_scanner
 endif
 ifeq (,$(filter ${DISABLE_SYSC},YES yes y Y 1))
 ifneq (${uname_S},HP-UX)
@@ -2094,6 +2102,19 @@ remoted/%.o: remoted/%.c
 	${OSSEC_CC} ${OSSEC_CFLAGS}  -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
 
 wazuh-remoted: ${remoted_o}
+	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+#### FUZZING @COMPSEC #########
+
+fuzz_remoted_c := $(wildcard fuzz_remoted/*.c)
+fuzz_remoted_o := $(fuzz_remoted_c:.c=.o)
+
+fuzz_remoted/%.o: fuzz_remoted/%.c
+	${OSSEC_CC} ${OSSEC_CFLAGS}  -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
+
+remoted_o_for_fuzzing = $(filter-out remoted/main.o, $(remoted_o))
+
+fuzz-remoted: ${fuzz_remoted_o} ${remoted_o_for_fuzzing}
 	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 #### wazuh-agentd ####
