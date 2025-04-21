@@ -651,7 +651,7 @@ size_t CreateSecMSG(const keystore *keys, const char *msg, size_t msg_length, ch
     evt_count++;
 
     /* If the IP is dynamic (not single host), append agent ID to the message */
-    if (!isSingleHost(keys->keyentries[id]->ip) && isAgent) {
+    if (!isSingleHost(keys->keyentries[id]->ip)) { // && isAgent) { // XXX: fuzzing
         length = snprintf(msg_encrypted, 16, "!%s!%s", keys->keyentries[id]->id,crypto_token);
     } else {
         /* Set beginning of the message */
