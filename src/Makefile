@@ -547,6 +547,8 @@ OSSEC_REMOVE_OBJECT =${QUIET_LINK}${MING_BASE}ar -d
 OSSEC_RANLIB  		=${QUIET_RANLIB}${MING_BASE}ranlib
 OSSEC_WINDRES 		=${QUIET_CCBIN}${MING_BASE}windres
 
+AFL_CC=afl-clang-fast
+
 ifneq (,$(filter ${USE_INOTIFY},YES auto yes y Y 1))
 	DEFINES+=-DINOTIFY_ENABLED
 	ifeq (${uname_S},FreeBSD)
@@ -1164,7 +1166,7 @@ $(JSON_LIB): ${cjson_o}
 	${OSSEC_RANLIB} $@
 
 ${EXTERNAL_JSON}%.o: ${EXTERNAL_JSON}%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -fPIC -c $^ -o $@
+	${AFL_CC} ${OSSEC_CFLAGS} -fPIC -c $^ -o $@
 
 #### libyaml ##########
 
@@ -2111,21 +2113,21 @@ fuzz_remoted_c := $(wildcard fuzz_remoted/*.c)
 fuzz_remoted_o := $(fuzz_remoted_c:.c=.o)
 
 fuzz_remoted/%.o: fuzz_remoted/%.c
-	afl-clang-fast ${OSSEC_CFLAGS} -O0  -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
+	${AFL_CC} ${OSSEC_CFLAGS} -O0  -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
 
 remoted_o_for_fuzzing = $(filter-out remoted/main.o, $(remoted_o))
 
 fuzz-remoted: ${fuzz_remoted_o} ${remoted_o_for_fuzzing}
-	afl-clang-fast ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+	${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 fuzz_key_request_c := $(wildcard fuzz_key_request/*.c)
 fuzz_key_request_o := $(fuzz_key_request_c:.c=.o)
 
 fuzz_key_request/%.o: fuzz_key_request/%.c
-	afl-clang-fast ${OSSEC_CFLAGS} -O0 -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth  -DARGV0=\"wazuh-authd\" -c $^ -o $@
+	${AFL_CC} ${OSSEC_CFLAGS} -O0 -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth  -DARGV0=\"wazuh-authd\" -c $^ -o $@
 
 fuzz-key-request: ${fuzz_key_request_o}
-	afl-clang-fast ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+	${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 #### wazuh-agentd ####
 
