@@ -254,16 +254,65 @@ int _fuzz_key_request_dispatch(char* output) {
 }
 
 int main() {
+  unsigned char *afl_input = NULL;
+
+  const char* replay = getenv("REPLAY");
+  if (replay) {
+    printf("REPLAYING:\n");
+    FILE* fp = fopen(replay, "rb");
+    if (fp == NULL) {
+      fprintf(stderr, "Cannot open %s\n", replay);
+      return EXIT_FAILURE;
+    }
+
+    if (fseek(fp, 0, SEEK_END) != 0) {
+      perror("Error seeking to end of file");
+      fclose(fp);
+      return EXIT_FAILURE;
+    }
+
+    long filesize = ftell(fp);
+    if (filesize == -1L) {
+      perror("Error determining file size");
+      fclose(fp);
+      return EXIT_FAILURE;
+    }
+    rewind(fp);
+
+    afl_input = malloc(filesize + 1);
+    if (afl_input == NULL) {
+      fprintf(stderr, "Error: Memory allocation failed.\n");
+      fclose(fp);
+      return EXIT_FAILURE;
+    }
+
+    size_t read_size = fread(afl_input, 1, filesize, fp);
+    if (read_size != filesize) {
+      fprintf(stderr, "Error: Only read %zu of %ld bytes from file.\n", read_size, filesize);
+      free(afl_input);
+      fclose(fp);
+      return EXIT_FAILURE;
+    }
+    afl_input[filesize] = '\0';
+
+    printf("sz: %u\n", filesize);
+    printf("input: %s\n", afl_input);
+    _fuzz_key_request_dispatch(afl_input);
+    free(afl_input);
+
+  } else {
+
 #ifdef __AFL_HAVE_MANUAL_CONTROL
   __AFL_INIT();
 #endif
 
-  unsigned char *afl_input = __AFL_FUZZ_TESTCASE_BUF;
+    afl_input = __AFL_FUZZ_TESTCASE_BUF;
 
-  while (__AFL_LOOP(10000)) {
-    printf("tc: %s\n", afl_input);
-    _fuzz_key_request_dispatch(afl_input); // assuming we get a valid json output from socket/exec
-                                           //
+    while (__AFL_LOOP(10000)) {
+      printf("tc: %s\n", afl_input);
+      _fuzz_key_request_dispatch(afl_input); // assuming we get a valid json
+                                             // output from socket/exec
+    }
   }
 
   return 0;
