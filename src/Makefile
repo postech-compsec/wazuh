@@ -823,6 +823,7 @@ BUILD_SERVER+=wazuh-authd
 # BUILD_SERVER+=wazuh-keystore
 BUILD_SERVER+=fuzz-remoted
 BUILD_SERVER+=fuzz-key-request
+BUILD_SERVER+=fuzz-local-dispatch
 
 # BUILD_AGENT+=wazuh-agentd
 # BUILD_AGENT+=agent-auth
@@ -2129,6 +2130,17 @@ fuzz_key_request/%.o: fuzz_key_request/%.c
 	${AFL_CC} ${OSSEC_CFLAGS} -O0 -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth  -DARGV0=\"wazuh-authd\" -c $^ -o $@
 
 fuzz-key-request: ${fuzz_key_request_o}
+	${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+#### FUZZING @COMPSEC - authd local_dispatch #########
+
+fuzz_local_dispatch_c := $(wildcard fuzz_local_dispatch/*.c)
+fuzz_local_dispatch_o := $(fuzz_local_dispatch_c:.c=.o)
+
+fuzz_local_dispatch/%.o: fuzz_local_dispatch/%.c
+	${AFL_CC} ${OSSEC_CFLAGS} -O0  -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
+
+fuzz-local-dispatch: ${fuzz_local_dispatch_o}
 	${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 #### wazuh-agentd ####
