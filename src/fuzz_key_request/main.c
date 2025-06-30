@@ -309,7 +309,8 @@ int main() {
     afl_input = __AFL_FUZZ_TESTCASE_BUF;
 
     while (__AFL_LOOP(10000)) {
-      printf("tc: %s\n", afl_input);
+      int len = __AFL_FUZZ_TESTCASE_LEN;
+      afl_input[len] = '\0';
       _fuzz_key_request_dispatch(afl_input); // assuming we get a valid json
                                              // output from socket/exec
     }
