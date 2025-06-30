@@ -2107,7 +2107,7 @@ remoted/%.o: remoted/%.c
 wazuh-remoted: ${remoted_o}
 	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
-#### FUZZING @COMPSEC #########
+#### FUZZING @COMPSEC - remoted #########
 
 fuzz_remoted_c := $(wildcard fuzz_remoted/*.c)
 fuzz_remoted_o := $(fuzz_remoted_c:.c=.o)
@@ -2119,6 +2119,8 @@ remoted_o_for_fuzzing = $(filter-out remoted/main.o, $(remoted_o))
 
 fuzz-remoted: ${fuzz_remoted_o} ${remoted_o_for_fuzzing}
 	${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+#### FUZZING @COMPSEC - authd key_request #########
 
 fuzz_key_request_c := $(wildcard fuzz_key_request/*.c)
 fuzz_key_request_o := $(fuzz_key_request_c:.c=.o)
