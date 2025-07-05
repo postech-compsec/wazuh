@@ -248,12 +248,15 @@ char* _fuzz_local_dispatch(const char *input) {
     char *output = NULL;
     int ierror;
     char *groups = NULL;
+    mwarn("local dispatch input: %s", input);
 
     if (input[0] == '{') {
-        if (config.worker_node) {
-            ierror = ENOMASTER;
-            goto fail;
-        }
+        /*
+         * if (config.worker_node) {
+         *     ierror = ENOMASTER;
+         *     goto fail;
+         * }
+         */
 
         const char *jsonErrPtr;
         if (request = cJSON_ParseWithOpts(input, &jsonErrPtr, 0), !request) {
@@ -416,7 +419,7 @@ fail:
 
 int main() {
   // XXX: is this the right way to load keys?
-  OS_ReadKeys(&keys, W_ENCRYPTION_KEY, 0);
+  OS_ReadKeys(&keys, W_RAW_KEY, 0);
   OS_StartCounter(&keys);
 
   unsigned char *afl_input = NULL;
