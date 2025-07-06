@@ -7,6 +7,10 @@
 
 __AFL_FUZZ_INIT();
 
+extern struct keynode *queue_insert;
+extern struct keynode *queue_remove;
+extern struct keynode * volatile *insert_tail;
+extern struct keynode * volatile *remove_tail;
 volatile int write_pending = 0;
 
 typedef enum auth_local_err {
@@ -418,7 +422,11 @@ fail:
 }
 
 int main() {
-  // XXX: is this the right way to load keys?
+
+  /* Initialize queues */
+  insert_tail = &queue_insert;
+  remove_tail = &queue_remove;
+
   OS_ReadKeys(&keys, W_RAW_KEY, 0);
   OS_StartCounter(&keys);
 
