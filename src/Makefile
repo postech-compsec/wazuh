@@ -547,7 +547,7 @@ OSSEC_REMOVE_OBJECT =${QUIET_LINK}${MING_BASE}ar -d
 OSSEC_RANLIB  		=${QUIET_RANLIB}${MING_BASE}ranlib
 OSSEC_WINDRES 		=${QUIET_CCBIN}${MING_BASE}windres
 
-AFL_CC=afl-clang-fast
+AFL_CC=afl-clang-lto
 
 ifneq (,$(filter ${USE_INOTIFY},YES auto yes y Y 1))
 	DEFINES+=-DINOTIFY_ENABLED
@@ -2114,12 +2114,12 @@ fuzz_remoted_c := $(wildcard fuzz_remoted/*.c)
 fuzz_remoted_o := $(fuzz_remoted_c:.c=.o)
 
 fuzz_remoted/%.o: fuzz_remoted/%.c
-	${AFL_CC} ${OSSEC_CFLAGS} -O0  -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
+	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_CFLAGS} -O0  -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
 
 remoted_o_for_fuzzing = $(filter-out remoted/main.o, $(remoted_o))
 
 fuzz-remoted: ${fuzz_remoted_o} ${remoted_o_for_fuzzing}
-	${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 #### FUZZING @COMPSEC - authd key_request #########
 
@@ -2127,10 +2127,10 @@ fuzz_key_request_c := $(wildcard fuzz_key_request/*.c)
 fuzz_key_request_o := $(fuzz_key_request_c:.c=.o)
 
 fuzz_key_request/%.o: fuzz_key_request/%.c
-	${AFL_CC} ${OSSEC_CFLAGS} -O0 -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth  -DARGV0=\"wazuh-authd\" -c $^ -o $@
+	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_CFLAGS} -O0 -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth  -DARGV0=\"wazuh-authd\" -c $^ -o $@
 
 fuzz-key-request: ${fuzz_key_request_o}
-	${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 #### FUZZING @COMPSEC - authd local_dispatch #########
 
@@ -2138,10 +2138,10 @@ fuzz_local_dispatch_c := $(wildcard fuzz_local_dispatch/*.c)
 fuzz_local_dispatch_o := $(fuzz_local_dispatch_c:.c=.o)
 
 fuzz_local_dispatch/%.o: fuzz_local_dispatch/%.c
-	${AFL_CC} ${OSSEC_CFLAGS} -O0  -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
+	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_CFLAGS} -O0  -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
 
 fuzz-local-dispatch: ${fuzz_local_dispatch_o}
-	${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 #### wazuh-agentd ####
 
@@ -2356,13 +2356,13 @@ os_auth_c := ${wildcard os_auth/*.c}
 os_auth_o := $(os_auth_c:.c=.o)
 
 os_auth/%.o: os_auth/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
+	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_CFLAGS} -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
 
 agent-auth: addagent/validate.o os_auth/main-client.o os_auth/ssl.o os_auth/check_cert.o
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 wazuh-authd: addagent/validate.o os_auth/main-server.o os_auth/local-server.o os_auth/ssl.o os_auth/check_cert.o os_auth/config.o os_auth/authcom.o os_auth/auth.o os_auth/key_request.o os_auth/generate_cert.o
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 #### integratord #####
 
