@@ -121,43 +121,46 @@ end:
  * @retval 0 Success.
  */
 int wdbc_query_ex(int *sock, const char *query, char *response, const int len) {
+    // COMMENT OUT FOR FUZZ
+    // int retval = -2;
 
-    int retval = -2;
+    // // Connect to socket if disconnected
+    // if (*sock < 0) {
+    //     // Connect
+    //     *sock = wdbc_connect();
 
-    // Connect to socket if disconnected
-    if (*sock < 0) {
-        // Connect
-        *sock = wdbc_connect();
+    //     if (*sock < 0) {
+    //         merror("Unable to connect to socket '%s'.", WDB_LOCAL_SOCK);
+    //         return retval;
+    //     }
+    // }
 
-        if (*sock < 0) {
-            merror("Unable to connect to socket '%s'.", WDB_LOCAL_SOCK);
-            return retval;
-        }
-    }
+    // // Send query to Wazuh DB
+    // if (retval = wdbc_query(*sock, query, response, len), retval != 0) {
+    //     if (errno == EAGAIN || errno == EWOULDBLOCK) {
+    //         merror("database socket is full");
+    //         return retval;
+    //     } else if (errno == EPIPE) {
+    //         // Retry to connect
+    //         merror("Connection with wazuh-db lost. Reconnecting.");
+    //         close(*sock);
+    //         if (*sock = wdbc_connect(), *sock < 0) {
+    //             return retval;
+    //         }
+    //         // Send query
+    //         if (retval = wdbc_query(*sock, query, response, len), retval != 0) {
+    //             return retval;
+    //         }
+    //     } else {
+    //         merror("Cannot send message: (%d) '%s'.", errno, strerror(errno));
+    //         return retval;
+    //     }
+    // }
 
-    // Send query to Wazuh DB
-    if (retval = wdbc_query(*sock, query, response, len), retval != 0) {
-        if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            merror("database socket is full");
-            return retval;
-        } else if (errno == EPIPE) {
-            // Retry to connect
-            merror("Connection with wazuh-db lost. Reconnecting.");
-            close(*sock);
-            if (*sock = wdbc_connect(), *sock < 0) {
-                return retval;
-            }
-            // Send query
-            if (retval = wdbc_query(*sock, query, response, len), retval != 0) {
-                return retval;
-            }
-        } else {
-            merror("Cannot send message: (%d) '%s'.", errno, strerror(errno));
-            return retval;
-        }
-    }
-
-    return retval;
+    // return retval;
+    
+    snprintf(response, 13, "ok not found");
+    return 0;
 }
 
 
@@ -172,33 +175,34 @@ int wdbc_query_ex(int *sock, const char *query, char *response, const int len) {
  * @return Enum wdbc_result.
  */
 int wdbc_parse_result(char *result, char **payload) {
+    // COMMENT OUT FOR FUZZ
+    // int retval = WDBC_UNKNOWN;
+    // char *ptr;
 
-    int retval = WDBC_UNKNOWN;
-    char *ptr;
+    // ptr = strchr(result, ' ');
 
-    ptr = strchr(result, ' ');
+    // if (ptr) {
+    //     *ptr++ = '\0';
+    // } else {
+    //     ptr = result;
+    // }
 
-    if (ptr) {
-        *ptr++ = '\0';
-    } else {
-        ptr = result;
-    }
+    // if (payload) {
+    //     *payload = ptr;
+    // }
 
-    if (payload) {
-        *payload = ptr;
-    }
+    // if (!strcmp(result, WDBC_RESULT[WDBC_OK])) {
+    //     retval = WDBC_OK;
+    // } else if (!strcmp(result, WDBC_RESULT[WDBC_ERROR])) {
+    //     retval = WDBC_ERROR;
+    // } else if (!strcmp(result, WDBC_RESULT[WDBC_IGNORE])) {
+    //     retval = WDBC_IGNORE;
+    // } else if (!strcmp(result, WDBC_RESULT[WDBC_DUE])) {
+    //     retval = WDBC_DUE;
+    // }
 
-    if (!strcmp(result, WDBC_RESULT[WDBC_OK])) {
-        retval = WDBC_OK;
-    } else if (!strcmp(result, WDBC_RESULT[WDBC_ERROR])) {
-        retval = WDBC_ERROR;
-    } else if (!strcmp(result, WDBC_RESULT[WDBC_IGNORE])) {
-        retval = WDBC_IGNORE;
-    } else if (!strcmp(result, WDBC_RESULT[WDBC_DUE])) {
-        retval = WDBC_DUE;
-    }
-
-    return retval;
+    // return retval;
+    return WDBC_OK;
 }
 
 /**
