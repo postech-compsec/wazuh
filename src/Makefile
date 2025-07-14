@@ -174,23 +174,6 @@ DEFINES=-DOSSECHIDS
 DEFINES+=-DUSER=\"${WAZUH_USER}\"
 DEFINES+=-DGROUPGLOBAL=\"${WAZUH_GROUP}\"
 
-# FUZZING @COMPSEC
-# OSSEC_CFLAGS+=-O0
-
-# TO COMPILE w/ ASAN & UBSAN @COMPSEC
-# FUZZ_FLAGS=-g -O0 -fsanitize=address -fsanitize=undefined
-# OSSEC_CFLAGS+=${FUZZ_FLAGS}
-# OSSEC_LDFLAGS+=${FUZZ_FLAGS}
-# AR_LDFLAGS+=${FUZZ_FLAGS}
-
-# CFLAGS+=${FUZZ_FLAGS}
-# LDFLAGS+=${FUZZ_FLAGS}
-# AR_LDFLAGS+=${FUZZ_FLAGS}
-# OSSEC_LIBS+=${FUZZ_FLAGS}
-
-# CMAKE_OPTS+=-DFSANITIZE=ON
-###
-
 ifneq (${TARGET},winagent)
 		DEFINES+=-D${uname_S}
 ifeq (${uname_S},Linux)
@@ -428,6 +411,11 @@ else
 endif
 
 ifeq (${TARGET},server)
+	WAZUH_LIBS+=-lrouter
+	WAZUH_LDFLAGS+=-Lbuild/shared_modules/router
+endif
+
+ifeq (${TARGET},fuzzer)
 	WAZUH_LIBS+=-lrouter
 	WAZUH_LDFLAGS+=-Lbuild/shared_modules/router
 endif
@@ -703,6 +691,7 @@ endif
 .PHONY: failtarget
 failtarget:
 	@echo "TARGET is required: "
+	@echo "   make TARGET=fuzzer   to build the fuzzing harnesses"
 	@echo "   make TARGET=server   to build the server"
 	@echo "   make TARGET=local      - local version of server"
 	@echo "   make TARGET=hybrid     - hybrid version of server"
@@ -800,39 +789,42 @@ settings:
 	@echo "    MAKE              ${MAKE}"
 
 # COMPSEC changed below
-# BUILD_SERVER+=wazuh-maild -
-# BUILD_SERVER+=wazuh-csyslogd -
-# BUILD_SERVER+=wazuh-agentlessd -
-# BUILD_SERVER+=wazuh-execd -
-# BUILD_SERVER+=wazuh-logcollector -
+BUILD_SERVER+=wazuh-maild -
+BUILD_SERVER+=wazuh-csyslogd -
+BUILD_SERVER+=wazuh-agentlessd -
+BUILD_SERVER+=wazuh-execd -
+BUILD_SERVER+=wazuh-logcollector -
 BUILD_SERVER+=wazuh-remoted
-# BUILD_SERVER+=wazuh-agentd
-# BUILD_SERVER+=manage_agents
-# BUILD_SERVER+=utils
-# BUILD_SERVER+=active-responses
-# BUILD_SERVER+=wazuh-syscheckd
-# BUILD_SERVER+=wazuh-monitord
-# BUILD_SERVER+=wazuh-reportd
+BUILD_SERVER+=wazuh-agentd
+BUILD_SERVER+=manage_agents
+BUILD_SERVER+=utils
+BUILD_SERVER+=active-responses
+BUILD_SERVER+=wazuh-syscheckd
+BUILD_SERVER+=wazuh-monitord
+BUILD_SERVER+=wazuh-reportd
 BUILD_SERVER+=wazuh-authd
-# BUILD_SERVER+=wazuh-analysisd
-# BUILD_SERVER+=wazuh-logtest-legacy
-# BUILD_SERVER+=wazuh-dbd -
-# BUILD_SERVER+=wazuh-integratord
-# BUILD_SERVER+=wazuh-modulesd
-# BUILD_SERVER+=wazuh-db
-# BUILD_SERVER+=wazuh-keystore
-BUILD_SERVER+=fuzz-remoted
-BUILD_SERVER+=fuzz-key-request
-BUILD_SERVER+=fuzz-local-dispatch
+BUILD_SERVER+=wazuh-analysisd
+BUILD_SERVER+=wazuh-logtest-legacy
+BUILD_SERVER+=wazuh-dbd -
+BUILD_SERVER+=wazuh-integratord
+BUILD_SERVER+=wazuh-modulesd
+BUILD_SERVER+=wazuh-db
+BUILD_SERVER+=wazuh-keystore
 
-# BUILD_AGENT+=wazuh-agentd
-# BUILD_AGENT+=agent-auth
-# BUILD_AGENT+=wazuh-logcollector
-# BUILD_AGENT+=wazuh-syscheckd
-# BUILD_AGENT+=wazuh-execd
-# BUILD_AGENT+=manage_agents
-# BUILD_AGENT+=active-responses
-# BUILD_AGENT+=wazuh-modulesd
+BUILD_AGENT+=wazuh-agentd
+BUILD_AGENT+=agent-auth
+BUILD_AGENT+=wazuh-logcollector
+BUILD_AGENT+=wazuh-syscheckd
+BUILD_AGENT+=wazuh-execd
+BUILD_AGENT+=manage_agents
+BUILD_AGENT+=active-responses
+BUILD_AGENT+=wazuh-modulesd
+
+# FUZZING TARGETS
+BUILD_FUZZER+=fuzz-remoted
+BUILD_FUZZER+=fuzz-key-request
+BUILD_FUZZER+=fuzz-local-dispatch
+BUILD_FUZZER+=fuzz-decode-sca
 
 BUILD_CMAKE_PROJECTS+=build_sysinfo
 BUILD_CMAKE_PROJECTS+=build_shared_modules
@@ -857,7 +849,7 @@ ifneq (${uname_S},AIX)
 	${STRIP_TOOL} -x $@
 endif
 
-.PHONY: server local hybrid agent selinux
+.PHONY: fuzzer server local hybrid agent selinux
 
 ifeq (${MAKECMDGOALS},server)
 $(error Do not use 'server' directly, use 'TARGET=server')
@@ -887,6 +879,12 @@ endif
 agent: external ${CPPLIBDEPS}
 	${MAKE} ${BUILD_CMAKE_PROJECTS}
 	${MAKE} ${BUILD_AGENT}
+
+ifeq (${MAKECMDGOALS},fuzzer)
+$(error Do not use 'fuzzer' directly, use 'TARGET=fuzzer')
+endif
+fuzzer:
+	${MAKE} ${BUILD_FUZZER}
 
 ifneq (,$(filter ${USE_SELINUX},YES yes y Y 1))
 server local hybrid agent: selinux
@@ -1594,6 +1592,8 @@ WAZUHEXT_LIB = libwazuhext.$(SHARED)
 WAZUH_LIB = libwazuhshared.$(SHARED)
 endif
 BUILD_LIBS = libwazuh.a $(WAZUHEXT_LIB)
+
+$(BUILD_FUZZER): $(BUILD_LIBS)
 
 $(BUILD_SERVER) $(BUILD_AGENT) $(WINDOWS_BINS) $(WINDOWS_BINS): $(BUILD_LIBS)
 
@@ -2375,7 +2375,11 @@ os_integrator/%.o: os_integrator/%.c
 wazuh-integratord: ${integrator_o}
 	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
+
 #### analysisd #####
+
+ANALYSISD_CC=afl-clang-lto
+ANALYSISD_CCBIN=afl-clang-lto
 
 cdb_c := ${wildcard analysisd/cdb/*.c}
 cdb_o := $(cdb_c:.c=.o)
@@ -2383,7 +2387,7 @@ all_analysisd_o += ${cdb_o}
 all_analysisd_libs += cdb.a
 
 analysisd/cdb/%.o: analysisd/cdb/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/cdb -c $^ -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/cdb -c $^ -o $@
 
 cdb.a: ${cdb_o}
 	${OSSEC_LINK} $@ $^
@@ -2396,7 +2400,7 @@ all_analysisd_o += ${alerts_o}
 all_analysisd_libs += alerts.a
 
 analysisd/alerts/%.o: analysisd/alerts/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/alerts -c $^ -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/alerts -c $^ -o $@
 
 alerts.a: ${alerts_o}
 	${OSSEC_LINK} $@ $^
@@ -2412,26 +2416,26 @@ all_analysisd_libs += decoders.a decoders-test.a decoders-live.a
 
 
 analysisd/decoders/%-test.o: analysisd/decoders/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 analysisd/decoders/%-live.o: analysisd/decoders/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 analysisd/decoders/plugins/%-test.o: analysisd/decoders/plugins/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 
 analysisd/decoders/plugins/%-live.o: analysisd/decoders/plugins/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 analysisd/compiled_rules/compiled_rules.h: analysisd/compiled_rules/.function_list analysisd/compiled_rules/register_rule.sh
 	./analysisd/compiled_rules/register_rule.sh build
 
 analysisd/compiled_rules/%-test.o: analysisd/compiled_rules/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 analysisd/compiled_rules/%-live.o: analysisd/compiled_rules/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 decoders-live.a: ${decoders_live_o}
 	${OSSEC_LINK} $@ $^
@@ -2444,14 +2448,14 @@ format_o := ${format_c:.c=.o}
 all_analysisd_o += ${format_o}
 
 analysisd/format/%.o: analysisd/format/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 output_c := ${wildcard analysisd/output/*c}
 output_o := ${output_c:.c=.o}
 all_analysisd_o += ${output_o}
 
 analysisd/output/%.o: analysisd/output/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 analysisd_c := ${filter-out analysisd/logmsg.c, ${filter-out analysisd/analysisd.c, ${filter-out analysisd/testrule.c, ${filter-out analysisd/makelists.c, ${wildcard analysisd/*.c}}}}}
 analysisd_o := ${analysisd_c:.c=.o}
@@ -2462,16 +2466,31 @@ analysisd_live_o := $(analysisd_o:.o=-live.o)
 all_analysisd_o += ${analysisd_test_o} ${analysisd_live_o} analysisd/testrule-test.o analysisd/analysisd-live.o analysisd/analysisd-test.o analysisd/makelists-live.o
 
 analysisd/%-live.o: analysisd/%.c analysisd/compiled_rules/compiled_rules.h
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -c $< -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -c $< -o $@
 
 analysisd/%-test.o: analysisd/%.c analysisd/compiled_rules/compiled_rules.h
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -c $< -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -c $< -o $@
 
 wazuh-logtest-legacy: ${analysisd_test_o} ${output_o} ${format_o} analysisd/testrule-test.o analysisd/analysisd-test.o alerts.a cdb.a decoders-test.a
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 wazuh-analysisd: ${analysisd_live_o} analysisd/analysisd-live.o ${output_o} ${format_o} alerts.a cdb.a decoders-live.a analysisd/logmsg.o
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	AFL_USE_ASAN=1 ${ANALYSISD_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+
+#### FUZZING @COMPSEC - analysisd DecodeSCA #########
+OSSEC_LDFLAGS+=-Wl,-rpath,$(WAZUH_COMPSEC_HOME)/src/
+OSSEC_LDFLAGS+=-Wl,-rpath,$(WAZUH_COMPSEC_HOME)/src/build/shared_modules/router/
+
+fuzz_decode_sca_c := $(wildcard fuzz_decode_sca/*.c)
+fuzz_decode_sca_o := $(fuzz_decode_sca_c:.c=.o)
+
+fuzz_decode_sca/%.o: fuzz_decode_sca/%.c
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -O0  -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+analysisd_o_for_fuzzing = ${analysisd_live_o} analysisd/analysisd-test.o ${output_o} ${format_o} alerts.a cdb.a decoders-live.a analysisd/logmsg.o
+
+fuzz-decode-sca: ${fuzz_decode_sca_o} ${analysisd_o_for_fuzzing}
+	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 ### wazuh-modulesd ##
 
