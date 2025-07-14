@@ -77,9 +77,10 @@ void SecurityConfigurationAssessmentInit()
     sca_json_dec->name = SCA_MOD;
     sca_json_dec->fts = 0;
 
-    request_queue = queue_init(1024);
+    // COMMENT OUT FOR FUZZ
+    // request_queue = queue_init(1024);
 
-    w_create_thread(RequestDBThread,NULL);
+    // w_create_thread(RequestDBThread,NULL);
 
     mdebug1("SecurityConfigurationAssessmentInit completed.");
 }
@@ -1811,12 +1812,13 @@ static void PushDumpRequest(char * agent_id, char * policy_id, int first_scan) {
     snprintf(request_db,OS_SIZE_4096,"%s:sca-dump:%s:%d",agent_id,policy_id,first_scan);
     char *msg = NULL;
 
-    os_strdup(request_db,msg);
+    // COMMENT OUT FOR FUZZ
+    // os_strdup(request_db,msg);
 
-    result = queue_push_ex(request_queue,msg);
+    // result = queue_push_ex(request_queue,msg);
 
-    if (result < 0) {
-        mwarn("SCA request queue is full.");
-        free(msg);
-    }
+    // if (result < 0) {
+    //     mwarn("SCA request queue is full.");
+    //     free(msg);
+    // }
 }
