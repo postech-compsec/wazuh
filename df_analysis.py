@@ -21,9 +21,11 @@ def find_invoking_functions(file_path, symbols):
 
     def is_target_call(node):
         if node.kind == CursorKind.CALL_EXPR:
+            print(node.kind, node.spelling)
             tokens = list(node.get_tokens())
-            if tokens and tokens[0].spelling in symbols:
-                return True
+            for token in tokens:
+                if token.spelling in symbols:
+                    return True
 
             referenced = node.get_definition() or node.referenced
             name = referenced.spelling if referenced else None
@@ -50,9 +52,8 @@ def find_invoking_functions(file_path, symbols):
 
         return False
 
-    depth = 0
     def visit(node, current_func, depth):
-        # print(" " * depth, "+", node.kind, node.spelling)
+        print(" " * depth, "+", node.kind, node.spelling)
         depth += 1
 
         if node.kind in (
@@ -61,6 +62,7 @@ def find_invoking_functions(file_path, symbols):
             CursorKind.FUNCTION_TEMPLATE
         ):
             current_func = node
+            print("FUNC:", current_func.spelling)
 
         # Detect call expressions by examining callee reference nodes
         if node.kind == CursorKind.CALL_EXPR and current_func:
@@ -71,7 +73,7 @@ def find_invoking_functions(file_path, symbols):
         for child in node.get_children():
             visit(child, current_func, depth)
 
-    visit(tu.cursor, None, depth)
+    visit(tu.cursor, None, depth=0)
     return matches
 
 
