@@ -533,6 +533,7 @@ OSSEC_RANLIB  		=${QUIET_RANLIB}${MING_BASE}ranlib
 OSSEC_WINDRES 		=${QUIET_CCBIN}${MING_BASE}windres
 
 AFL_CC=afl-clang-lto
+AFL_CXX=afl-clang-lto++
 
 ifneq (,$(filter ${USE_INOTIFY},YES auto yes y Y 1))
 	DEFINES+=-DINOTIFY_ENABLED
@@ -1108,23 +1109,6 @@ ifneq (${TARGET},server)
 	cd ${EXTERNAL_LIBFFI} && test -e server && mv server $(TARGET) || true
 endif
 
-#### zlib ##########
-
-$(ZLIB_LIB):
-ifeq (${TARGET},winagent)
-	cd ${EXTERNAL_ZLIB} && cp zconf.h.in zconf.h && ${MAKE} -f win32/Makefile.gcc PREFIX=${MING_BASE} libz.a
-else
-	cd ${EXTERNAL_ZLIB} && CFLAGS=-fPIC ./configure && ${MAKE} libz.a
-endif
-
-ZLIB_INCLUDE=-I./${EXTERNAL_ZLIB}
-
-os_zlib_c := os_zlib/os_zlib.c
-os_zlib_o := $(os_zlib_c:.c=.o)
-
-os_zlib/%.o: os_zlib/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $< -o $@
-
 #### minizip ##########
 
 $(MINIZIP_LIB): $(ZLIB_LIB)
@@ -1594,13 +1578,59 @@ $(BUILD_FUZZER): $(BUILD_LIBS)
 
 $(BUILD_SERVER) $(BUILD_AGENT) $(WINDOWS_BINS) $(WINDOWS_BINS): $(BUILD_LIBS)
 
+#### FUZZING @COMPSEC - FUZZING MODE SPECIFICATION #########
+
+FUZZ_MODE ?= partial
+
+ifeq ($(FUZZ_MODE), full)
+	WAZUHD_CC = ${AFL_CC}
+	WAZUHD_CXX = ${AFL_CXX}
+	WAZUHD_CC_CMD = AFL_USE_ASAN=1 ${AFL_CC}
+	WAZUHD_CFLAGS = ${OSSEC_CFLAGS} -O0
+	WAZUHD_CCBIN_CMD = AFL_USE_ASAN=1 ${AFL_CC}
+	WAZUHD_CMAKE_CMD = AFL_USE_ASAN=1 cmake
+	WAZUHD_CMAKE_OPTS = ${CMAKE_OPTS} -DCMAKE_C_COMPILER=${AFL_CC} -DCMAKE_CXX_COMPILER=${AFL_CXX}
+	WAZUHD_MAKE_CMD = AFL_USE_ASAN=1 ${MAKE}
+else
+	WAZUHD_CC = ${OSSEC_CC}
+	WAZUHD_CXX = ${OSSEC_CXXBIN}
+	WAZUHD_CC_CMD = ${OSSEC_CC}
+	WAZUHD_CFLAGS = ${OSSEC_CFLAGS}
+	WAZUHD_CCBIN_CMD = ${OSSEC_CCBIN}
+	WAZUHD_CMAKE_CMD = cmake
+	WAZUHD_CMAKE_OPTS = ${CMAKE_OPTS}
+	WAZUHD_MAKE_CMD = ${MAKE}
+endif
+
+FUZZER_CC_CMD = AFL_USE_ASAN=1 ${AFL_CC}
+FUZZER_CFLAGS = ${OSSEC_CFLAGS} -O0
+
+
+#### zlib ##########
+
+$(ZLIB_LIB):
+ifeq (${TARGET},winagent)
+	cd ${EXTERNAL_ZLIB} && cp zconf.h.in zconf.h && ${MAKE} -f win32/Makefile.gcc PREFIX=${MING_BASE} libz.a
+else
+	cd ${EXTERNAL_ZLIB} && CFLAGS=-fPIC ./configure && ${MAKE} libz.a
+endif
+
+ZLIB_INCLUDE=-I./${EXTERNAL_ZLIB}
+
+os_zlib_c := os_zlib/os_zlib.c
+os_zlib_o := $(os_zlib_c:.c=.o)
+
+os_zlib/%.o: os_zlib/%.c
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $< -o $@
+
+
 #### os_xml ########
 
 os_xml_c := $(wildcard os_xml/*.c)
 os_xml_o := $(os_xml_c:.c=.o)
 
 os_xml/%.o: os_xml/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -fPIC -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -fPIC -c $^ -o $@
 
 #### os_regex ######
 
@@ -1608,7 +1638,7 @@ os_regex_c := $(wildcard os_regex/*.c)
 os_regex_o := $(os_regex_c:.c=.o)
 
 os_regex/%.o: os_regex/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -fPIC -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -fPIC -c $^ -o $@
 
 #### os_net ##########
 
@@ -1616,7 +1646,7 @@ os_net_c := $(wildcard os_net/*.c)
 os_net_o := $(os_net_c:.c=.o)
 
 os_net/%.o: os_net/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -fPIC -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -fPIC -c $^ -o $@
 
 #### Shared ##########
 # Unit tests wrappers
@@ -1797,13 +1827,13 @@ shared_c := $(wildcard shared/*.c)
 shared_o := $(shared_c:.c=.o)
 
 shared/%.o: shared/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -fPIC -DARGV0=\"wazuh-remoted\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -fPIC -DARGV0=\"wazuh-remoted\" -c $^ -o $@
 
 shared/debug_op_proc.o: shared/debug_op.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -fPIC -DMA -DARGV0=\"wazuh-remoted\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -fPIC -DMA -DARGV0=\"wazuh-remoted\" -c $^ -o $@
 
 shared/file_op_proc.o: shared/file_op.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -fPIC -DCLIENT -DARGV0=\"wazuh-remoted\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -fPIC -DCLIENT -DARGV0=\"wazuh-remoted\" -c $^ -o $@
 
 #### Wazuh DB ####
 
@@ -1818,10 +1848,10 @@ wazuh_db/schema_%.o: wazuh_db/schema_%.sql
 	${QUIET_CC}echo 'const char *'$(word 2, $(subst /, ,$(subst .,_,$<))) '= "'"`cat $< | tr -d \"\n\"`"'";' | ${MING_BASE}${CC} ${OSSEC_CFLAGS} -xc -c -o $@ -
 
 wazuh_db/%.o: wazuh_db/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-db\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-db\" -c $^ -o $@
 
 wazuh-db: ${wdb_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 #### Config ##########
 
@@ -1829,7 +1859,7 @@ config_c := $(wildcard config/*.c)
 config_o := $(config_c:.c=.o)
 
 config/%.o: config/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $^ -o $@
 
 build_shared_modules: $(WAZUHEXT_LIB)
 	cd ${DBSYNC} && mkdir -p build && cd build && cmake ${CMAKE_OPTS} ${DBSYNC_TEST} ${SHARED_MODULES_RELEASE_TYPE} .. && ${MAKE}
@@ -1864,7 +1894,7 @@ endif
 wmodules_o := $(wmodules_c:.c=.o)
 
 wazuh_modules/%.o: wazuh_modules/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $^ -o $@
 
 wmodules_dep := ${wmodules_o} ${wdbhelpers_c:.c=.o} wazuh_db/wdb_shared.o
 
@@ -1878,70 +1908,70 @@ crypto_blowfish_c := os_crypto/blowfish/bf_op.c
 crypto_blowfish_o := $(crypto_blowfish_c:.c=.o)
 
 os_crypto/blowfish/%.o: os_crypto/blowfish/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $^ -o $@
 
 crypto_md5_c := os_crypto/md5/md5_op.c
 crypto_md5_o := $(crypto_md5_c:.c=.o)
 
 os_crypto/md5/%.o: os_crypto/md5/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $^ -o $@
 
 crypto_sha1_c := os_crypto/sha1/sha1_op.c
 crypto_sha1_o := $(crypto_sha1_c:.c=.o)
 
 os_crypto/sha1/%.o: os_crypto/sha1/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $^ -o $@
 
 crypto_sha256_c := os_crypto/sha256/sha256_op.c
 crypto_sha256_o := $(crypto_sha256_c:.c=.o)
 
 os_crypto/sha256/%.o: os_crypto/sha256/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $^ -o $@
 
 crypto_sha512_c := os_crypto/sha512/sha512_op.c
 crypto_sha512_o := $(crypto_sha512_c:.c=.o)
 
 os_crypto/sha512/%.o: os_crypto/sha512/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $^ -o $@
 
 crypto_aes_c := os_crypto/aes/aes_op.c
 crypto_aes_o := $(crypto_aes_c:.c=.o)
 
 os_crypto/aes/%.o: os_crypto/aes/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $^ -o $@
 
 crypto_md5_sha1_c := os_crypto/md5_sha1/md5_sha1_op.c
 crypto_md5_sha1_o := $(crypto_md5_sha1_c:.c=.o)
 
 os_crypto/md5_sha1/%.o: os_crypto/md5_sha1/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $^ -o $@
 
 crypto_md5_sha1_sha256_c := os_crypto/md5_sha1_sha256/md5_sha1_sha256_op.c
 crypto_md5_sha1_sha256_o := $(crypto_md5_sha1_sha256_c:.c=.o)
 
 os_crypto/md5_sha1_sha256/%.o: os_crypto/md5_sha1_sha256/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $^ -o $@
 
 crypto_hmac_c := os_crypto/hmac/hmac.c
 crypto_hmac_o := $(crypto_hmac_c:.c=.o)
 
 os_crypto/hmac/%.o: os_crypto/hmac/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $^ -o $@
 
 crypto_shared_c := $(wildcard os_crypto/shared/*.c)
 crypto_shared_o := $(crypto_shared_c:.c=.o)
 
 os_crypto/shared/%.o: os_crypto/shared/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $< -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $< -o $@
 
 crypto_signature_c := $(wildcard os_crypto/signature/*.c)
 crypto_signature_o := $(crypto_signature_c:.c=.o)
 
 os_crypto/signature/%.o: os_crypto/signature/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $< -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $< -o $@
 
 analysisd/logmsg.o: analysisd/logmsg.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -c $< -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -c $< -o $@
 
 
 crypto_o := ${crypto_blowfish_o} \
@@ -2020,24 +2050,6 @@ endif
 endif
 endif
 endif
-
-#### FUZZING @COMPSEC - FUZZING MODE SPECIFICATION #########
-
-FUZZ_MODE ?= partial
-
-ifeq ($(FUZZ_MODE), full)
-	WAZUHD_CC_CMD = AFL_USE_ASAN=1 ${AFL_CC}
-	WAZUHD_CFLAGS = ${OSSEC_CFLAGS} -O0
-	WAZUHD_CCBIN_CMD = AFL_USE_ASAN=1 ${AFL_CC}
-else
-	WAZUHD_CC_CMD = ${OSSEC_CC}
-	WAZUHD_CFLAGS = ${OSSEC_CFLAGS}
-	WAZUHD_CCBIN_CMD = ${OSSEC_CCBIN}
-endif
-
-FUZZER_CC_CMD = AFL_USE_ASAN=1 ${AFL_CC}
-FUZZER_CFLAGS = ${OSSEC_CFLAGS} -O0
-
 
 #### os_mail #########
 
@@ -2253,11 +2265,11 @@ ifeq (${uname_S},Darwin)
 WAZUH_SHARED_SHFLAGS=-install_name @rpath/libwazuhshared.$(SHARED)
 
 $(WAZUH_LIB): $(WAZUHEXT_LIB) $(AR_PROGRAMS_DEPS)
-	$(OSSEC_SHARED) $(OSSEC_CFLAGS) $(WAZUH_SHARED_SHFLAGS) -o $@ -Wl,-all_load $^ $(OSSEC_LIBS)
+	$(WAZUHD_CC_CMD) -shared  $(OSSEC_CFLAGS) $(WAZUH_SHARED_SHFLAGS) -o $@ -Wl,-all_load $^ $(OSSEC_LIBS)
 else
 ifeq (${TARGET}, winagent)
 $(WAZUH_DLL) $(WAZUH_DEF) : $(WAZUHEXT_DLL) $(AR_PROGRAMS_DEPS) win32/version-dll.o
-	$(OSSEC_SHARED) $(OSSEC_CFLAGS) -UOSSECHIDS -o $(WAZUH_DLL) -static-libgcc -Wl,--export-all-symbols -Wl,--add-stdcall-alias -Wl,--whole-archive $^ -Wl,--no-whole-archive -Wl,--output-def,$(WAZUH_DEF) ${OSSEC_LIBS}
+	$(WAZUHD_CC_CMD) -shared $(OSSEC_CFLAGS) -UOSSECHIDS -o $(WAZUH_DLL) -static-libgcc -Wl,--export-all-symbols -Wl,--add-stdcall-alias -Wl,--whole-archive $^ -Wl,--no-whole-archive -Wl,--output-def,$(WAZUH_DEF) ${OSSEC_LIBS}
 
 $(WAZUH_LIB): $(WAZUH_DLL) $(WAZUH_DEF)
 	$(DLLTOOL)  -D $(WAZUH_DLL) --def $(WAZUH_DEF) --output-delaylib $@
@@ -2272,18 +2284,18 @@ LIBGCC_FLAGS := -Wl,-rpath,\$$ORIGIN
 endif
 ifeq (${uname_P},sparc)
 $(WAZUH_LIB): $(WAZUHEXT_LIB) $(AR_PROGRAMS_DEPS)
-	$(OSSEC_SHARED) $(OSSEC_CFLAGS) -mimpure-text -o $@ $(LIBGCC_FLAGS) -Wl,--whole-archive $^ -Wl,--no-whole-archive ${OSSEC_LIBS}
+	$(WAZUHD_CC_CMD) -shared $(OSSEC_CFLAGS) -mimpure-text -o $@ $(LIBGCC_FLAGS) -Wl,--whole-archive $^ -Wl,--no-whole-archive ${OSSEC_LIBS}
 else
 $(WAZUH_LIB): $(WAZUHEXT_LIB) $(AR_PROGRAMS_DEPS)
-	$(OSSEC_SHARED) $(OSSEC_CFLAGS) -o $@ $(LIBGCC_FLAGS) -Wl,--whole-archive $^ -Wl,--no-whole-archive ${OSSEC_LIBS}
+	$(WAZUHD_CC_CMD) -shared $(OSSEC_CFLAGS) -o $@ $(LIBGCC_FLAGS) -Wl,--whole-archive $^ -Wl,--no-whole-archive ${OSSEC_LIBS}
 endif
 else
 ifneq (,$(filter ${uname_S},AIX HP-UX))
 $(WAZUH_LIB): $(WAZUHEXT_LIB) $(AR_PROGRAMS_DEPS)
-	$(OSSEC_SHARED) $(OSSEC_CFLAGS) $^ ${OSSEC_LIBS} -o $@ -static-libgcc
+	$(WAZUHD_CC_CMD) -shared $(OSSEC_CFLAGS) $^ ${OSSEC_LIBS} -o $@ -static-libgcc
 else
 $(WAZUH_LIB): $(WAZUHEXT_LIB) $(AR_PROGRAMS_DEPS)
-	$(OSSEC_SHARED) $(OSSEC_CFLAGS) -o $@ -Wl,--whole-archive $^ -Wl,--no-whole-archive ${OSSEC_LIBS}
+	$(WAZUHD_CC_CMD) -shared $(OSSEC_CFLAGS) -o $@ -Wl,--whole-archive $^ -Wl,--no-whole-archive ${OSSEC_LIBS}
 endif
 endif
 endif
@@ -2303,22 +2315,22 @@ util_c := $(wildcard util/*.c)
 util_o := $(util_c:.c=.o)
 
 util/%.o: util/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -I./util -DARGV0=\"utils\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -I./util -DARGV0=\"utils\" -c $^ -o $@
 
 clear_stats: util/clear_stats.o
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 verify-agent-conf: util/verify-agent-conf.o
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 agent_control: util/agent_control.o addagent/validate.o
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 wazuh-regex: util/wazuh-regex.o
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 parallel-regex: util/parallel-regex.o
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 #### rootcheck #####
 
@@ -2329,7 +2341,7 @@ rootcheck_o_cmd := $(filter-out rootcheck/config.o, ${rootcheck_o})
 
 
 rootcheck/%.o: rootcheck/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"rootcheck\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${OSSEC_CFLAGS} -DARGV0=\"rootcheck\" -c $^ -o $@
 
 librootcheck.a: ${rootcheck_o_lib}
 	${OSSEC_LINK} $@ $^
@@ -2339,7 +2351,7 @@ librootcheck.a: ${rootcheck_o_lib}
 #### FIM ######
 
 wazuh-syscheckd: librootcheck.a libwazuh.a ${WAZUHEXT_LIB} build_shared_modules
-	cd syscheckd && mkdir -p build && cd build && cmake ${CMAKE_OPTS} -DCMAKE_C_FLAGS="${DEFINES} -pipe -Wall -Wextra -std=gnu99" ${SYSCHECK_TEST} ${SYSCHECK_RELEASE_TYPE} .. && ${MAKE}
+	cd syscheckd && mkdir -p build && cd build && ${WAZUHD_CMAKE_CMD} ${WAZUHD_CMAKE_OPTS} -DCMAKE_C_FLAGS="${DEFINES} -pipe -Wall -Wextra -std=gnu99" ${SYSCHECK_TEST} ${SYSCHECK_RELEASE_TYPE} .. && ${WAZUHD_MAKE_CMD}
 
 #### Monitor #######
 
@@ -2516,7 +2528,7 @@ endif
 endif
 
 wazuh-modulesd: ${wmodulesd_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} ${MODULESD_LDFLAGS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} ${MODULESD_LDFLAGS} -o $@
 
 ### wazuh-gtest-gmock ###
 
