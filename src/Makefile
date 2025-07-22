@@ -2803,7 +2803,10 @@ win32/netsh.exe: win32/netsh_resource.o win32/version-app.o active-response/acti
 #### Clean #########
 ####################
 
-clean: clean-test clean-internals clean-external clean-windows clean-framework clean-config
+clean: clean-test clean-internals clean-external clean-windows clean-framework clean-config clean-fuzzer
+
+clean-fuzzer:
+	rm -f fuzz-*
 
 clean-test:
 	rm -Rf coverage-report/
