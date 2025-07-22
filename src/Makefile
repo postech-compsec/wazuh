@@ -1605,6 +1605,8 @@ endif
 FUZZER_CC_CMD = AFL_USE_ASAN=1 ${AFL_CC}
 FUZZER_CFLAGS = ${OSSEC_CFLAGS} -O0
 
+OSSEC_LDFLAGS+=-Wl,-rpath,$(WAZUH_COMPSEC_HOME)/src/
+OSSEC_LDFLAGS+=-Wl,-rpath,$(WAZUH_COMPSEC_HOME)/src/build/shared_modules/router/
 
 #### zlib ##########
 
@@ -2502,8 +2504,6 @@ wazuh-analysisd: ${analysisd_live_o} analysisd/analysisd-live.o ${output_o} ${fo
 	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 #### FUZZING @COMPSEC - analysisd DecodeSCA #########
-OSSEC_LDFLAGS+=-Wl,-rpath,$(WAZUH_COMPSEC_HOME)/src/
-OSSEC_LDFLAGS+=-Wl,-rpath,$(WAZUH_COMPSEC_HOME)/src/build/shared_modules/router/
 
 fuzz_decode_sca_c := $(wildcard fuzz_decode_sca/*.c)
 fuzz_decode_sca_o := $(fuzz_decode_sca_c:.c=.o)
