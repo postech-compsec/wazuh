@@ -524,11 +524,8 @@ endif
 endif #winagent
 
 OSSEC_CC      		=${QUIET_CC}${MING_BASE}${CC}
-# OSSEC_CC      		=afl-clang-fast
 OSSEC_CCBIN   		=${QUIET_CCBIN}${MING_BASE}${CC}
-# OSSEC_CCBIN   		=afl-clang-fast
 OSSEC_CXXBIN  		=${QUIET_CCBIN}${MING_BASE}${CXX}
-# OSSEC_CXXBIN  		=afl-clang-fast++
 OSSEC_SHARED  		=${QUIET_CCBIN}${MING_BASE}${CC} -shared
 OSSEC_LINK    		=${QUIET_LINK}${MING_BASE}ar -crus
 OSSEC_REMOVE_OBJECT =${QUIET_LINK}${MING_BASE}ar -d
