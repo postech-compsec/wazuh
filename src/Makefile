@@ -2024,16 +2024,34 @@ endif
 endif
 endif
 
+#### FUZZING @COMPSEC - FUZZING MODE SPECIFICATION #########
+
+FUZZ_MODE ?= partial
+
+ifeq ($(FUZZ_MODE), full)
+	WAZUHD_CC_CMD = AFL_USE_ASAN=1 ${AFL_CC}
+	WAZUHD_CFLAGS = ${OSSEC_CFLAGS} -O0
+	WAZUHD_CCBIN_CMD = AFL_USE_ASAN=1 ${AFL_CC}
+else
+	WAZUHD_CC_CMD = ${OSSEC_CC}
+	WAZUHD_CFLAGS = ${OSSEC_CFLAGS}
+	WAZUHD_CCBIN_CMD = ${OSSEC_CCBIN}
+endif
+
+FUZZER_CC_CMD = AFL_USE_ASAN=1 ${AFL_CC}
+FUZZER_CFLAGS = ${OSSEC_CFLAGS} -O0
+
+
 #### os_mail #########
 
 os_maild_c := $(wildcard os_maild/*.c)
 os_maild_o := $(os_maild_c:.c=.o)
 
 os_maild/%.o: os_maild/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-maild\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-maild\" -c $^ -o $@
 
 wazuh-maild: ${os_maild_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 #### os_dbd ##########
 
@@ -2041,10 +2059,10 @@ os_dbd_c := $(wildcard os_dbd/*.c)
 os_dbd_o := $(os_dbd_c:.c=.o)
 
 os_dbd/%.o: os_dbd/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} ${MI} ${PI} -DARGV0=\"wazuh-dbd\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} ${MI} ${PI} -DARGV0=\"wazuh-dbd\" -c $^ -o $@
 
 wazuh-dbd: ${os_dbd_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} ${MI} ${PI} $^  ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} ${MI} ${PI} $^  ${OSSEC_LIBS} -o $@
 
 
 #### os_csyslogd #####
@@ -2053,10 +2071,10 @@ os_csyslogd_c := $(wildcard os_csyslogd/*.c)
 os_csyslogd_o := $(os_csyslogd_c:.c=.o)
 
 os_csyslogd/%.o: os_csyslogd/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-csyslogd\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-csyslogd\" -c $^ -o $@
 
 wazuh-csyslogd: ${os_csyslogd_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 
 #### agentlessd ####
@@ -2065,10 +2083,10 @@ os_agentlessd_c := $(wildcard agentlessd/*.c)
 os_agentlessd_o := $(os_agentlessd_c:.c=.o)
 
 agentlessd/%.o: agentlessd/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-agentlessd\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-agentlessd\" -c $^ -o $@
 
 wazuh-agentlessd: ${os_agentlessd_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 #### os_execd #####
 
@@ -2076,10 +2094,10 @@ os_execd_c := $(wildcard os_execd/*.c)
 os_execd_o := $(os_execd_c:.c=.o)
 
 os_execd/%.o: os_execd/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-execd\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-execd\" -c $^ -o $@
 
 wazuh-execd: ${os_execd_o} active-response/active_responses.o
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 
 #### logcollectord ####
@@ -2089,13 +2107,13 @@ os_logcollector_o := $(os_logcollector_c:.c=.o)
 os_logcollector_eventchannel_o := $(os_logcollector_c:.c=-event.o)
 
 logcollector/%.o: logcollector/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-logcollector\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-logcollector\" -c $^ -o $@
 
 logcollector/%-event.o: logcollector/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DEVENTCHANNEL_SUPPORT -DARGV0=\"wazuh-logcollector\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DEVENTCHANNEL_SUPPORT -DARGV0=\"wazuh-logcollector\" -c $^ -o $@
 
 wazuh-logcollector: ${os_logcollector_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 #### remoted #########
 
@@ -2103,10 +2121,10 @@ remoted_c := $(wildcard remoted/*.c)
 remoted_o := $(remoted_c:.c=.o)
 
 remoted/%.o: remoted/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS}  -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS}  -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
 
 wazuh-remoted: ${remoted_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 #### FUZZING @COMPSEC - remoted #########
 
@@ -2114,12 +2132,12 @@ fuzz_remoted_c := $(wildcard fuzz_remoted/*.c)
 fuzz_remoted_o := $(fuzz_remoted_c:.c=.o)
 
 fuzz_remoted/%.o: fuzz_remoted/%.c
-	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_CFLAGS} -O0  -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS}  -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
 
 remoted_o_for_fuzzing = $(filter-out remoted/main.o, $(remoted_o))
 
 fuzz-remoted: ${fuzz_remoted_o} ${remoted_o_for_fuzzing}
-	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 #### FUZZING @COMPSEC - authd key_request #########
 
@@ -2127,10 +2145,10 @@ fuzz_key_request_c := $(wildcard fuzz_key_request/*.c)
 fuzz_key_request_o := $(fuzz_key_request_c:.c=.o)
 
 fuzz_key_request/%.o: fuzz_key_request/%.c
-	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_CFLAGS} -O0 -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth  -DARGV0=\"wazuh-authd\" -c $^ -o $@
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth  -DARGV0=\"wazuh-authd\" -c $^ -o $@
 
 fuzz-key-request: ${fuzz_key_request_o}
-	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 #### FUZZING @COMPSEC - authd local_dispatch #########
 
@@ -2138,10 +2156,10 @@ fuzz_local_dispatch_c := $(wildcard fuzz_local_dispatch/*.c)
 fuzz_local_dispatch_o := $(fuzz_local_dispatch_c:.c=.o)
 
 fuzz_local_dispatch/%.o: fuzz_local_dispatch/%.c
-	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_CFLAGS} -O0  -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS}  -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
 
 fuzz-local-dispatch: ${fuzz_local_dispatch_o}
-	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 #### wazuh-agentd ####
 
@@ -2149,10 +2167,10 @@ client_agent_c := $(wildcard client-agent/*.c)
 client_agent_o := $(client_agent_c:.c=.o)
 
 client-agent/%.o: client-agent/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -I./client-agent -DARGV0=\"wazuh-agentd\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -I./client-agent -DARGV0=\"wazuh-agentd\" -c $^ -o $@
 
 wazuh-agentd: ${client_agent_o} monitord/rotate_log.o monitord/compress_log.o
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 #### addagent ######
 
@@ -2160,11 +2178,11 @@ addagent_c := $(wildcard addagent/*.c)
 addagent_o := $(addagent_c:.c=.o)
 
 addagent/%.o: addagent/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -I./addagent -DARGV0=\"manage_agents\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -I./addagent -DARGV0=\"manage_agents\" -c $^ -o $@
 
 
 manage_agents: ${addagent_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 #### Active Response ####
 
@@ -2193,43 +2211,43 @@ active_response_c += $(wildcard active-response/firewalls/*.c)
 active_response_o := $(active_response_c:.c=.o)
 
 active-response/%.o: active-response/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -I./active-response -DARGV0=\"active-responses\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -I./active-response -DARGV0=\"active-responses\" -c $^ -o $@
 
 default-firewall-drop: active-response/firewalls/default-firewall-drop.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 pf: active-response/firewalls/pf.o  active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 npf: active-response/firewalls/npf.o  active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 ipfw: active-response/firewalls/ipfw.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 firewalld-drop: active-response/firewalld-drop.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 disable-account: active-response/disable-account.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 host-deny: active-response/host-deny.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 ip-customblock: active-response/ip-customblock.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 restart-wazuh: active-response/restart-wazuh.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 route-null: active-response/route-null.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 kaspersky: active-response/kaspersky.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 wazuh-slack: active-response/wazuh-slack.o active-response/active_responses.o
-	${OSSEC_CCBIN} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${AR_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 
 ### libwazuhshared.so #########
@@ -2332,10 +2350,10 @@ monitor_c := $(wildcard monitord/*.c)
 monitor_o := $(monitor_c:.c=.o)
 
 monitord/%.o: monitord/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-monitord\" -c $< -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-monitord\" -c $< -o $@
 
 wazuh-monitord: ${monitor_o} os_maild/sendcustomemail.o
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 
 #### reportd #######
@@ -2344,10 +2362,10 @@ report_c := reportd/report.c
 report_o := $(report_c:.c=.o)
 
 reportd/%.o: reportd/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-reportd\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-reportd\" -c $^ -o $@
 
 wazuh-reportd: ${report_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 
 #### os_auth #######
@@ -2356,13 +2374,13 @@ os_auth_c := ${wildcard os_auth/*.c}
 os_auth_o := $(os_auth_c:.c=.o)
 
 os_auth/%.o: os_auth/%.c
-	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_CFLAGS} -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
 
 agent-auth: addagent/validate.o os_auth/main-client.o os_auth/ssl.o os_auth/check_cert.o
-	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 wazuh-authd: addagent/validate.o os_auth/main-server.o os_auth/local-server.o os_auth/ssl.o os_auth/check_cert.o os_auth/config.o os_auth/authcom.o os_auth/auth.o os_auth/key_request.o os_auth/generate_cert.o
-	AFL_USE_ASAN=1 ${AFL_CC} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 #### integratord #####
 
@@ -2370,16 +2388,13 @@ integrator_c := ${wildcard os_integrator/*.c}
 integrator_o := $(integrator_c:.c=.o)
 
 os_integrator/%.o: os_integrator/%.c
-	${OSSEC_CC} ${OSSEC_CFLAGS}  -I./os_integrator -DARGV0=\"wazuh-integratord\" -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS}  -I./os_integrator -DARGV0=\"wazuh-integratord\" -c $^ -o $@
 
 wazuh-integratord: ${integrator_o}
-	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 
 #### analysisd #####
-
-ANALYSISD_CC=afl-clang-lto
-ANALYSISD_CCBIN=afl-clang-lto
 
 cdb_c := ${wildcard analysisd/cdb/*.c}
 cdb_o := $(cdb_c:.c=.o)
@@ -2387,7 +2402,7 @@ all_analysisd_o += ${cdb_o}
 all_analysisd_libs += cdb.a
 
 analysisd/cdb/%.o: analysisd/cdb/%.c
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/cdb -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/cdb -c $^ -o $@
 
 cdb.a: ${cdb_o}
 	${OSSEC_LINK} $@ $^
@@ -2400,7 +2415,7 @@ all_analysisd_o += ${alerts_o}
 all_analysisd_libs += alerts.a
 
 analysisd/alerts/%.o: analysisd/alerts/%.c
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/alerts -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/alerts -c $^ -o $@
 
 alerts.a: ${alerts_o}
 	${OSSEC_LINK} $@ $^
@@ -2416,26 +2431,26 @@ all_analysisd_libs += decoders.a decoders-test.a decoders-live.a
 
 
 analysisd/decoders/%-test.o: analysisd/decoders/%.c
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 analysisd/decoders/%-live.o: analysisd/decoders/%.c
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 analysisd/decoders/plugins/%-test.o: analysisd/decoders/plugins/%.c
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 
 analysisd/decoders/plugins/%-live.o: analysisd/decoders/plugins/%.c
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 analysisd/compiled_rules/compiled_rules.h: analysisd/compiled_rules/.function_list analysisd/compiled_rules/register_rule.sh
 	./analysisd/compiled_rules/register_rule.sh build
 
 analysisd/compiled_rules/%-test.o: analysisd/compiled_rules/%.c
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 analysisd/compiled_rules/%-live.o: analysisd/compiled_rules/%.c
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 decoders-live.a: ${decoders_live_o}
 	${OSSEC_LINK} $@ $^
@@ -2448,14 +2463,14 @@ format_o := ${format_c:.c=.o}
 all_analysisd_o += ${format_o}
 
 analysisd/format/%.o: analysisd/format/%.c
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 output_c := ${wildcard analysisd/output/*c}
 output_o := ${output_c:.c=.o}
 all_analysisd_o += ${output_o}
 
 analysisd/output/%.o: analysisd/output/%.c
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -I./analysisd/decoders -c $^ -o $@
 
 analysisd_c := ${filter-out analysisd/logmsg.c, ${filter-out analysisd/analysisd.c, ${filter-out analysisd/testrule.c, ${filter-out analysisd/makelists.c, ${wildcard analysisd/*.c}}}}}
 analysisd_o := ${analysisd_c:.c=.o}
@@ -2466,16 +2481,16 @@ analysisd_live_o := $(analysisd_o:.o=-live.o)
 all_analysisd_o += ${analysisd_test_o} ${analysisd_live_o} analysisd/testrule-test.o analysisd/analysisd-live.o analysisd/analysisd-test.o analysisd/makelists-live.o
 
 analysisd/%-live.o: analysisd/%.c analysisd/compiled_rules/compiled_rules.h
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -c $< -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DARGV0=\"wazuh-analysisd\" -I./analysisd -c $< -o $@
 
 analysisd/%-test.o: analysisd/%.c analysisd/compiled_rules/compiled_rules.h
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -c $< -o $@
+	${WAZUHD_CC_CMD} ${WAZUHD_CFLAGS} -DTESTRULE -DARGV0=\"wazuh-analysisd\" -I./analysisd -c $< -o $@
 
 wazuh-logtest-legacy: ${analysisd_test_o} ${output_o} ${format_o} analysisd/testrule-test.o analysisd/analysisd-test.o alerts.a cdb.a decoders-test.a
-	AFL_USE_ASAN=1 ${ANALYSISD_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 wazuh-analysisd: ${analysisd_live_o} analysisd/analysisd-live.o ${output_o} ${format_o} alerts.a cdb.a decoders-live.a analysisd/logmsg.o
-	AFL_USE_ASAN=1 ${ANALYSISD_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
 
 #### FUZZING @COMPSEC - analysisd DecodeSCA #########
 OSSEC_LDFLAGS+=-Wl,-rpath,$(WAZUH_COMPSEC_HOME)/src/
@@ -2485,12 +2500,12 @@ fuzz_decode_sca_c := $(wildcard fuzz_decode_sca/*.c)
 fuzz_decode_sca_o := $(fuzz_decode_sca_c:.c=.o)
 
 fuzz_decode_sca/%.o: fuzz_decode_sca/%.c
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_CFLAGS} -O0  -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
 
 analysisd_o_for_fuzzing = ${analysisd_live_o} analysisd/analysisd-test.o ${output_o} ${format_o} alerts.a cdb.a decoders-live.a analysisd/logmsg.o
 
 fuzz-decode-sca: ${fuzz_decode_sca_o} ${analysisd_o_for_fuzzing}
-	AFL_USE_ASAN=1 ${ANALYSISD_CC} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 ### wazuh-modulesd ##
 
