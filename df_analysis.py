@@ -61,8 +61,10 @@ def find_invoking_functions(file_path, symbols):
             CursorKind.CXX_METHOD,
             CursorKind.FUNCTION_TEMPLATE
         ):
-            current_func = node
-            print("FUNC:", current_func.spelling)
+            # tell definitions from forward declarations
+            if node.is_definition():
+                current_func = node
+                print("FUNC:", current_func.spelling)
 
         # Detect call expressions by examining callee reference nodes
         if node.kind == CursorKind.CALL_EXPR and current_func:
