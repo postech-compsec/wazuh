@@ -11,8 +11,8 @@ def find_invoking_functions(file_path, symbols):
     """
     print("f:", file_path)
     index = Index.create()
-    try: tu = index.parse(file_path,
-                options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD)
+    try:
+        tu = index.parse(file_path)
     except Exception as e:
         sys.stderr.write(f"Failed to parse {file_path}: {e}\n")
         return set()
