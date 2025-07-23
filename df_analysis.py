@@ -90,7 +90,7 @@ def find_invoking_functions(file_path, symbols, file_args=None):
             elif node.kind == CursorKind.CALL_EXPR:
                 if node.spelling:
                     if node.spelling in symbols:
-                        # case 2-1: call expr that's spelled out (e.g., assert)
+                        # case 2-1: call expr that"s spelled out (e.g., assert)
                         # print("found (2-1)", node.spelling)
                         matches.add(current_func)
                 else:
@@ -138,7 +138,7 @@ def walk_dir(source_dir, symbols, compile_db):
     results = {}
     for root, dirs, files in os.walk(source_dir):
         for fname in files:
-            if fname.lower().endswith(('.c', '.cpp', '.cc', '.cxx', '.c')):
+            if fname.lower().endswith((".c", ".cpp", ".cc", ".cxx", ".c")):
                 path = os.path.abspath(os.path.join(root, fname))
                 if compile_db and path in compile_db:
                     file_args = compile_db.get(path)
@@ -156,7 +156,7 @@ def walk_dir(source_dir, symbols, compile_db):
         # for fname in files:
             # # if fname != "secure.c":
                 # # continue
-            # if fname.endswith(('.c', '.cpp', '.cc', '.cxx', '.C')):
+            # if fname.endswith((".c", ".cpp", ".cc", ".cxx", ".C")):
                 # path = os.path.join(root, fname)
                 # invoking = find_invoking_functions(path, symbols)
                 # if invoking:
@@ -178,7 +178,7 @@ def pprint(results):
 
 def load_compile_commands(db_path):
     try:
-        with open(db_path, 'r') as f:
+        with open(db_path, "r") as f:
             entries = json.load(f)
     except Exception as e:
         sys.stderr.write(f"Failed to load compile commands database: {e}")
@@ -187,12 +187,12 @@ def load_compile_commands(db_path):
     db = {}
     for entry in entries:
         # Normalize path
-        filepath = os.path.abspath(os.path.join(entry.get('directory', ''), entry.get('file', '')))
+        filepath = os.path.abspath(os.path.join(entry.get("directory", ""), entry.get("file", "")))
         # Combine command or arguments
-        if 'arguments' in entry:
-            args = entry['arguments'][1:] if entry['arguments'] else []
+        if "arguments" in entry:
+            args = entry["arguments"][1:] if entry["arguments"] else []
         else:
-            cmd = entry.get('command', '')
+            cmd = entry.get("command", "")
             # Simple split; more robust parsing may be needed
             args = cmd.split()[1:]
         db[filepath] = args
@@ -200,13 +200,13 @@ def load_compile_commands(db_path):
     return db
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-p", "--path", required=True, help="Src directory path"
     )
     parser.add_argument(
-        "-s", "--symbols", nargs='+', required=True,
+        "-s", "--symbols", nargs="+", required=True,
         help="List of function names (symbols) to search for"
     )
     parser.add_argument(
