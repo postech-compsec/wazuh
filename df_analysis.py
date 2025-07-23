@@ -138,7 +138,7 @@ def walk_dir(source_dir, symbols, compile_db):
     results = {}
     for root, dirs, files in os.walk(source_dir):
         for fname in files:
-            if fname.lower().endswith((".c", ".cpp", ".cc", ".cxx", ".c")):
+            if fname.lower().endswith((".c", ".cpp", ".cc", ".cxx")):
                 path = os.path.abspath(os.path.join(root, fname))
                 if compile_db and path in compile_db:
                     file_args = compile_db.get(path)
