@@ -60,10 +60,10 @@ def find_invoking_functions(file_path, symbols, file_args=None):
 
     def visit(node, current_func, depth):
         width = "| " * (depth - 1)
-        # if current_func is None:
-            # print(f"{width}+{node.kind}: {node.displayname}")
-        # else:
-            # print(f"{current_func.spelling} {width}+{node.kind}: {node.displayname}")
+        if current_func is None:
+            print(f"{width}+{node.kind}: {node.displayname}")
+        else:
+            print(f"{current_func.spelling} {width}+{node.kind}: {node.displayname}")
         depth += 1
 
         if node.kind in (
@@ -74,7 +74,7 @@ def find_invoking_functions(file_path, symbols, file_args=None):
             # tell definitions from forward declarations
             if node.is_definition():
                 current_func = node
-                # print(f"\n----- FUNC: {current_func.spelling} -----")
+                print(f"\n----- FUNC: {current_func.spelling} -----")
 
         # Detect call expressions by examining callee reference nodes
         # if node.kind == CursorKind.CALL_EXPR and current_func:
@@ -91,23 +91,17 @@ def find_invoking_functions(file_path, symbols, file_args=None):
                 if node.spelling:
                     if node.spelling in symbols:
                         # case 2-1: call expr that"s spelled out (e.g., assert)
-                        # print("found (2-1)", node.spelling)
+                        print("found (2-1)", node.spelling)
                         matches.add(current_func)
                 else:
                     # case 2-2: call expr with empty spelling
-                    show = False
                     tokens = list(node.get_tokens())
                     if len(tokens) < MACRO_THRES: # dirty hack for skipping macros
                         for token in tokens:
                             # print(token.spelling)
                             if token.spelling in symbols:
-                                # print("found (2-2)", node.spelling, token.spelling)
+                                print("found (2-2)", node.spelling, token.spelling)
                                 matches.add(current_func)
-                                # show = True
-
-                        if show:
-                            for token in tokens:
-                                print(token.spelling)
 
             elif node.kind == CursorKind.UNEXPOSED_EXPR and not node.spelling:
                 tokens = list(node.get_tokens())
@@ -116,19 +110,20 @@ def find_invoking_functions(file_path, symbols, file_args=None):
                     for token in tokens:
                         # print(token.spelling)
                         if token.spelling in symbols:
-                            # print("found (3)", node.spelling, token.spelling)
+                            print("found (3)", node.spelling, token.spelling)
                             matches.add(current_func)
-                            # show = True
 
-                    if show:
-                        for token in tokens:
-                            print(token.spelling)
+            elif node.kind == CursorKind.COMPOUND_STMT:
+                tokens = list(node.get_tokens())
+                for token in tokens:
+                    if token.spelling in symbols:
+                        print("found (4)", node.spelling, token.spelling)
+                        matches.add(current_func)
 
         # visit all children if the node belongs to the current source file
         if node.location.file is None or node.location.file.name == file_path:
             for child in node.get_children():
                 visit(child, current_func, depth)
-
 
     visit(tu.cursor, None, depth=0)
     return matches
@@ -139,6 +134,8 @@ def walk_dir(source_dir, symbols, compile_db):
     for root, dirs, files in os.walk(source_dir):
         for fname in files:
             if fname.lower().endswith((".c", ".cpp", ".cc", ".cxx")):
+                # if fname != "secure.c":
+                    # continue
                 path = os.path.abspath(os.path.join(root, fname))
                 if compile_db and path in compile_db:
                     file_args = compile_db.get(path)
