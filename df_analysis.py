@@ -3,6 +3,7 @@ import sys
 import argparse
 from clang.cindex import Index, CursorKind, Config, TranslationUnit, TokenKind
 
+MACRO_THRES = 32
 
 def find_invoking_functions(file_path, symbols):
     """
@@ -12,7 +13,10 @@ def find_invoking_functions(file_path, symbols):
     print("f:", file_path)
     index = Index.create()
     try:
-        tu = index.parse(file_path)
+        tu = index.parse(
+            file_path,
+            options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
+        )
     except Exception as e:
         sys.stderr.write(f"Failed to parse {file_path}: {e}\n")
         return set()
@@ -21,7 +25,7 @@ def find_invoking_functions(file_path, symbols):
 
     def is_target_call(node):
         if node.kind == CursorKind.CALL_EXPR:
-            print(node.kind, node.spelling)
+            # print(node.kind, node.spelling)
             tokens = list(node.get_tokens())
             for token in tokens:
                 if token.spelling in symbols:
@@ -53,7 +57,11 @@ def find_invoking_functions(file_path, symbols):
         return False
 
     def visit(node, current_func, depth):
-        print(" " * depth, "+", node.kind, node.spelling)
+        width = "| " * (depth - 1)
+        if current_func is None:
+            print(f"{width}+{node.kind}: {node.displayname}")
+        else:
+            print(f"{current_func.spelling} {width}+{node.kind}: {node.displayname}")
         depth += 1
 
         if node.kind in (
@@ -64,16 +72,61 @@ def find_invoking_functions(file_path, symbols):
             # tell definitions from forward declarations
             if node.is_definition():
                 current_func = node
-                print("FUNC:", current_func.spelling)
+                print(f"\n----- FUNC: {current_func.spelling} -----")
 
         # Detect call expressions by examining callee reference nodes
-        if node.kind == CursorKind.CALL_EXPR and current_func:
-            if is_target_call(node):
-                matches.add(current_func)
+        # if node.kind == CursorKind.CALL_EXPR and current_func:
+            # if is_target_call(node):
+                # matches.add(current_func)
 
-        # visit all children
-        for child in node.get_children():
-            visit(child, current_func, depth)
+        # only look into the body of a function definition
+        if current_func:
+            if node.kind == CursorKind.FUNCTION_DECL:
+                # case 1: node itself is a symbol (due to decl, gotta skip!)
+                pass
+
+            elif node.kind == CursorKind.CALL_EXPR:
+                if node.spelling:
+                    if node.spelling in symbols:
+                        # case 2-1: call expr that's spelled out (e.g., assert)
+                        print("found (2-1)", node.spelling)
+                        matches.add(current_func)
+                else:
+                    # case 2-2: call expr with empty spelling
+                    show = False
+                    tokens = list(node.get_tokens())
+                    if len(tokens) < MACRO_THRES: # dirty hack for skipping macros
+                        for token in tokens:
+                            # print(token.spelling)
+                            if token.spelling in symbols:
+                                print("found (2-2)", node.spelling, token.spelling)
+                                matches.add(current_func)
+                                show = True
+
+                        if show:
+                            for token in tokens:
+                                print(token.spelling)
+
+            elif node.kind == CursorKind.UNEXPOSED_EXPR and not node.spelling:
+                tokens = list(node.get_tokens())
+                if len(tokens) < MACRO_THRES: # dirty hack for skipping macros
+                    show = False
+                    for token in tokens:
+                        # print(token.spelling)
+                        if token.spelling in symbols:
+                            print("found (3)", node.spelling, token.spelling)
+                            matches.add(current_func)
+                            show = True
+
+                    if show:
+                        for token in tokens:
+                            print(token.spelling)
+
+        # visit all children if the node belongs to the current source file
+        if node.location.file is None or node.location.file.name == file_path:
+            for child in node.get_children():
+                visit(child, current_func, depth)
+
 
     visit(tu.cursor, None, depth=0)
     return matches
@@ -83,8 +136,8 @@ def walk_dir(source_dir, symbols):
     results = {}
     for root, dirs, files in os.walk(source_dir):
         for fname in files:
-            # if fname != "secure.c":
-                # continue
+            if fname != "secure.c":
+                continue
             if fname.endswith(('.c', '.cpp', '.cc', '.cxx', '.C')):
                 path = os.path.join(root, fname)
                 invoking = find_invoking_functions(path, symbols)
@@ -98,8 +151,11 @@ def pprint(results):
     for path, funcs in results.items():
         print(f"\nIn file: {path}")
         for fn in funcs:
-            loc = fn.location
-            print(f"  - {fn.spelling} (line {loc.line}, col {loc.column})")
+            try:
+                loc = fn.location
+                print(f"  - {fn.spelling} (line {loc.line}, col {loc.column})")
+            except:
+                pass
 
 
 if __name__ == '__main__':
