@@ -195,7 +195,13 @@ def load_compile_commands(db_path):
             cmd = entry.get("command", "")
             # Simple split; more robust parsing may be needed
             args = cmd.split()[1:]
-        db[filepath] = args
+
+        try:
+            filtered_args = args[:args.index("-o")]
+        except ValueError:
+            filtered_args = args
+
+        db[filepath] = filtered_args
 
     return db
 
