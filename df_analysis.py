@@ -83,8 +83,8 @@ def walk_dir(source_dir, symbols):
     results = {}
     for root, dirs, files in os.walk(source_dir):
         for fname in files:
-            if fname != "secure.c":
-                continue
+            # if fname != "secure.c":
+                # continue
             if fname.endswith(('.c', '.cpp', '.cc', '.cxx', '.C')):
                 path = os.path.join(root, fname)
                 invoking = find_invoking_functions(path, symbols)
