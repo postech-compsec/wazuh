@@ -1,11 +1,12 @@
 import os
 import sys
 import argparse
+import json
 from clang.cindex import Index, CursorKind, Config, TranslationUnit, TokenKind
 
 MACRO_THRES = 32
 
-def find_invoking_functions(file_path, symbols):
+def find_invoking_functions(file_path, symbols, file_args=None):
     """
     Parse the given file with libclang and return a set of function definitions
     (Cursor objects) that contain calls to any of the symbols.
@@ -15,6 +16,7 @@ def find_invoking_functions(file_path, symbols):
     try:
         tu = index.parse(
             file_path,
+            args=file_args,
             options=TranslationUnit.PARSE_DETAILED_PROCESSING_RECORD
         )
     except Exception as e:
@@ -58,10 +60,10 @@ def find_invoking_functions(file_path, symbols):
 
     def visit(node, current_func, depth):
         width = "| " * (depth - 1)
-        if current_func is None:
-            print(f"{width}+{node.kind}: {node.displayname}")
-        else:
-            print(f"{current_func.spelling} {width}+{node.kind}: {node.displayname}")
+        # if current_func is None:
+            # print(f"{width}+{node.kind}: {node.displayname}")
+        # else:
+            # print(f"{current_func.spelling} {width}+{node.kind}: {node.displayname}")
         depth += 1
 
         if node.kind in (
@@ -72,7 +74,7 @@ def find_invoking_functions(file_path, symbols):
             # tell definitions from forward declarations
             if node.is_definition():
                 current_func = node
-                print(f"\n----- FUNC: {current_func.spelling} -----")
+                # print(f"\n----- FUNC: {current_func.spelling} -----")
 
         # Detect call expressions by examining callee reference nodes
         # if node.kind == CursorKind.CALL_EXPR and current_func:
@@ -89,7 +91,7 @@ def find_invoking_functions(file_path, symbols):
                 if node.spelling:
                     if node.spelling in symbols:
                         # case 2-1: call expr that's spelled out (e.g., assert)
-                        print("found (2-1)", node.spelling)
+                        # print("found (2-1)", node.spelling)
                         matches.add(current_func)
                 else:
                     # case 2-2: call expr with empty spelling
@@ -99,9 +101,9 @@ def find_invoking_functions(file_path, symbols):
                         for token in tokens:
                             # print(token.spelling)
                             if token.spelling in symbols:
-                                print("found (2-2)", node.spelling, token.spelling)
+                                # print("found (2-2)", node.spelling, token.spelling)
                                 matches.add(current_func)
-                                show = True
+                                # show = True
 
                         if show:
                             for token in tokens:
@@ -114,9 +116,9 @@ def find_invoking_functions(file_path, symbols):
                     for token in tokens:
                         # print(token.spelling)
                         if token.spelling in symbols:
-                            print("found (3)", node.spelling, token.spelling)
+                            # print("found (3)", node.spelling, token.spelling)
                             matches.add(current_func)
-                            show = True
+                            # show = True
 
                     if show:
                         for token in tokens:
@@ -132,19 +134,35 @@ def find_invoking_functions(file_path, symbols):
     return matches
 
 
-def walk_dir(source_dir, symbols):
+def walk_dir(source_dir, symbols, compile_db):
     results = {}
     for root, dirs, files in os.walk(source_dir):
         for fname in files:
-            if fname != "secure.c":
-                continue
-            if fname.endswith(('.c', '.cpp', '.cc', '.cxx', '.C')):
-                path = os.path.join(root, fname)
-                invoking = find_invoking_functions(path, symbols)
-                if invoking:
-                    results[path] = invoking
+            if fname.lower().endswith(('.c', '.cpp', '.cc', '.cxx', '.c')):
+                path = os.path.abspath(os.path.join(root, fname))
+                if compile_db and path in compile_db:
+                    file_args = compile_db.get(path)
+                else:
+                    file_args = None
+
+                funcs = find_invoking_functions(path, symbols, file_args)
+                if funcs:
+                    results[path] = funcs
 
     return results
+
+    # results = {}
+    # for root, dirs, files in os.walk(source_dir):
+        # for fname in files:
+            # # if fname != "secure.c":
+                # # continue
+            # if fname.endswith(('.c', '.cpp', '.cc', '.cxx', '.C')):
+                # path = os.path.join(root, fname)
+                # invoking = find_invoking_functions(path, symbols)
+                # if invoking:
+                    # results[path] = invoking
+
+    # return results
 
 
 def pprint(results):
@@ -158,6 +176,30 @@ def pprint(results):
                 pass
 
 
+def load_compile_commands(db_path):
+    try:
+        with open(db_path, 'r') as f:
+            entries = json.load(f)
+    except Exception as e:
+        sys.stderr.write(f"Failed to load compile commands database: {e}")
+        return {}
+
+    db = {}
+    for entry in entries:
+        # Normalize path
+        filepath = os.path.abspath(os.path.join(entry.get('directory', ''), entry.get('file', '')))
+        # Combine command or arguments
+        if 'arguments' in entry:
+            args = entry['arguments'][1:] if entry['arguments'] else []
+        else:
+            cmd = entry.get('command', '')
+            # Simple split; more robust parsing may be needed
+            args = cmd.split()[1:]
+        db[filepath] = args
+
+    return db
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -167,9 +209,17 @@ if __name__ == '__main__':
         "-s", "--symbols", nargs='+', required=True,
         help="List of function names (symbols) to search for"
     )
+    parser.add_argument(
+        "--compile-db", required=False,
+        help="Path to compile_commands.json file to load compile arguments"
+    )
     args = parser.parse_args()
 
-    results = walk_dir(args.path, set(args.symbols))
+    compile_db = None
+    if args.compile_db:
+        compile_db = load_compile_commands(args.compile_db)
+
+    results = walk_dir(args.path, set(args.symbols), compile_db)
     if not results:
         print("No invoking functions found.")
     else:
