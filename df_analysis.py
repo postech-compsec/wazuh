@@ -218,6 +218,8 @@ if __name__ == "__main__":
     compile_db = None
     if args.compile_db:
         compile_db = load_compile_commands(args.compile_db)
+    else:
+        print("Provide compile_commands.json. Run: $ bear make [options]")
 
     results = walk_dir(args.path, set(args.symbols), compile_db)
     if not results:
