@@ -90,7 +90,7 @@ def find_invoking_functions(file_path, symbols, file_args=None):
             elif node.kind == CursorKind.CALL_EXPR:
                 if node.spelling:
                     if node.spelling in symbols:
-                        # case 2-1: call expr that"s spelled out (e.g., assert)
+                        # case 2-1: call expr that's spelled out (e.g., assert)
                         print("found (2-1)", node.spelling)
                         matches.add(current_func)
                 else:
@@ -148,19 +148,6 @@ def walk_dir(source_dir, symbols, compile_db):
 
     return results
 
-    # results = {}
-    # for root, dirs, files in os.walk(source_dir):
-        # for fname in files:
-            # # if fname != "secure.c":
-                # # continue
-            # if fname.endswith((".c", ".cpp", ".cc", ".cxx", ".C")):
-                # path = os.path.join(root, fname)
-                # invoking = find_invoking_functions(path, symbols)
-                # if invoking:
-                    # results[path] = invoking
-
-    # return results
-
 
 def pprint(results):
     for path, funcs in results.items():
@@ -184,7 +171,10 @@ def load_compile_commands(db_path):
     db = {}
     for entry in entries:
         # Normalize path
-        filepath = os.path.abspath(os.path.join(entry.get("directory", ""), entry.get("file", "")))
+        filepath = os.path.abspath(
+            os.path.join(entry.get("directory", ""), entry.get("file", ""))
+        )
+
         # Combine command or arguments
         if "arguments" in entry:
             args = entry["arguments"][1:] if entry["arguments"] else []
