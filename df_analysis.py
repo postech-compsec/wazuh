@@ -136,7 +136,13 @@ def walk_dir(source_dir, symbols, compile_db):
             if fname.lower().endswith((".c", ".cpp", ".cc", ".cxx")):
                 # if fname != "secure.c":
                     # continue
+                if "unit_tests" in root:
+                    continue
+                if "fuzz_" in root:
+                    continue
+
                 path = os.path.abspath(os.path.join(root, fname))
+
                 if compile_db and path in compile_db:
                     file_args = compile_db.get(path)
                 else:
