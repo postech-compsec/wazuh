@@ -97,6 +97,9 @@ agentlessd_calls = [
     ("src/agentlessd/agentlessd.c\nrun_periodic_cmd", "src/agentlessd/agentlessd.c\nsend_intcheck_msg"),
 ]
 
+# TODO: enumerate relevant modules
+
+# TODO: @chiheon
 analysisd_nodes = [
     {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "DEFAULTQUEUE", "action": "RECV"},
 ]
