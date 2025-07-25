@@ -46,8 +46,57 @@ import matplotlib.pyplot as plt
 # 1. It's okay to skip intermediate calls
 # 2. Use the exact label format we use in G.add_node(label) (currently: src\nfunc)
 
+nodes = list()
+calls = list()
+
 external_nodes = [
     {"module": "NETWORK", "src": "", "func": "", "medium": "UDP:1514", "action": "SEND"},
+]
+nodes.append(external_nodes)
+
+addagent_nodes = [
+]
+nodes.append(addagent_nodes)
+
+addagent_calls = [
+    ("src/addagent/manage_agents.c\nadd_agent", "src/shared/agent_op.c\nw_request_agent_add_local"),
+    ("src/addagent/manage_agents.c\nremove_agent", "src/shared/auth_client.c\nauth_remove_agent"),
+]
+calls.append(addagent_calls)
+
+agentlessd_nodes = [
+    {"module": "agentlessd", "src": "src/agentlessd/lessdcom.c", "func": "lessdcom_main", "medium": "LESSD_LOCAL_SOCK", "action": "RECV"},
+    {"module": "agentlessd", "src": "src/agentlessd/agentlessd.c", "func": "send_intcheck_msg", "medium": "DEFAULTQUEUE", "action": "SEND"},
+    {"module": "agentlessd", "src": "src/agentlessd/agentlessd.c", "func": "send_log_msg", "medium": "DEFAULTQUEUE", "action": "SEND"},
+    {"module": "agentlessd", "src": "src/agentlessd/agentlessd.c", "func": "gen_diff_alert", "medium": "DEFAULTQUEUE", "action": "SEND"},
+]
+nodes.append(agentlessd_nodes)
+
+agentlessd_calls = [
+    ("src/agentlessd/agentlessd.c\nAgentlessd", "src/agentlessd/agentlessd.c\nrun_periodic_cmd"),
+    ("src/agentlessd/agentlessd.c\nrun_periodic_cmd", "src/agentlessd/agentlessd.c\nsend_intcheck_msg"),
+    ("src/agentlessd/agentlessd.c\nrun_periodic_cmd", "src/agentlessd/agentlessd.c\nsend_log_msg"),
+    ("src/agentlessd/agentlessd.c\nrun_periodic_cmd", "src/agentlessd/agentlessd.c\nsend_intcheck_msg"),
+]
+calls.append(agentlessd_calls)
+
+logcollector_nodes = [
+    {"module": "logcollector", "src": "src/logcollector/lccom.c", "func": "lccom_main", "medium": "LC_LOCAL_SOCK", "action": "RECV"},
+    {"module": "logcollector", "src": "src/logcollector/logcollector.c", "func": "w_output_thread", "medium": "DEFAULTQUEUE", "action": "SEND"},
+]
+nodes.append(logcollector_nodes)
+
+monitord_nodes = [
+    {"module": "monitord", "src": "src/monitord/moncom.c", "func": "moncom_main", "medium": "MON_LOCAL_SOCK", "action": "RECV"},
+    {"module": "monitord", "src": "src/monitord/monitord.c", "func": "monitor_queue_connect", "medium": "DEFAULTQUEUE", "action": "SEND"},
+    {"module": "monitord", "src": "src/monitord/monitor_actions.c", "func": "monitor_send_deletion_msg", "medium": "DEFAULTQUEUE", "action": "SEND"},
+    {"module": "monitord", "src": "src/monitord/monitor_actions.c", "func": "mon_send_agent_msg", "medium": "DEFAULTQUEUE", "action": "SEND"},
+]
+nodes.append(monitord_nodes)
+
+
+shared_nodes = [
+
 ]
 
 remoted_nodes = [
@@ -62,52 +111,55 @@ remoted_nodes = [
     {"module": "remoted", "src": "src/remoted/secure.c", "func": "send_key_request", "medium": "KEY_REQUEST_SOCK", "action": "SEND"},
     {"module": "remoted", "src": "src/remoted/remcom.c", "func": "remcom_main", "medium": "REMOTE_LOCAL_SOCK", "action": "RECV"},
 ]
+nodes.append(remoted_nodes)
+
 remoted_calls = [
     ("src/remoted/secure.c\nrem_handler_main", "src/remoted/secure.c\nHandleSecureMessage"),
     ("src/remoted/secure.c\nHandleSecureMessage", "src/remoted/manager.c\nsave_controlmsg"),
     ("src/remoted/ar-forward.c\nAR_Forward", "src/remoted/sendmsg.c\nsend_msg"),
     ("src/remoted/cfga-forward.c\nSCFGA_Forward", "src/remoted/sendmsg.c\nsend_msg"),
 ]
+calls.append(remoted_calls)
 
 syscheckd_nodes = [
     {"module": "syscheckd", "src": "src/syscheckd/syscom.c", "func": "syscom_main", "medium": "SYS_LOCAL_SOCK", "action": "RECV"},
     {"module": "syscheckd", "src": "src/syscheckd/run_check.c", "func": "fim_send_msg", "medium": "DEFAULTQUEUE", "action": "SEND"},
 ]
+nodes.append(syscheckd_nodes)
+
 syscheckd_calls = [
     ("src/syscheckd/main.c\nmain", "src/syscheckd/run_check.c\nstart_daemon"),
     ("src/syscheckd/run_check.c\nstart_daemon", "src/syscheckd/run_check.c\nfim_send_msg"),
 ]
+calls.append(syscheckd_calls)
 
 rootcheckd_nodes = [
     {"module": "rootcheckd", "src": "src/rootcheck/run_rk_check.c", "func": "notify_rk", "medium": "DEFAULTQUEUE", "action": "SEND"},
 ]
+nodes.append(rootcheckd_nodes)
+
 rootcheckd_calls = [
 ]
+calls.append(rootcheckd_calls)
 
-agentlessd_nodes = [
-    {"module": "agentlessd", "src": "src/agentlessd/lessdcom.c", "func": "lessdcom_main", "medium": "LESSD_LOCAL_SOCK", "action": "RECV"},
-    {"module": "agentlessd", "src": "src/agentlessd/agentlessd.c", "func": "send_intcheck_msg", "medium": "DEFAULTQUEUE", "action": "SEND"},
-    {"module": "agentlessd", "src": "src/agentlessd/agentlessd.c", "func": "send_log_msg", "medium": "DEFAULTQUEUE", "action": "SEND"},
-    {"module": "agentlessd", "src": "src/agentlessd/agentlessd.c", "func": "gen_diff_alert", "medium": "DEFAULTQUEUE", "action": "SEND"},
-]
-agentlessd_calls = [
-    ("src/agentlessd/agentlessd.c\nAgentlessd", "src/agentlessd/agentlessd.c\nrun_periodic_cmd"),
-    ("src/agentlessd/agentlessd.c\nrun_periodic_cmd", "src/agentlessd/agentlessd.c\nsend_intcheck_msg"),
-    ("src/agentlessd/agentlessd.c\nrun_periodic_cmd", "src/agentlessd/agentlessd.c\nsend_log_msg"),
-    ("src/agentlessd/agentlessd.c\nrun_periodic_cmd", "src/agentlessd/agentlessd.c\nsend_intcheck_msg"),
-]
-
-# TODO: enumerate relevant modules
 
 # TODO: @chiheon
 analysisd_nodes = [
     {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "DEFAULTQUEUE", "action": "RECV"},
 ]
+nodes.append(analysisd_nodes)
+
 analysisd_calls = [
 ]
+calls.append(analysisd_calls)
 
-all_nodes = external_nodes + remoted_nodes + syscheckd_nodes + rootcheckd_nodes + agentlessd_nodes + analysisd_nodes
-all_calls = remoted_calls + syscheckd_calls + rootcheckd_calls + agentlessd_calls + analysisd_calls
+all_nodes = list()
+for node in nodes:
+    all_nodes += node
+
+all_calls = list()
+for call in calls:
+    all_calls += call
 
 G = nx.DiGraph()
 medium_map = defaultdict(lambda: {"SEND": [], "RECV": []})
