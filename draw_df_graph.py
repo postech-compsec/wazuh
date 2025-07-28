@@ -127,9 +127,24 @@ dbd_nodes = [
 dbd_calls = [
 ]
 
-shared_nodes = [
-
+execd_nodes = [
+    {"module": "execd", "src": "src/os_execd/execd.c", "func": "ExecdStart", "medium": "EXECQUEUE", "action": "RECV"},
+    {"module": "execd", "src": "src/os_execd/wcom.c", "func": "wcom_main", "medium": "COM_LOCAL_SOCK", "action": "RECV"}, # RECV then SEND
+    {"module": "execd", "src": "src/os_execd/config.c", "func": "getClusterConfig", "medium": "CLUSTER_SOCK", "action": "RECV"}, # SEND then RECV
 ]
+nodes.append(execd_nodes)
+
+integratord_nodes = [
+    {"module": "integratord", "src": "src/os_integratord/intgcom.c", "func": "intgcom_main", "medium": "INTG_LOCAL_SOCK", "action": "RECV"}, # RECV then SEND
+]
+# TODO: jfileq
+nodes.append(integratord_nodes)
+
+maild_nodes = [
+    {"module": "maild", "src": "src/os_maild/mailcom.c", "func": "mailcom_mail", "medium": "MAIL_LOCAL_SOCK", "action": "RECV"}, # RECV then SEND
+]
+# TODO: smtp-related dataflow
+nodes.append(maild_nodes)
 
 remoted_nodes = [
     {"module": "remoted", "src": "src/remoted/ar-forward.c", "func": "AR_Forward", "medium": "ARQUEUE", "action": "RECV"},
@@ -153,6 +168,21 @@ remoted_calls = [
 ]
 calls.append(remoted_calls)
 
+rootcheckd_nodes = [
+    {"module": "rootcheckd", "src": "src/rootcheck/run_rk_check.c", "func": "notify_rk", "medium": "DEFAULTQUEUE", "action": "SEND"},
+]
+nodes.append(rootcheckd_nodes)
+
+rootcheckd_calls = [
+]
+calls.append(rootcheckd_calls)
+
+shared_nodes = [
+    {"module": "shared", "src": "src/shared/agent_op.c", "func": "w_send_clustered_message", "medium": "CLUSTER_SOCK", "action": "SEND"}, # SEND then RECV
+]
+# TODO: enrollment-related
+nodes.append(shared_nodes)
+
 syscheckd_nodes = [
     {"module": "syscheckd", "src": "src/syscheckd/syscom.c", "func": "syscom_main", "medium": "SYS_LOCAL_SOCK", "action": "RECV"},
     {"module": "syscheckd", "src": "src/syscheckd/run_check.c", "func": "fim_send_msg", "medium": "DEFAULTQUEUE", "action": "SEND"},
@@ -163,19 +193,21 @@ syscheckd_calls = [
     ("src/syscheckd/main.c\nmain", "src/syscheckd/run_check.c\nstart_daemon"),
     ("src/syscheckd/run_check.c\nstart_daemon", "src/syscheckd/run_check.c\nfim_send_msg"),
 ]
+# TODO: check audit-related code (disabled by default)
 calls.append(syscheckd_calls)
 
-rootcheckd_nodes = [
-    {"module": "rootcheckd", "src": "src/rootcheck/run_rk_check.c", "func": "notify_rk", "medium": "DEFAULTQUEUE", "action": "SEND"},
+wazuh_db_nodes = [
+    {"module": "wazuh_db", "src": "src/wazuh_db/main.c", "func": "run_worker", "medium": "WDB_LOCAL_SOCK", "action": "RECV"}, # RECV then SEND
 ]
-nodes.append(rootcheckd_nodes)
+nodes.append(wazuh_db_nodes)
 
-rootcheckd_calls = [
+wazuh_modules_nodes = [
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/wm_control.c", "func": "send_ip", "medium": "CONTROL_SOCK", "action": "RECV"}, # RECV then SEND
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/wm_download.c", "func": "wm_download_main", "medium": "WM_DOWNLOAD_SOCK", "action": "RECV"}, # RECV then SEND
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/wm_fluent.c", "func": "wm_fluent_main", "medium": "WM_DOWNLOAD_SOCK", "action": "RECV"}, # RECV then SEND
 ]
-calls.append(rootcheckd_calls)
 
 
-# TODO: @chiheon
 analysisd_nodes = [
     {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "DEFAULTQUEUE", "action": "RECV"},
     {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "decode_queue_syscheck_input", "action": "SEND"},
@@ -241,6 +273,7 @@ for medium, groups in medium_map.items():
 
 # Add edges for function calls
 for call in all_calls:
+    print(call)
     G.add_edge(call[0], call[1], label="call")
 
 # pos = nx.spring_layout(G, seed=10)
