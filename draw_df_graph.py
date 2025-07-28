@@ -146,10 +146,41 @@ calls.append(rootcheckd_calls)
 # TODO: @chiheon
 analysisd_nodes = [
     {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "DEFAULTQUEUE", "action": "RECV"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "decode_queue_syscheck_input", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "decode_queue_rootcheck_input", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "decode_queue_sca_input", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "decode_queue_syscollector_input", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "decode_queue_hostinfo_input", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "decode_queue_winevt_input", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "decode_queue_event_input", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "dispatch_dbsync_input", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "ad_input_main", "medium": "upgrade_module_input", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_syscheck_thread", "medium": "decode_queue_syscheck_input", "action": "RECV"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_syscheck_thread", "medium": "decode_queue_event_output", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_rootcheck_thread", "medium": "decode_queue_rootcheck_input", "action": "RECV"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_rootcheck_thread", "medium": "decode_queue_event_output", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_sca_thread", "medium": "decode_queue_sca_input", "action": "RECV"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_sca_thread", "medium": "decode_queue_event_output", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_syscollector_thread", "medium": "decode_queue_syscollector_input", "action": "RECV"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_syscollector_thread", "medium": "decode_queue_event_output", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_hostinfo_thread", "medium": "decode_queue_hostinfo_input", "action": "RECV"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_hostinfo_thread", "medium": "decode_queue_event_output", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_winevt_thread", "medium": "decode_queue_winevt_input", "action": "RECV"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_winevt_thread", "medium": "decode_queue_event_output", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_event_thread", "medium": "decode_queue_event_input", "action": "RECV"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_decode_event_thread", "medium": "decode_queue_event_output", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_dispatch_dbsync_thread", "medium": "dispatch_dbsync_input", "action": "RECV"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_dispatch_upgrade_module_thread", "medium": "upgrade_module_input", "action": "RECV"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_dispatch_upgrade_module_thread", "medium": "WM_UPGRADE_SOCK", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/analysisd.c", "func": "w_process_event_thread", "medium": "decode_queue_event_output", "action": "RECV"},
+    {"module": "analysisd", "src": "src/analysisd/alerts/exec.c", "func": "OS_Exec", "medium": "EXECQUEUE", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/alerts/exec.c", "func": "OS_Exec", "medium": "ARQUEUE", "action": "SEND"},
+    {"module": "analysisd", "src": "src/analysisd/asyscom.c", "func": "asyscom_main", "medium": "ANLSYS_LOCAL_SOCK", "action": "RECV"},
 ]
 nodes.append(analysisd_nodes)
 
 analysisd_calls = [
+    ("src/analysisd/analysisd.c\nw_process_event_thread", "src/analysisd/alerts/exec.c\nOS_Exec"),
 ]
 calls.append(analysisd_calls)
 
