@@ -51,6 +51,7 @@ calls = list()
 
 external_nodes = [
     {"module": "NETWORK", "src": "", "func": "", "medium": "UDP:1514", "action": "SEND"},
+    {"module": "NETWORK", "src": "", "func": "", "medium": "UDP:514", "action": "RECV"},
 ]
 nodes.append(external_nodes)
 
@@ -94,6 +95,37 @@ monitord_nodes = [
 ]
 nodes.append(monitord_nodes)
 
+authd_nodes = [
+    {"module": "authd", "src": "src/os_auth/local-server.c", "func": "run_local_server", "medium": "AUTH_LOCAL_SOCK", "action": "RECV"},
+    {"module": "authd", "src": "src/os_auth/key_request.c", "func": "run_key_request_main", "medium": "KEY_REQUEST_SOCK", "action": "RECV"},
+    {"module": "authd", "src": "src/os_auth/key_request.c", "func": "run_key_request_main", "medium": "request_queue", "action": "SEND"},
+    {"module": "authd", "src": "src/os_auth/key_request.c", "func": "key_request_dispatch_thread", "medium": "request_queue", "action": "RECV"},
+]
+nodes.append(authd_nodes)
+
+authd_calls = [
+
+]
+calls.append(authd_calls)
+
+csyslogd_nodes = [
+    {"module": "csyslogd", "src": "src/os_csyslogd/csyscom.c", "func": "csyscom_main", "medium": "CSYS_LOCAL_SOCK", "action": "RECV"},
+    {"module": "csyslogd", "src": "src/os_csyslogd/alert.c", "func": "OS_Alert_SendSyslog", "medium": "UDP:514", "action": "SEND"},
+    {"module": "csyslogd", "src": "src/os_csyslogd/alert.c", "func": "OS_Alert_SendSyslog_JSON", "medium": "UDP:514", "action": "SEND"},
+]
+nodes.append(csyslogd_nodes)
+
+csyslogd_calls = [
+    ("src/os_csyslogd/csyslogd.c\nOS_CSyslogD", "src/os_csyslogd/alert.c\nOS_Alert_SendSyslog"),
+    ("src/os_csyslogd/csyslogd.c\nOS_CSyslogD", "src/os_csyslogd/alert.c\nOS_Alert_SendSyslog_JSON"),
+]
+calls.append(csyslogd_calls)
+
+# dbd doesn't call any of the APIs
+dbd_nodes = [
+]
+dbd_calls = [
+]
 
 shared_nodes = [
 
