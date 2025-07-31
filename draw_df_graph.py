@@ -205,7 +205,46 @@ wazuh_modules_nodes = [
     {"module": "wazuh_modules", "src": "src/wazuh_modules/wm_control.c", "func": "send_ip", "medium": "CONTROL_SOCK", "action": "RECV"}, # RECV then SEND
     {"module": "wazuh_modules", "src": "src/wazuh_modules/wm_download.c", "func": "wm_download_main", "medium": "WM_DOWNLOAD_SOCK", "action": "RECV"}, # RECV then SEND
     {"module": "wazuh_modules", "src": "src/wazuh_modules/wm_fluent.c", "func": "wm_fluent_main", "medium": "WM_DOWNLOAD_SOCK", "action": "RECV"}, # RECV then SEND
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/wmcom.c", "func": "wmcom_main", "medium": "WM_LOCAL_SOCK", "action": "RECV"}, # RECV then SEND
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/wmcom.c", "func": "wmcom_send", "medium": "WM_LOCAL_SOCK", "action": "SEND"},
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/agent_upgrade/agent/wm_agent_upgrade_agent.c", "func": "wm_agent_upgrade_listen_messages", "medium": "AGENT_UPGRADE_SOCK", "action": "RECV"}, # RECV then SEND
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/agent_upgrade/manager/wm_agent_upgrade_manager.c", "func": "wm_agent_upgrade_listen_messages", "medium": "WM_UPGRADE_SOCK", "action": "RECV"}, # RECV then SEND
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/agent_upgrade/manager/wm_agent_upgrade_tasks.c", "func": "wm_agent_send_task_information_master", "medium": "WM_TASK_MODULE_SOCK", "action": "SEND"}, # SEND then RECV
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/agent_upgrade/manager/wm_agent_upgrade_upgrades.c", "func": "wm_agent_upgrade_send_command_to_agent", "medium": "REMOTE_LOCAL_SOCK", "action": "SEND"}, # SEND then RECV
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/task_manager/wm_task_manager.c", "func": "wm_task_manager_main", "medium": "TASK_QUEUE", "action": "RECV"}, # RECV then SEND
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/wmodules.c", "func": "wm_sendmsg", "medium": "DEFAULTQUEUE", "action": "SEND"},
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/wmodules.c", "func": "wm_sendmsg_ex", "medium": "DEFAULTQUEUE", "action": "SEND"},
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/wm_azure.c", "func": "wm_azure_main", "medium": "DEFAULTQUEUE", "action": "SEND"},
+    {"module": "wazuh_modules", "src": "src/wazuh_modules/wm_oscap.c", "func": "wm_oscap_run", "medium": "DEFAULTQUEUE", "action": "SEND"},
 ]
+# TODO: add VulnerabilityScanner
+nodes.append(wazuh_modules_nodes)
+
+wazuh_modules_calls = [
+    ("src/wazuh_modules/wm_aws.c\nwm_aws_run_s3", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_aws.c\nwm_aws_run_service", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_aws.c\nwm_aws_run_subscriber", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_command.c\nwm_command_main", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_github.c\nwm_github_execute_scan", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_github.c\nwm_github_execute_scan", "src/wazuh_modules/wmodules.c\nwm_github_scan_failure_action"),
+    ("src/wazuh_modules/wm_github.c\nwm_github_scan_failure_action", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_ms_graph.c\nwm_ms_graph_scan_relationships", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_office365.c\nwm_office365_execute_scan", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_office365.c\nwm_office365_execute_scan", "src/wazuh_modules/wmodules.c\nwm_office365_scan_failure_action"),
+    ("src/wazuh_modules/wm_oscap.c\nwm_oscap_run", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_osquery_monitor.c\nRead_Log", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_osquery_monitor.c\nExecute_Osquery", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_sca.c\nwm_sca_send_summary", "src/wazuh_modules/wm_sca.c\nwm_sca_send_alert"),
+    ("src/wazuh_modules/wm_sca.c\nwm_sca_send_event_check", "src/wazuh_modules/wm_sca.c\nwm_sca_send_alert"),
+    ("src/wazuh_modules/wm_sca.c\nwm_sca_send_policies_scanned", "src/wazuh_modules/wm_sca.c\nwm_sca_send_alert"),
+    ("src/wazuh_modules/wm_sca.c\nwm_sca_dump_db_thread", "src/wazuh_modules/wm_sca.c\nwm_sca_send_alert"),
+    ("src/wazuh_modules/wm_sca.c\nwm_sca_send_dump_end", "src/wazuh_modules/wm_sca.c\nwm_sca_send_alert"),
+    ("src/wazuh_modules/wm_sca.c\nwm_sca_send_alert", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+    ("src/wazuh_modules/wm_syscollector.c\nwm_sys_send_message", "src/wazuh_modules/wmodules.c\nwm_sendmsg_ex"),
+    ("src/wazuh_modules/agent_upgrade/agent/wm_agent_upgrade_agent.c\nwm_upgrade_agent_search_upgrade_result", "src/wazuh_modules/agent_upgrade/agent/wm_agent_upgrade_agent.c\nwm_upgrade_agent_send_ack_message"),
+    ("src/wazuh_modules/agent_upgrade/agent/wm_agent_upgrade_agent.c\nwm_upgrade_agent_send_ack_message", "src/wazuh_modules/wmodules.c\nwm_sendmsg"),
+]
+calls.append(wazuh_modules_calls)
 
 
 analysisd_nodes = [
