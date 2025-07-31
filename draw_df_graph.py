@@ -1,6 +1,7 @@
 import networkx as nx
 from collections import defaultdict
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+# import matplotlib.pyplot as plt
 
 # # Wazuh Dataflow Graph Plotter
 # ## Targets
@@ -318,52 +319,118 @@ for call in all_calls:
 # pos = nx.spring_layout(G, seed=10)
 # pos = nx.circular_layout(G)
 pos = nx.kamada_kawai_layout(G)
-plt.figure(figsize=(16, 8))
 
-nx.draw_networkx_nodes(
-    G,
-    pos,
-    node_size=100,
-    node_shape="s",
+# plt.figure(figsize=(16, 8))
+
+# nx.draw_networkx_nodes(
+    # G,
+    # pos,
+    # node_size=100,
+    # node_shape="s",
+# )
+
+# nx.draw_networkx_edges(
+    # G,
+    # pos,
+    # arrowstyle="-|>",
+    # arrowsize=16,
+    # node_size=1000,
+    # connectionstyle="arc3,rad=0.1",
+    # edge_color="black"
+# )
+
+# nx.draw_networkx_labels(
+    # G,
+    # pos,
+    # font_size=8,
+    # font_family="monospace",
+    # bbox=dict(
+        # facecolor="lightsteelblue",
+        # edgecolor="black",
+        # boxstyle="round,pad=0.4"
+    # )
+# )
+
+# edge_labels = nx.get_edge_attributes(G, "label")
+# nx.draw_networkx_edge_labels(
+    # G,
+    # pos,
+    # edge_labels=edge_labels,
+    # font_size=8,
+    # font_family="monospace",
+    # font_color="darkred",
+    # font_weight="bold",
+    # rotate=False
+# )
+
+# plt.title("Wazuh Dataflow Diagram")
+# plt.axis("off")
+# # plt.tight_layout()
+# plt.margins(x=1.0)
+# plt.show()
+
+
+# ─────────── Build Plotly traces ───────────
+# 1) Edges as light grey lines
+edge_x, edge_y = [], []
+for u, v in G.edges():
+    x0, y0 = pos[u]
+    x1, y1 = pos[v]
+    edge_x += [x0, x1, None]
+    edge_y += [y0, y1, None]
+
+edge_trace = go.Scatter(
+    x=edge_x, y=edge_y,
+    mode='lines',
+    line=dict(color='lightgrey', width=1),
+    hoverinfo='none'
 )
 
-nx.draw_networkx_edges(
-    G,
-    pos,
-    arrowstyle="-|>",
-    arrowsize=16,
-    node_size=1000,
-    connectionstyle="arc3,rad=0.1",
-    edge_color="black"
+# 2) Nodes as blue squares with labels
+node_x, node_y, node_text = [], [], []
+for node in G.nodes():
+    x, y = pos[node]
+    node_x.append(x)
+    node_y.append(y)
+    node_text.append(node)  # whatever your label is
+
+node_trace = go.Scatter(
+    x=node_x, y=node_y,
+    mode='markers+text',
+    text=node_text,
+    textposition='top center',
+    marker=dict(symbol='square', size=20, color='skyblue', line=dict(width=1, color='grey')),
+    hoverinfo='text'
 )
 
-nx.draw_networkx_labels(
-    G,
-    pos,
-    font_size=8,
-    font_family="monospace",
-    bbox=dict(
-        facecolor="lightsteelblue",
-        edgecolor="black",
-        boxstyle="round,pad=0.4"
-    )
+# 3) Arrows + medium labels via annotations
+annotations = []
+for u, v, data in G.edges(data=True):
+    x0, y0 = pos[u]
+    x1, y1 = pos[v]
+    annotations.append(dict(
+        ax=x0, ay=y0, x=x1, y=y1,
+        xref='x', yref='y', axref='x', ayref='y',
+        text=data.get('label', data.get('medium', '')),  # use your edge-label key
+        showarrow=True,
+        arrowhead=3,
+        arrowsize=1,
+        arrowwidth=1,
+        arrowcolor='grey'
+    ))
+
+# ─────────── Assemble & export ───────────
+fig = go.Figure(data=[edge_trace, node_trace])
+fig.update_layout(
+    title="Wazuh Dataflow Diagram",
+    annotations=annotations,
+    xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+    yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+    plot_bgcolor='white',
+    margin=dict(l=20, r=20, t=40, b=20)
 )
 
-edge_labels = nx.get_edge_attributes(G, "label")
-nx.draw_networkx_edge_labels(
-    G,
-    pos,
-    edge_labels=edge_labels,
-    font_size=8,
-    font_family="monospace",
-    font_color="darkred",
-    font_weight="bold",
-    rotate=False
-)
-
-plt.title("Wazuh Dataflow Diagram")
-plt.axis("off")
-# plt.tight_layout()
-plt.margins(x=1.0)
-plt.show()
+# write out an interactive HTML you can open in your browser
+fig.write_html('wazuh_dataflow.html', include_plotlyjs='cdn')
+print("Written wazuh_dataflow.html — open this in your browser to explore!")
 
