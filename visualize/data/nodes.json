@@ -1,0 +1,590 @@
+[
+    {
+        "module": "NETWORK",
+        "code": "",
+        "func": "NETWORK",
+        "medium": "UDP:1514",
+        "action": "SEND"
+    },
+    {
+        "module": "NETWORK",
+        "code": "",
+        "func": "NETWORK",
+        "medium": "UDP:514",
+        "action": "RECV"
+    },
+    {
+        "module": "agentlessd",
+        "code": "src/agentlessd/lessdcom.c",
+        "func": "lessdcom_main",
+        "medium": "LESSD_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "agentlessd",
+        "code": "src/agentlessd/agentlessd.c",
+        "func": "send_intcheck_msg",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "agentlessd",
+        "code": "src/agentlessd/agentlessd.c",
+        "func": "send_log_msg",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "agentlessd",
+        "code": "src/agentlessd/agentlessd.c",
+        "func": "gen_diff_alert",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "logcollector",
+        "code": "src/logcollector/lccom.c",
+        "func": "lccom_main",
+        "medium": "LC_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "logcollector",
+        "code": "src/logcollector/logcollector.c",
+        "func": "w_output_thread",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "monitord",
+        "code": "src/monitord/moncom.c",
+        "func": "moncom_main",
+        "medium": "MON_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "monitord",
+        "code": "src/monitord/monitord.c",
+        "func": "monitor_queue_connect",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "monitord",
+        "code": "src/monitord/monitor_actions.c",
+        "func": "monitor_send_deletion_msg",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "monitord",
+        "code": "src/monitord/monitor_actions.c",
+        "func": "mon_send_agent_msg",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "authd",
+        "code": "src/os_auth/local-server.c",
+        "func": "run_local_server",
+        "medium": "AUTH_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "authd",
+        "code": "src/os_auth/key_request.c",
+        "func": "run_key_request_main",
+        "medium": "KEY_REQUEST_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "authd",
+        "code": "src/os_auth/key_request.c",
+        "func": "run_key_request_main",
+        "medium": "request_queue",
+        "action": "SEND"
+    },
+    {
+        "module": "authd",
+        "code": "src/os_auth/key_request.c",
+        "func": "key_request_dispatch_thread",
+        "medium": "request_queue",
+        "action": "RECV"
+    },
+    {
+        "module": "csyslogd",
+        "code": "src/os_csyslogd/csyscom.c",
+        "func": "csyscom_main",
+        "medium": "CSYS_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "csyslogd", 
+        "code": "src/os_csyslogd/alert.c",
+        "func": "OS_Alert_SendSyslog",
+        "medium": "UDP:514",
+        "action": "SEND"
+    },
+    {
+        "module": "csyslogd",
+        "code": "src/os_csyslogd/alert.c",
+        "func": "OS_Alert_SendSyslog_JSON",
+        "medium": "UDP:514",
+        "action": "SEND"
+    },
+    {
+        "module": "execd",
+        "code": "src/os_execd/execd.c",
+        "func": "ExecdStart",
+        "medium": "EXECQUEUE",
+        "action": "RECV"
+    },
+    {
+        "module": "execd",
+        "code": "src/os_execd/wcom.c",
+        "func": "wcom_main",
+        "medium": "COM_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "execd",
+        "code": "src/os_execd/config.c",
+        "func": "getClusterConfig",
+        "medium": "CLUSTER_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "integratord",
+        "code": "src/os_integratord/intgcom.c",
+        "func": "intgcom_main",
+        "medium": "INTG_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "maild",
+        "code": "src/os_maild/mailcom.c",
+        "func": "mailcom_mail",
+        "medium": "MAIL_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "remoted",
+        "code": "src/remoted/ar-forward.c",
+        "func": "AR_Forward",
+        "medium": "ARQUEUE",
+        "action": "RECV"
+    },
+    {
+        "module": "remoted",
+        "code": "src/remoted/cfga-forward.c",
+        "func": "SCFGA_Forward",
+        "medium": "CFGARQUEUE",
+        "action": "RECV"
+    },
+    {
+        "module": "remoted",
+        "code": "src/remoted/syslog.c",
+        "func": "HandleSyslog",
+        "medium": "UDP:1514",
+        "action": "RECV"
+    },
+    {
+        "module": "remoted",
+        "code": "src/remoted/syslog.c",
+        "func": "HandleSyslog",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "remoted",
+        "code": "src/remoted/secure.c",
+        "func": "handle_incoming_data_from_udp_socket",
+        "medium": "UDP:1514",
+        "action": "RECV"
+    },
+    {
+        "module": "remoted",
+        "code": "src/remoted/secure.c",
+        "func": "handle_incoming_data_from_udp_socket",
+        "medium": "queue",
+        "action": "SEND"
+    },
+    {
+        "module": "remoted",
+        "code": "src/remoted/secure.c",
+        "func": "rem_handler_main",
+        "medium": "queue",
+        "action": "RECV"
+    },
+    {
+        "module": "remoted",
+        "code": "src/remoted/secure.c",
+        "func": "HandleSecureMessage",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "remoted",
+        "code": "src/remoted/secure.c",
+        "func": "send_key_request",
+        "medium": "KEY_REQUEST_SOCK",
+        "action": "SEND"
+    },
+    {
+        "module": "remoted",
+        "code": "src/remoted/remcom.c",
+        "func": "remcom_main",
+        "medium": "REMOTE_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "rootcheckd",
+        "code": "src/rootcheck/run_rk_check.c",
+        "func": "notify_rk",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "shared",
+        "code": "src/shared/agent_op.c",
+        "func": "w_send_clustered_message",
+        "medium": "CLUSTER_SOCK",
+        "action": "SEND"
+    },
+    {
+        "module": "syscheckd",
+        "code": "src/syscheckd/syscom.c",
+        "func": "syscom_main",
+        "medium": "SYS_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "syscheckd",
+        "code": "src/syscheckd/run_check.c",
+        "func": "fim_send_msg",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "wazuh_db",
+        "code": "src/wazuh_db/main.c",
+        "func": "run_worker",
+        "medium": "WDB_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/wm_control.c",
+        "func": "send_ip",
+        "medium": "CONTROL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/wm_download.c",
+        "func": "wm_download_main",
+        "medium": "WM_DOWNLOAD_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/wm_fluent.c",
+        "func": "wm_fluent_main",
+        "medium": "WM_DOWNLOAD_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/wmcom.c",
+        "func": "wmcom_main",
+        "medium": "WM_LOCAL_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/wmcom.c",
+        "func": "wmcom_send",
+        "medium": "WM_LOCAL_SOCK",
+        "action": "SEND"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/agent_upgrade/agent/wm_agent_upgrade_agent.c",
+        "func": "wm_agent_upgrade_listen_messages",
+        "medium": "AGENT_UPGRADE_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/agent_upgrade/manager/wm_agent_upgrade_manager.c",
+        "func": "wm_agent_upgrade_listen_messages",
+        "medium": "WM_UPGRADE_SOCK",
+        "action": "RECV"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/agent_upgrade/manager/wm_agent_upgrade_tasks.c",
+        "func": "wm_agent_send_task_information_master",
+        "medium": "WM_TASK_MODULE_SOCK",
+        "action": "SEND"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/agent_upgrade/manager/wm_agent_upgrade_upgrades.c",
+        "func": "wm_agent_upgrade_send_command_to_agent",
+        "medium": "REMOTE_LOCAL_SOCK",
+        "action": "SEND"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/task_manager/wm_task_manager.c",
+        "func": "wm_task_manager_main",
+        "medium": "TASK_QUEUE",
+        "action": "RECV"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/wmodules.c",
+        "func": "wm_sendmsg",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/wmodules.c",
+        "func": "wm_sendmsg_ex",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/wm_azure.c",
+        "func": "wm_azure_main",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "wazuh_modules",
+        "code": "src/wazuh_modules/wm_oscap.c",
+        "func": "wm_oscap_run",
+        "medium": "DEFAULTQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "ad_input_main",
+        "medium": "DEFAULTQUEUE",
+        "action": "RECV"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "ad_input_main",
+        "medium": "decode_queue_syscheck_input",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "ad_input_main",
+        "medium": "decode_queue_rootcheck_input",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "ad_input_main",
+        "medium": "decode_queue_sca_input",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "ad_input_main",
+        "medium": "decode_queue_syscollector_input",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "ad_input_main",
+        "medium": "decode_queue_hostinfo_input",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "ad_input_main",
+        "medium": "decode_queue_winevt_input",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "ad_input_main",
+        "medium": "decode_queue_event_input",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "ad_input_main",
+        "medium": "dispatch_dbsync_input",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "ad_input_main",
+        "medium": "upgrade_module_input",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_syscheck_thread",
+        "medium": "decode_queue_syscheck_input",
+        "action": "RECV"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_syscheck_thread",
+        "medium": "decode_queue_event_output",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_rootcheck_thread",
+        "medium": "decode_queue_rootcheck_input",
+        "action": "RECV"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_rootcheck_thread",
+        "medium": "decode_queue_event_output",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_sca_thread",
+        "medium": "decode_queue_sca_input",
+        "action": "RECV"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_sca_thread",
+        "medium": "decode_queue_event_output",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_syscollector_thread",
+        "medium": "decode_queue_syscollector_input",
+        "action": "RECV"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_syscollector_thread",
+        "medium": "decode_queue_event_output",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_hostinfo_thread",
+        "medium": "decode_queue_hostinfo_input",
+        "action": "RECV"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_hostinfo_thread",
+        "medium": "decode_queue_event_output",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_winevt_thread",
+        "medium": "decode_queue_winevt_input",
+        "action": "RECV"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_winevt_thread",
+        "medium": "decode_queue_event_output",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_event_thread",
+        "medium": "decode_queue_event_input",
+        "action": "RECV"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_decode_event_thread",
+        "medium": "decode_queue_event_output",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_dispatch_dbsync_thread",
+        "medium": "dispatch_dbsync_input",
+        "action": "RECV"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_dispatch_upgrade_module_thread",
+        "medium": "upgrade_module_input",
+        "action": "RECV"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_dispatch_upgrade_module_thread",
+        "medium": "WM_UPGRADE_SOCK",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/analysisd.c",
+        "func": "w_process_event_thread",
+        "medium": "decode_queue_event_output",
+        "action": "RECV"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/alerts/exec.c",
+        "func": "OS_Exec",
+        "medium": "EXECQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/alerts/exec.c",
+        "func": "OS_Exec",
+        "medium": "ARQUEUE",
+        "action": "SEND"
+    },
+    {
+        "module": "analysisd",
+        "code": "src/analysisd/asyscom.c",
+        "func": "asyscom_main",
+        "medium": "ANLSYS_LOCAL_SOCK",
+        "action": "RECV"
+    }
+]
