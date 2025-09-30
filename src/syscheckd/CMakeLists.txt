@@ -4,6 +4,9 @@ project(wazuh-syscheckd)
 
 enable_testing()
 
+# --- [ADDED] option to build for fuzzing ---
+option(BUILD_FOR_FUZZING "Build static libraries for fuzzing" OFF)
+
 if(NOT CMAKE_BUILD_TYPE)
   if(CMAKE_SYMBOLS_IN_RELEASE MATCHES "ON")
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
@@ -78,18 +81,28 @@ file(GLOB SYSCHECKD_SRC
      "${CMAKE_SOURCE_DIR}/src/registry/*.c"
      "${CMAKE_SOURCE_DIR}/src/whodata/*.c")
 
-if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    add_library(wazuh-syscheckd STATIC ${SYSCHECKD_SRC})
-    add_library(wazuh-syscheckd-event STATIC ${SYSCHECKD_SRC})
-    target_compile_definitions(wazuh-syscheckd PUBLIC -D_WIN32_WINNT=0x600)
-    target_compile_definitions(wazuh-syscheckd-event PUBLIC -D_WIN32_WINNT=0x600 -DEVENTCHANNEL_SUPPORT)
-else()
-    add_executable(wazuh-syscheckd ${SYSCHECKD_SRC})
-endif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+# --- [MODIFIED] define library/executable depending on BUILD_FOR_FUZZING ---
+if(BUILD_FOR_FUZZING)
+    # For fuzzing: produce a static library instead of only an executable
+    add_library(syscheckd_core STATIC ${SYSCHECKD_SRC})
+    target_include_directories(syscheckd_core PUBLIC
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src/db/include
+    )
+    target_link_libraries(syscheckd_core PUBLIC fimdb wazuhext pthread wazuh rootcheck)
+  else()
+      if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+          add_library(wazuh-syscheckd STATIC ${SYSCHECKD_SRC})
+          add_library(wazuh-syscheckd-event STATIC ${SYSCHECKD_SRC})
+          target_compile_definitions(wazuh-syscheckd PUBLIC -D_WIN32_WINNT=0x600)
+          target_compile_definitions(wazuh-syscheckd-event PUBLIC -D_WIN32_WINNT=0x600 -DEVENTCHANNEL_SUPPORT)
+      else()
+          add_executable(wazuh-syscheckd ${SYSCHECKD_SRC})
+          target_link_libraries(wazuh-syscheckd fimdb wazuhext pthread wazuh rootcheck)
+      endif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+endif()
 
-target_link_libraries(wazuh-syscheckd fimdb wazuhext pthread wazuh rootcheck)
-
-if (UNIX)
+if (UNIX AND NOT BUILD_FOR_FUZZING)
     target_link_libraries(wazuh-syscheckd dl)
     if (NOT APPLE)
         if (CMAKE_SYSTEM_NAME STREQUAL "SunOS")
@@ -110,9 +123,9 @@ if (UNIX)
     else()
         string(APPEND CMAKE_EXE_LINKER_FLAGS " -Wl,-rpath,@executable_path/../lib")
     endif(NOT APPLE)
-endif(UNIX)
+endif(UNIX AND NOT BUILD_FOR_FUZZING)
 
-if(UNIT_TEST)
+if(UNIT_TEST AND NOT BUILD_FOR_FUZZING)
   add_definitions(-DWAZUH_UNIT_TESTING)
   if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     target_link_libraries(wazuh-syscheckd -fprofile-arcs cmocka)
@@ -121,7 +134,7 @@ if(UNIT_TEST)
     target_link_libraries(wazuh-syscheckd asan ubsan cmocka gcov -fprofile-arcs)
   endif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 else()
-  if(FSANITIZE)
+  if(FSANITIZE AND NOT BUILD_FOR_FUZZING)
     target_link_libraries(wazuh-syscheckd gcov asan ubsan)
-  endif(FSANITIZE)
-endif(UNIT_TEST)
+  endif(FSANITIZE AND NOT BUILD_FOR_FUZZING)
+endif(UNIT_TEST AND NOT BUILD_FOR_FUZZING)

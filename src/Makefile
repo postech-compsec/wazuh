@@ -823,6 +823,14 @@ BUILD_FUZZER+=fuzz-remoted
 BUILD_FUZZER+=fuzz-key-request
 BUILD_FUZZER+=fuzz-local-dispatch
 BUILD_FUZZER+=fuzz-decode-sca
+BUILD_FUZZER+=fuzz-decode-event
+BUILD_FUZZER+=fuzz-decode-winevt
+BUILD_FUZZER+=fuzz-arforward
+BUILD_FUZZER+=fuzz-syscom
+BUILD_FUZZER+=fuzz-asyscom
+BUILD_FUZZER+=fuzz-dispatch-dbsync
+BUILD_FUZZER+=fuzz-dispatch-upgrade-module
+BUILD_FUZZER+=fuzz-wm-agent-upgrade-parse-message
 
 BUILD_CMAKE_PROJECTS+=build_sysinfo
 BUILD_CMAKE_PROJECTS+=build_shared_modules
@@ -2150,6 +2158,20 @@ remoted_o_for_fuzzing = $(filter-out remoted/main.o, $(remoted_o))
 fuzz-remoted: ${fuzz_remoted_o} ${remoted_o_for_fuzzing}
 	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
+#### FUZZING @COMPSEC - AR_Forward #########
+
+fuzz_arforward_c := $(wildcard fuzz_arforward/*.c)
+fuzz_arforward_o := $(fuzz_arforward_c:.c=.o)
+
+fuzz_arforward/%.o: fuzz_arforward/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS}  -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
+
+remoted_o_for_fuzzing = $(filter-out remoted/main.o, $(remoted_o))
+
+fuzz-arforward: ${fuzz_arforward_o} ${remoted_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+
 #### FUZZING @COMPSEC - authd key_request #########
 
 fuzz_key_request_c := $(wildcard fuzz_key_request/*.c)
@@ -2355,6 +2377,30 @@ librootcheck.a: ${rootcheck_o_lib}
 wazuh-syscheckd: librootcheck.a libwazuh.a ${WAZUHEXT_LIB} build_shared_modules
 	cd syscheckd && mkdir -p build && cd build && ${WAZUHD_CMAKE_CMD} ${WAZUHD_CMAKE_OPTS} -DCMAKE_C_FLAGS="${DEFINES} -pipe -Wall -Wextra -std=gnu99" ${SYSCHECK_TEST} ${SYSCHECK_RELEASE_TYPE} .. && ${WAZUHD_MAKE_CMD}
 
+#### FUZZING @COMPSEC - syscom_main #########
+
+fuzz_syscom_c := $(wildcard fuzz_syscom/*.c)
+fuzz_syscom_o := $(fuzz_syscom_c:.c=.o)
+
+
+SYSCHK_BUILD_DIR := syscheckd/build
+SYSCHK_STATIC_LIBS := $(SYSCHK_BUILD_DIR)/lib/libsyscheckd_core.a
+
+
+syscheckd_built:
+	cd syscheckd && mkdir -p build && cd build && \
+	${WAZUHD_CMAKE_CMD} ${WAZUHD_CMAKE_OPTS} -DBUILD_FOR_FUZZING=ON -DCMAKE_C_FLAGS="${DEFINES} -pipe -Wall -Wextra -std=gnu99" .. && \
+	${WAZUHD_MAKE_CMD}
+
+
+fuzz_syscom/%.o: fuzz_syscom/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -I./syscheckd -DARGV0=\"wazuh-syscheckd\" -c $< -o $@
+
+
+fuzz-syscom: ${fuzz_syscom_o} syscheckd_built
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} ${fuzz_syscom_o} \
+	${SYSCHK_STATIC_LIBS} libwazuh.a librootcheck.a ${WAZUHEXT_LIB} ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
 #### Monitor #######
 
 monitor_c := $(wildcard monitord/*.c)
@@ -2516,6 +2562,62 @@ analysisd_o_for_fuzzing = ${analysisd_live_o} analysisd/analysisd-test.o ${outpu
 fuzz-decode-sca: ${fuzz_decode_sca_o} ${analysisd_o_for_fuzzing}
 	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
+#### FUZZING @COMPSEC - analysisd DecodeCiscat, DecodeEvent #########
+
+fuzz_decode_event_c := $(wildcard fuzz_decode_event/*.c)
+fuzz_decode_event_o := $(fuzz_decode_event_c:.c=.o)
+
+fuzz_decode_event/%.o: fuzz_decode_event/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz-decode-event: ${fuzz_decode_event_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+
+#### FUZZING @COMPSEC - analysisd DecodeWinevt #########
+
+fuzz_decode_winevt_c := $(wildcard fuzz_decode_winevt/*.c)
+fuzz_decode_winevt_o := $(fuzz_decode_winevt_c:.c=.o)
+
+fuzz_decode_winevt/%.o: fuzz_decode_winevt/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz-decode-winevt: ${fuzz_decode_winevt_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+#### FUZZING @COMPSEC - analysisd DispatchDBSync #########
+
+fuzz_dispatch_dbsync_c := $(wildcard fuzz_dispatch_dbsync/*.c)
+fuzz_dispatch_dbsync_o := $(fuzz_dispatch_dbsync_c:.c=.o)
+
+fuzz_dispatch_dbsync/%.o: fuzz_dispatch_dbsync/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz-dispatch-dbsync: ${fuzz_dispatch_dbsync_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+#### FUZZING @COMPSEC - analysisd dispatch_upgrade_module #########
+
+fuzz_dispatch_upgrade_module_c := $(wildcard fuzz_dispatch_upgrade_module/*.c)
+fuzz_dispatch_upgrade_module_o := $(fuzz_dispatch_upgrade_module_c:.c=.o)
+
+fuzz_dispatch_upgrade_module/%.o: fuzz_dispatch_upgrade_module/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz-dispatch-upgrade-module: ${fuzz_dispatch_upgrade_module_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+#### FUZZING @COMPSEC - analysisd asyscom #########
+
+fuzz_asyscom_c := $(wildcard fuzz_asyscom/*.c)
+fuzz_asyscom_o := $(fuzz_asyscom_c:.c=.o)
+
+fuzz_asyscom/%.o: fuzz_asyscom/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz-asyscom: ${fuzz_asyscom_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
 ### wazuh-modulesd ##
 
 wmodulesd_c := wazuh_modules/main.c
@@ -2529,6 +2631,18 @@ endif
 
 wazuh-modulesd: ${wmodulesd_o}
 	${WAZUHD_CCBIN_CMD} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} ${MODULESD_LDFLAGS} -o $@
+
+#### FUZZING @COMPSEC - wm_agent_upgrade_parse_message #########
+
+fuzz_wm_agent_upgrade_parse_message_c := $(wildcard fuzz_wm_agent_upgrade_parse_message/*.c)
+fuzz_wm_agent_upgrade_parse_message_o := $(fuzz_wm_agent_upgrade_parse_message_c:.c=.o)
+
+fuzz_wm_agent_upgrade_parse_message/%.o: fuzz_wm_agent_upgrade_parse_message/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz-wm-agent-upgrade-parse-message: ${fuzz_wm_agent_upgrade_parse_message_o}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
 
 ### wazuh-gtest-gmock ###
 
