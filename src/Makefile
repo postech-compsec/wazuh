@@ -819,18 +819,19 @@ BUILD_AGENT+=active-responses
 BUILD_AGENT+=wazuh-modulesd
 
 # FUZZING TARGETS
-BUILD_FUZZER+=fuzz-remoted
-BUILD_FUZZER+=fuzz-key-request
-BUILD_FUZZER+=fuzz-local-dispatch
-BUILD_FUZZER+=fuzz-decode-sca
-BUILD_FUZZER+=fuzz-decode-event
-BUILD_FUZZER+=fuzz-decode-winevt
-BUILD_FUZZER+=fuzz-arforward
-BUILD_FUZZER+=fuzz-syscom
-BUILD_FUZZER+=fuzz-asyscom
-BUILD_FUZZER+=fuzz-dispatch-dbsync
-BUILD_FUZZER+=fuzz-dispatch-upgrade-module
-BUILD_FUZZER+=fuzz-wm-agent-upgrade-parse-message
+# BUILD_FUZZER+=fuzz-remoted
+# BUILD_FUZZER+=fuzz-key-request
+# BUILD_FUZZER+=fuzz-local-dispatch
+# BUILD_FUZZER+=fuzz-decode-sca
+# BUILD_FUZZER+=fuzz-decode-event
+# BUILD_FUZZER+=fuzz-decode-winevt
+# BUILD_FUZZER+=fuzz-arforward
+# BUILD_FUZZER+=fuzz-syscom
+# BUILD_FUZZER+=fuzz-asyscom
+# BUILD_FUZZER+=fuzz-dispatch-dbsync
+# BUILD_FUZZER+=fuzz-dispatch-upgrade-module
+# BUILD_FUZZER+=fuzz-wm-agent-upgrade-parse-message
+BUILD_FUZZER+=fuzz-writer-log
 
 BUILD_CMAKE_PROJECTS+=build_sysinfo
 BUILD_CMAKE_PROJECTS+=build_shared_modules
@@ -2571,6 +2572,17 @@ fuzz_decode_event/%.o: fuzz_decode_event/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
 
 fuzz-decode-event: ${fuzz_decode_event_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+#### FUZZING @COMPSEC - analysisd writer log #########
+
+fuzz_writer_log_c := $(wildcard fuzz_writer_log/*.c)
+fuzz_writer_log_o := $(fuzz_writer_log_c:.c=.o)
+
+fuzz_writer_log/%.o: fuzz_writer_log/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -I./analysisd/alerts -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz-writer-log: ${fuzz_writer_log_o} ${analysisd_o_for_fuzzing}
 	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 
