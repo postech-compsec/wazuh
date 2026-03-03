@@ -9,6 +9,7 @@ from time import strftime
 from wazuh.core import common
 from wazuh.core.wdb import WazuhDBConnection
 from wazuh.core.exception import WazuhException, WazuhError, WazuhInternalError
+from wazuh.core.common import get_installation_uid
 
 """
 Wazuh HIDS Python package
@@ -17,7 +18,7 @@ Wazuh is a python package to manage OSSEC.
 
 """
 
-__version__ = '4.11.1'
+__version__ = '4.14.3'
 
 
 msg = "\n\nPython 2.7 or newer not found."
@@ -69,7 +70,7 @@ class Wazuh:
                 'max_agents': self.max_agents,
                 'openssl_support': self.openssl_support,
                 'tz_offset': self.tz_offset,
-                'tz_name': self.tz_name
+                'tz_name': self.tz_name,
                 }
 
     def _initialize(self):

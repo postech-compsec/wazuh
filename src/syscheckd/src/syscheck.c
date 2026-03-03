@@ -17,6 +17,8 @@
 #include "../rootcheck/rootcheck.h"
 #include "db/include/db.h"
 #include "db/include/fimCommonDefs.h"
+#include "ebpf/include/ebpf_whodata.h"
+
 // Global variables
 syscheck_config syscheck;
 int sys_debug_level;
@@ -108,7 +110,9 @@ void fim_initialize() {
 #endif
 
     if (ret_val != FIMDB_OK) {
-        merror_exit("Unable to initialize database.");
+        merror("Unable to initialize database. FIM module will be disabled.");
+        syscheck.disabled = 1;
+        return;
     }
 
     w_rwlock_init(&syscheck.directories_lock, NULL);
@@ -312,3 +316,19 @@ int Start_win32_Syscheck() {
     return 0;
 }
 #endif /* WIN32 */
+
+#ifdef __linux__
+#ifdef ENABLE_AUDIT
+void check_ebpf_availability() {
+    minfo(FIM_EBPF_INIT);
+    fimebpf_initialize(fim_configuration_directory, get_user, get_group, fim_whodata_event,
+                       free_whodata_event, loggingFunction, abspath, fim_shutdown_process_on, syscheck.queue_size);
+    if (ebpf_whodata_healthcheck()) {
+        mwarn(FIM_ERROR_EBPF_HEALTHCHECK);
+
+        // Switch whodata eBPF to whodata audit
+        syscheck.whodata_provider = AUDIT_PROVIDER;
+    }
+}
+#endif /* ENABLE_AUDIT */
+#endif /* __linux__ */

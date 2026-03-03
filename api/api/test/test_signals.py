@@ -1,18 +1,21 @@
 import asyncio
 import os
+from pathlib import PosixPath
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+from asyncinotify import Mask
 import pytest
 from starlette.applications import Starlette
 from starlette.testclient import TestClient
 
-from api.constants import INSTALLATION_UID_KEY, UPDATE_INFORMATION_KEY
+from api.constants import INSTALLATION_UID_KEY, UPDATE_INFORMATION_KEY, SECURITY_PATH
 from api.signals import (
     ONE_DAY_SLEEP,
     cancel_signal_handler,
-    check_installation_uid,
+    load_installation_uid,
     get_update_information,
+    clean_auth_keys_cache,
     lifespan_handler,
     cti_context
 )
@@ -21,7 +24,7 @@ from api.signals import (
 @pytest.fixture
 def installation_uid_mock():
     with patch(
-        'api.signals.INSTALLATION_UID_PATH', os.path.join('/tmp', INSTALLATION_UID_KEY)
+        'wazuh.core.common.INSTALLATION_UID_PATH', os.path.join('/tmp', INSTALLATION_UID_KEY)
     ) as path_mock:
         yield path_mock
 
@@ -47,32 +50,32 @@ async def test_cancel_signal_handler_catch_cancelled_error_and_dont_rise():
 
 @patch('api.signals.os.chmod')
 @patch('api.signals.os.chown')
-@patch('api.signals.common.wazuh_gid')
-@patch('api.signals.common.wazuh_uid')
+@patch('wazuh.core.common.wazuh_gid')
+@patch('wazuh.core.common.wazuh_uid')
 @pytest.mark.asyncio
-async def test_check_installation_uid_populate_uid_if_not_exists(
+async def test_load_installation_uid_populate_uid_if_not_exists(
     uid_mock, gid_mock, chown_mock, chmod_mock, installation_uid_mock
 ):
     uid = gid = 999
     uid_mock.return_value = uid
     gid_mock.return_value = gid
 
-    await check_installation_uid()
+    await load_installation_uid()
 
     assert os.path.exists(installation_uid_mock)
     with open(installation_uid_mock) as file:
-        assert cti_context[INSTALLATION_UID_KEY] == file.readline()
+        assert cti_context[INSTALLATION_UID_KEY] == file.read().strip()
         chown_mock.assert_called_with(file.name, uid, gid)
         chmod_mock.assert_called_with(file.name, 0o660)
 
 
 @pytest.mark.asyncio
-async def test_check_installation_uid_get_uid_from_file(installation_uid_mock):
+async def test_load_installation_uid_get_uid_from_file(installation_uid_mock):
     installation_uid = str(uuid4())
     with open(installation_uid_mock, 'w') as file:
         file.write(installation_uid)
 
-    await check_installation_uid()
+    await load_installation_uid()
 
     assert cti_context[INSTALLATION_UID_KEY] == installation_uid
 
@@ -139,13 +142,14 @@ async def test_get_update_information_schedule(query_update_check_service_mock):
 @pytest.mark.parametrize(
     'cluster_config,update_check_config,registered_tasks',
     [
-        (True, True, 2),
-        (True, False, 1),
-        (False, True, 0),
-        (False, False, 0),
+        (True, True, 3),
+        (True, False, 2),
+        (False, True, 1),
+        (False, False, 1),
     ],
 )
-@patch('api.signals.check_installation_uid')
+@patch('api.signals.clean_auth_keys_cache')
+@patch('api.signals.load_installation_uid')
 @patch('api.signals.get_update_information')
 @patch('api.signals.update_check_is_enabled')
 @patch('api.signals.running_in_master_node')
@@ -154,7 +158,8 @@ async def test_register_background_tasks(
     running_in_master_node_mock,
     update_check_mock,
     get_update_information_mock,
-    check_installation_uid_mock,
+    load_installation_uid_mock,
+    clean_auth_keys_cache_mock,
     cluster_config,
     update_check_config,
     registered_tasks,
@@ -178,3 +183,34 @@ async def test_register_background_tasks(
             create_task_mock.create_task.return_value.cancel.call_count
             == registered_tasks
         )
+
+
+@pytest.mark.asyncio
+@patch('api.signals._private_key_path', new='/path/to/private.key')
+@patch('api.signals._public_key_path', new='/path/to/public.key')
+@patch('api.signals.generate_keypair.cache_clear')
+@pytest.mark.parametrize(
+    'filename',
+    ['/path/to/private.key', '/path/to/public.key', 'other_file.txt']
+)
+async def test_clean_auth_keys_cache(mock_generate_keypair_cache, filename):
+    with patch('api.signals.Inotify') as inotify_mock:
+        inotify_instance = inotify_mock.return_value.__enter__.return_value
+        event_mock = AsyncMock()
+        event_mock.path = PosixPath(filename)
+        inotify_instance.__aiter__.return_value = [event_mock]
+
+        task = asyncio.create_task(
+            clean_auth_keys_cache()
+        )
+        await asyncio.sleep(1)
+
+        task.cancel()
+
+        inotify_instance.add_watch.assert_called_with(
+            SECURITY_PATH, Mask.MODIFY | Mask.CREATE
+        )
+        if filename in {'/path/to/private.key', '/path/to/public.key'}:
+            mock_generate_keypair_cache.assert_called_once()
+        else:
+            mock_generate_keypair_cache.assert_not_called()

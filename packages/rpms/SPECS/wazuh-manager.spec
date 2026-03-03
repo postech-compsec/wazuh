@@ -13,8 +13,8 @@ Group:       System Environment/Daemons
 Source0:     %{name}-%{version}.tar.gz
 URL:         https://www.wazuh.com/
 BuildRoot:   %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
-Vendor:      Wazuh, Inc <info@wazuh.com>
-Packager:    Wazuh, Inc <info@wazuh.com>
+Vendor:      Wazuh <info@wazuh.com>
+Packager:    Wazuh <info@wazuh.com>
 Requires(pre):    /usr/sbin/groupadd /usr/sbin/useradd
 Requires(postun): /usr/sbin/groupdel /usr/sbin/userdel
 Conflicts:   ossec-hids ossec-hids-agent wazuh-agent wazuh-local
@@ -39,10 +39,10 @@ log analysis, file integrity monitoring, intrusions detection and policy and com
 %global _build_id_links none
 
 # Build debuginfo package
-%debug_package
-%package wazuh-manager-debuginfo
+%package -n wazuh-manager-debuginfo
+Requires: wazuh-manager = %{_version}-%{_release}
 Summary: Debug information for package %{name}.
-%description wazuh-manager-debuginfo
+%description -n wazuh-manager-debuginfo
 This package provides debug information for package %{name}.
 
 
@@ -88,7 +88,7 @@ echo 'USER_GENERATE_AUTHD_CERT="y"' >> ./etc/preloaded-vars.conf
 echo 'USER_AUTO_START="n"' >> ./etc/preloaded-vars.conf
 echo 'USER_CREATE_SSL_CERT="n"' >> ./etc/preloaded-vars.conf
 echo 'DOWNLOAD_CONTENT="y"' >> ./etc/preloaded-vars.conf
-./install.sh
+./install.sh || { echo "install.sh failed! Aborting." >&2; exit 1; }
 
 # Create directories
 mkdir -p ${RPM_BUILD_ROOT}%{_initrddir}
@@ -121,19 +121,19 @@ mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/packages_files/manager_installation_
 # Install configuration assesment files and files templates
 mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/{applications,generic}
 mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/amzn/{1,2,2023}
-mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/{8,7,6,5}
-mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/darwin/{15,16,17,18,19,20,21,22,23,24}
-mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/debian/{7,8,9,10,11,12}
-mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/ol/{9}
-mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/ubuntu/{12,14,16,18,20,22}/04
-mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/{9,8,7,6,5}
-mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/{11,12,15}
+mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/{10,9,8,7,6,5}
+mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/darwin/{15,16,17,18,19,20,21,22,23,24,25}
+mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/debian/{7,8,9,10,11,12,13}
+mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/ol/{9,10}
+mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/ubuntu/{12,14,16,18,20,22,24}/04
+mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/{10,9,8,7,6,5}
+mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/{11,12,15,16}
 mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/suse/{11,12}
 mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sunos
 mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/windows
-mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/fedora/{29,30,31,32,33,34}
-mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/almalinux/{8,9}
-mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rocky/{8,9}
+mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/fedora/{29,30,31,32,33,34,41}
+mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/almalinux/{8,9,10}
+mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rocky/{8,9,10}
 
 cp -r ruleset/sca/{applications,generic,mongodb,nginx,oracledb,centos,darwin,debian,ol,rhel,sles,sunos,windows,amazon,ubuntu,rocky,almalinux} ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp
 
@@ -144,14 +144,18 @@ cp etc/templates/config/amzn/2/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/
 cp etc/templates/config/amzn/2023/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/amzn/2023
 
 cp etc/templates/config/centos/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos
+cp etc/templates/config/centos/10/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/10
+cp etc/templates/config/centos/9/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/9
 cp etc/templates/config/centos/8/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/8
 cp etc/templates/config/centos/7/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/7
 cp etc/templates/config/centos/6/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/6
 cp etc/templates/config/centos/5/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/5
 
 cp etc/templates/config/ol/9/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/ol/9
+cp etc/templates/config/ol/10/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/ol/10
 
 cp etc/templates/config/rhel/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel
+cp etc/templates/config/rhel/10/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/10
 cp etc/templates/config/rhel/9/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/9
 cp etc/templates/config/rhel/8/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/8
 cp etc/templates/config/rhel/7/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/7
@@ -162,6 +166,7 @@ cp etc/templates/config/sles/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sc
 cp etc/templates/config/sles/11/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/11
 cp etc/templates/config/sles/12/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/12
 cp etc/templates/config/sles/15/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/15
+cp etc/templates/config/sles/16/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/16
 
 cp etc/templates/config/suse/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/suse
 cp etc/templates/config/suse/11/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/suse/11
@@ -174,12 +179,17 @@ cp etc/templates/config/fedora/31/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/t
 cp etc/templates/config/fedora/32/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/fedora/32
 cp etc/templates/config/fedora/33/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/fedora/33
 cp etc/templates/config/fedora/34/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/fedora/34
+cp etc/templates/config/fedora/41/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/fedora/41
 
+cp etc/templates/config/almalinux/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/almalinux
 cp etc/templates/config/almalinux/8/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/almalinux/8
 cp etc/templates/config/almalinux/9/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/almalinux/9
+cp etc/templates/config/almalinux/10/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/almalinux/10
 
-cp etc/templates/config/rocky/9/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rocky/9
+cp etc/templates/config/rocky/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rocky
 cp etc/templates/config/rocky/8/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rocky/8
+cp etc/templates/config/rocky/9/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rocky/9
+cp etc/templates/config/rocky/10/sca.files ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rocky/10
 
 # Add SUSE initscript
 sed -i "s:WAZUH_HOME_TMP:%{_localstatedir}:g" src/init/templates/ossec-hids-suse.init
@@ -190,13 +200,12 @@ cp -rp  etc/templates/config/generic/* ${RPM_BUILD_ROOT}%{_localstatedir}/packag
 cp -rp  etc/templates/config/centos/* ${RPM_BUILD_ROOT}%{_localstatedir}/packages_files/manager_installation_scripts/etc/templates/config/centos
 cp -rp  etc/templates/config/rhel/* ${RPM_BUILD_ROOT}%{_localstatedir}/packages_files/manager_installation_scripts/etc/templates/config/rhel
 
+install -m 0440 VERSION.json ${RPM_BUILD_ROOT}%{_localstatedir}/packages_files/manager_installation_scripts/
 install -m 0640 src/init/*.sh ${RPM_BUILD_ROOT}%{_localstatedir}/packages_files/manager_installation_scripts/src/init
 
-# Add installation scripts
-cp src/VERSION ${RPM_BUILD_ROOT}%{_localstatedir}/packages_files/manager_installation_scripts/src/
-cp src/REVISION ${RPM_BUILD_ROOT}%{_localstatedir}/packages_files/manager_installation_scripts/src/
-
+rm ${RPM_BUILD_ROOT}%{_localstatedir}/lib/modern.bpf.o
 %{_rpmconfigdir}/find-debuginfo.sh
+cp %{_localstatedir}/lib/modern.bpf.o ${RPM_BUILD_ROOT}%{_localstatedir}/lib
 
 exit 0
 
@@ -327,7 +336,7 @@ if [ $1 = 2 ]; then
   fi
 fi
 
-%define _vdfilename vd_1.0.0_vd_4.11.0.tar.xz
+%define _vdfilename vd_1.0.0_vd_4.13.0.tar.xz
 
 # Fresh install code block
 if [ $1 = 1 ]; then
@@ -336,6 +345,7 @@ if [ $1 = 1 ]; then
 
   # Generating ossec.conf file
   %{_localstatedir}/packages_files/manager_installation_scripts/gen_ossec.sh conf manager ${DIST_NAME} ${DIST_VER}.${DIST_SUBVER} %{_localstatedir} > %{_localstatedir}/etc/ossec.conf
+  chown root:wazuh %{_localstatedir}/etc/ossec.conf
 
   touch %{_localstatedir}/logs/active-responses.log
   touch %{_localstatedir}/logs/integrations.log
@@ -482,6 +492,9 @@ if command -v getenforce > /dev/null 2>&1 && command -v semodule > /dev/null 2>&
   fi
 fi
 
+# Restore ossec.conf permissions after upgrading
+chmod 0660 %{_localstatedir}/etc/ossec.conf
+
 # Delete the installation files used to configure the manager
 rm -rf %{_localstatedir}/packages_files
 
@@ -575,6 +588,15 @@ if [ $1 = 0 ];then
   rm -rf %{_localstatedir}/logs/
   rm -rf %{_localstatedir}/ruleset/
   rm -rf %{_localstatedir}/tmp
+
+
+  # Delete audisp wazuh plugin if exists
+  if [ -e /etc/audit/plugins.d/af_wazuh.conf ]; then
+    rm -f -- /etc/audit/plugins.d/af_wazuh.conf
+  fi
+  if [ -e /etc/audisp/plugins.d/af_wazuh.conf ]; then
+    rm -f -- /etc/audisp/plugins.d/af_wazuh.conf
+  fi
 fi
 
 # posttrans code is the last thing executed in a install/upgrade
@@ -626,6 +648,7 @@ rm -fr %{buildroot}
 %attr(640, root, wazuh) %verify(not md5 size mtime) %ghost %{_sysconfdir}/ossec-init.conf
 /usr/lib/systemd/system/wazuh-manager.service
 %dir %attr(750, root, wazuh) %{_localstatedir}
+%attr(440, wazuh, wazuh) %{_localstatedir}/VERSION.json
 %attr(750, root, wazuh) %{_localstatedir}/agentless
 %dir %attr(750, root, wazuh) %{_localstatedir}/active-response
 %dir %attr(750, root, wazuh) %{_localstatedir}/active-response/bin
@@ -673,8 +696,10 @@ rm -fr %{buildroot}
 %attr(750, root, wazuh) %{_localstatedir}/bin/rbac_control
 %attr(750, root, wazuh) %{_localstatedir}/bin/wazuh-keystore
 %dir %attr(770, wazuh, wazuh) %{_localstatedir}/etc
-%attr(660, root, wazuh) %config(noreplace) %{_localstatedir}/etc/ossec.conf
-%attr(640, root, wazuh) %config(noreplace) %{_localstatedir}/etc/client.keys
+%attr(660, root, wazuh) %ghost %{_localstatedir}/etc/ossec.conf
+%attr(640, root, wazuh) %ghost %{_localstatedir}/etc/sslmanager.cert
+%attr(640, root, wazuh) %ghost %{_localstatedir}/etc/sslmanager.key
+%attr(640, wazuh, wazuh) %config(noreplace) %{_localstatedir}/etc/client.keys
 %attr(640, root, wazuh) %{_localstatedir}/etc/internal_options*
 %attr(640, root, wazuh) %config(noreplace) %{_localstatedir}/etc/local_internal_options.conf
 %attr(640, root, wazuh) %{_localstatedir}/etc/localtime
@@ -684,6 +709,8 @@ rm -fr %{buildroot}
 %dir %attr(770, wazuh, wazuh) %{_localstatedir}/etc/lists/amazon
 %attr(660, wazuh, wazuh) %config(noreplace) %{_localstatedir}/etc/lists/amazon/*
 %attr(660, wazuh, wazuh) %config(noreplace) %{_localstatedir}/etc/lists/audit-keys
+%dir %attr(770, wazuh, wazuh) %{_localstatedir}/etc/lists/malicious-ioc
+%attr(660, wazuh, wazuh) %config(noreplace) %{_localstatedir}/etc/lists/malicious-ioc/*
 %attr(660, wazuh, wazuh) %config(noreplace) %{_localstatedir}/etc/lists/security-eventchannel
 %dir %attr(770, root, wazuh) %{_localstatedir}/etc/shared
 %dir %attr(770, wazuh, wazuh) %{_localstatedir}/etc/shared/default
@@ -720,11 +747,15 @@ rm -fr %{buildroot}
 %attr(750, root, wazuh) %{_localstatedir}/lib/libstdc++.so.6
 %attr(750, root, wazuh) %{_localstatedir}/lib/libgcc_s.so.1
 %attr(750, root, wazuh) %{_localstatedir}/lib/libfimdb.so
+%attr(750, root, wazuh) %{_localstatedir}/lib/libfimebpf.so
+%attr(750, root, wazuh) %{_localstatedir}/lib/libbpf.so
+%attr(750, root, wazuh) %{_localstatedir}/lib/modern.bpf.o
 %attr(750, root, wazuh) %{_localstatedir}/lib/libcontent_manager.so
 %attr(750, root, wazuh) %{_localstatedir}/lib/libindexer_connector.so
 %attr(750, root, wazuh) %{_localstatedir}/lib/librocksdb.so.8
 %attr(750, root, wazuh) %{_localstatedir}/lib/librouter.so
 %attr(750, root, wazuh) %{_localstatedir}/lib/libvulnerability_scanner.so
+%attr(750, root, wazuh) %{_localstatedir}/lib/libinventory_harvester.so
 %{_localstatedir}/lib/libpython3.10.so.1.0
 %dir %attr(770, wazuh, wazuh) %{_localstatedir}/logs
 %attr(660, wazuh, wazuh)  %ghost %{_localstatedir}/logs/active-responses.log
@@ -734,7 +765,33 @@ rm -fr %{buildroot}
 %attr(660, wazuh, wazuh) %ghost %{_localstatedir}/logs/ossec.json
 %dir %attr(440, root, wazuh) %{_localstatedir}/templates
 %attr(0440, root, wazuh) %{_localstatedir}/templates/vd_states_template.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-packages.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-processes.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-system.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-hardware.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-networks.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-protocols.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-interfaces.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-hotfixes.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-ports.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-users.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-groups.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-browser-extensions.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-services.json
 %attr(0440, root, wazuh) %{_localstatedir}/templates/vd_states_update_mappings.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-packages-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-processes-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-system-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-hardware-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-networks-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-protocols-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-interfaces-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-hotfixes-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-ports-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-users-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-groups-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-browser-extensions-update.json
+%attr(0440, root, wazuh) %{_localstatedir}/templates/wazuh-states-inventory-services-update.json
 %dir %attr(750, wazuh, wazuh) %{_localstatedir}/logs/api
 %dir %attr(750, wazuh, wazuh) %{_localstatedir}/logs/archives
 %dir %attr(750, wazuh, wazuh) %{_localstatedir}/logs/alerts
@@ -745,9 +802,8 @@ rm -fr %{buildroot}
 %dir %attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts
 %attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/add_localfiles.sh
 %attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/gen_ossec.sh
+%attr(440, wazuh, wazuh) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/VERSION.json
 %dir %attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/src/
-%attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/src/REVISION
-%attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/src/VERSION
 %dir %attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/src/init/
 %attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/src/init/*
 %dir %attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/etc/templates
@@ -758,9 +814,9 @@ rm -fr %{buildroot}
 %attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/etc/templates/config/centos/*
 %dir %attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/etc/templates/config/rhel
 %attr(750, root, root) %config(missingok) %{_localstatedir}/packages_files/manager_installation_scripts/etc/templates/config/rhel/*
-%attr(750, wazuh, wazuh) %missingok %{_localstatedir}/tmp/%{_vdfilename}
+%attr(640, wazuh, wazuh) %missingok %{_localstatedir}/tmp/%{_vdfilename}
 %dir %attr(750, root, wazuh) %{_localstatedir}/queue
-%attr(600, root, wazuh) %ghost %{_localstatedir}/queue/agents-timestamp
+%attr(600, root, wazuh) %{_localstatedir}/queue/agents-timestamp
 %dir %attr(750, wazuh, wazuh) %{_localstatedir}/queue/agentless
 %dir %attr(770, wazuh, wazuh) %{_localstatedir}/queue/alerts
 %dir %attr(770, wazuh, wazuh) %{_localstatedir}/queue/cluster
@@ -817,6 +873,10 @@ rm -fr %{buildroot}
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/7/*
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/8
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/8/*
+%dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/9
+%attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/9/*
+%dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/10
+%attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/centos/10/*
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/darwin
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/darwin/15
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/darwin/15/*
@@ -838,10 +898,14 @@ rm -fr %{buildroot}
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/darwin/23/*
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/darwin/24
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/darwin/24/*
+%dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/darwin/25
+%attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/darwin/25/*
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/debian
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/debian/*
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/ol/9
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/ol/9/*
+%dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/ol/10
+%attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/ol/10/*
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/sca.files
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/5
@@ -854,6 +918,8 @@ rm -fr %{buildroot}
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/8/*
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/9
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/9/*
+%dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/10
+%attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/rhel/10/*
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/sca.files
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/11
@@ -862,6 +928,8 @@ rm -fr %{buildroot}
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/12/*
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/15
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/15/*
+%dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/16
+%attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sles/16/*
 %dir %attr(750, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sunos
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/sunos/*
 %attr(640, root, wazuh) %config(missingok) %{_localstatedir}/tmp/sca-%{version}-%{release}-tmp/suse/sca.files
@@ -902,7 +970,25 @@ rm -fr %{buildroot}
 %dir %attr(750, root, wazuh) %{_localstatedir}/wodles/gcloud
 %attr(750, root, wazuh) %{_localstatedir}/wodles/gcloud/*
 
+%files -n wazuh-manager-debuginfo -f debugfiles.list
+
 %changelog
+* Wed Feb 11 2026 support <info@wazuh.com> - 4.14.3
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-14-3.html
+* Wed Jan 14 2026 support <info@wazuh.com> - 4.14.2
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-14-2.html
+* Wed Nov 12 2025 support <info@wazuh.com> - 4.14.1
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-14-1.html
+* Wed Oct 22 2025 support <info@wazuh.com> - 4.14.0
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-14-0.html
+* Wed Sep 24 2025 support <info@wazuh.com> - 4.13.1
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-13-1.html
+* Thu Sep 18 2025 support <info@wazuh.com> - 4.13.0
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-13-0.html
+* Wed May 07 2025 support <info@wazuh.com> - 4.12.0
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-12-0.html
+* Tue Apr 01 2025 support <info@wazuh.com> - 4.11.2
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-11-2.html
 * Wed Mar 12 2025 support <info@wazuh.com> - 4.11.1
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-11-1.html
 * Wed Feb 19 2025 support <info@wazuh.com> - 4.11.0

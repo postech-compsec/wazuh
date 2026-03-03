@@ -192,6 +192,7 @@ checks:
       - soc_2: ["CC6.6", "CC7.1", "CC7.2", "CC8.1"]
     condition: any
     rules:
+      - 'c:/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate -> r:^Firewall\s*\t*is\s*\t*enabled'
       - "c:defaults read /Library/Preferences/com.apple.alf globalstate -> r:^1$|^2$"
       - "c:defaults read /Library/Preferences/com.apple.security.firewall EnableFirewall -> r:^1$|^2$|^true$"
 
@@ -216,6 +217,7 @@ checks:
       - soc_2: ["CC6.3", "CC6.6", "CC7.1", "CC8.1"]
     condition: any
     rules:
+      - 'c:/usr/libexec/ApplicationFirewall/socketfilterfw --getstealthmode -> r:^Firewall\s*\t*stealth\s*\t*mode\s*\t*is\s*\t*on'
       - "c:defaults read /Library/Preferences/com.apple.alf stealthenabled -> r:^1$|^2$"
       - "c:defaults read /Library/Preferences/com.apple.security.firewall EnableStealthMode -> r:^1$|^2$|^true$"
 
@@ -530,27 +532,7 @@ checks:
       - 'c:sh -c "launchctl list | grep -c com.apple.locationd" -> r:^1$'
       - 'c:sudo -u _locationd /usr/bin/osascript -l JavaScript -e "$.NSUserDefaults.alloc.initWithSuiteName(''com.apple.locationd'').objectForKey(''LocationServicesEnabled'')" -> r:^1$'
 
-  # 2.6.1.2 Ensure 'Show Location Icon in Control Center when System Services Request Your Location' Is Enabled. (Automated)
-  - id: 35022
-    title: "Ensure 'Show Location Icon in Control Center when System Services Request Your Location' Is Enabled."
-    description: "This setting provides the user an understanding of the current status of Location Services and which applications are using it."
-    rationale: 'Apple has fully integrated location services into macOS. When user applications access location an arrow is displayed next to the Control Center in the menu bar to give users an indication when their location is being accessed. By default system services like Time zones, weather, travel times, geolocation, "Find my Mac,"and advertising services do not indicate the location is accessed. Enabling the "Show location icon in the menu bar when System Services request your location" setting will show an arrow in the control center when a system service accesses the location. Although an indication that location was accessed, Control Center will only say that it was accessed by "System Services" and not the individual service. Looking in System Settings > Location Services > System Services > Details... will expose exactly which system services have accessed Location Services in the last 24 hours. Third-party tools will be shown individually when they access location services.'
-    impact: "Users may be provided visibility to a setting they cannot control if organizations control Location Services globally by policy."
-    remediation: "Graphical Method: Perform the following steps to set whether the location services icon is in the menu bar: 1. Open System Settings 2. Select Privacy & Security 3. Select Location Services 4. Select Details... 5. Set Show location icon in menu bar when System Services request your location to enabled Terminal Method: Run the following commands to set the option of the location services icon being in the menu bar: $ /usr/bin/sudo /usr/bin/defaults write /Library/Preferences/com.apple.locationmenu.plist ShowSystemServices -bool true."
-    compliance:
-      - cis: ["2.6.1.2"]
-      - cis_csc_v8: ["4.1", "4.8"]
-      - cis_csc_v7: ["5.1"]
-      - cmmc_v2.0: ["AC.L1-3.1.1", "AC.L1-3.1.2", "CM.L2-3.4.1", "CM.L2-3.4.2", "CM.L2-3.4.6", "CM.L2-3.4.7", "CM.L2-3.4.8", "SC.L2-3.13.6"]
-      - iso_27001-2013: ["A.14.2.5", "A.8.1.3"]
-      - nist_sp_800-53: ["CM-7(1)", "CM-9", "SA-10"]
-      - pci_dss_v3.2.1: ["1.1.6", "1.2.1", "11.5", "2.2", "2.2.2", "2.2.5"]
-      - pci_dss_v4.0: ["1.1.1", "1.2.1", "1.2.5", "1.2.6", "1.2.7", "1.5.1", "2.1.1", "2.2.1", "2.2.4", "6.4.1"]
-      - soc_2: ["CC6.3", "CC6.6", "CC7.1", "CC8.1"]
-    condition: all
-    rules:
-      - "c:defaults read /Library/Preferences/com.apple.locationmenu.plist ShowSystemServices -> r:^1$|^true$"
-
+  # 2.6.1.2 Ensure 'Show Location Icon in Control Center when System Services Request Your Location' Is Enabled. (Automated) - Not Implemented
   # 2.6.1.3 Audit Location Services Access. (Manual) - Not Implemented
   # 2.6.2.1 Audit Full Disk Access for Applications. (Manual) - Not Implemented
   # 2.6.3 Ensure Sending Diagnostic and Usage Data to Apple Is Disabled. (Automated) - Not Implemented
@@ -600,7 +582,7 @@ checks:
       - pci_dss_v3.2.1: ["3.4", "3.4.1", "8.2.1"]
       - pci_dss_v4.0: ["3.1.1", "3.3.2", "3.3.3", "3.5.1", "3.5.1.2", "3.5.1.3", "8.3.2"]
       - soc_2: ["CC6.1"]
-    condition: all
+    condition: any
     rules:
       - "c:fdesetup status -> r:^FileVault is On"
       - 'c:osascript -l JavaScript -e "osascript -l JavaScript -e "$.NSUserDefaults.alloc.initWithSuiteName(''com.apple.MCX'').objectForKey(''dontAllowFDEDisable'')" -> r:^0$'
@@ -626,7 +608,7 @@ checks:
       - soc_2: ["CC7.1", "CC8.1"]
     condition: all
     rules:
-      - "c:security authorizationdb read system.preferences | grep -A1 shared -> r:>false<"
+      - "c:security authorizationdb read system.preferences | grep -A1 shared -> r:<false"
 
   # 2.7.1 Ensure Screen Saver Corners Are Secure. (Automated) - Not Implemented
   # 2.7.2 Audit iPhone Mirroring (Manual) - Not Implemented
@@ -660,7 +642,7 @@ checks:
     title: "Ensure Wake for Network Access Is Disabled."
     description: "This feature allows the computer to take action when the user is not present and the computer is in energy saving mode. These tools require FileVault to remain unlocked and fully rejoin known networks. This macOS feature is meant to allow the computer to resume activity as needed regardless of physical security controls. This feature allows other users to be able to access your computer's shared resources, such as shared printers or Apple Music playlists, even when your computer is in sleep mode. In a closed network when only authorized devices could wake a computer, it could be valuable to wake computers in order to do management push activity. Where mobile workstations and agents exist, the device will more likely check in to receive updates when already awake. Mobile devices should not be listening for signals on any unmanaged network or where untrusted devices exist that could send wake signals."
     rationale: "Disabling this feature mitigates the risk of an attacker remotely waking the system and gaining access."
-    impact: "Management programs like Apple Remote Desktop Administrator use wake-on-LAN to connect with computers. If turned off, such management programs will not be able to wake a computer over the LAN. If the wake-on-LAN feature is needed, do not turn off this feature. The control to prevent computer sleep has been retired for this version of the Benchmark. Forcing the computer to stay on and use energy in case a management push is needed is contrary to most current management processes. Only keep computers unslept if after hours pushes are required on closed LANs. Turning off Wake for Network Access will also not allow Find My to work when the computer is asleep. It will also give this warning \"You won't be able to locate, lock, or erase this Mac while it's asleep because Wake for network access is turned off.\"."
+    impact: 'Management programs like Apple Remote Desktop Administrator use wake-on-LAN to connect with computers. If turned off, such management programs will not be able to wake a computer over the LAN. If the wake-on-LAN feature is needed, do not turn off this feature. The control to prevent computer sleep has been retired for this version of the Benchmark. Forcing the computer to stay on and use energy in case a management push is needed is contrary to most current management processes. Only keep computers unslept if after hours pushes are required on closed LANs. Turning off Wake for Network Access will also not allow Find My to work when the computer is asleep. It will also give this warning "You won''t be able to locate, lock, or erase this Mac while it''s asleep because Wake for network access is turned off.".'
     remediation: "Graphical Method: Perform the following steps to disable Wake for network access: Desktop Instructions: 1. Open System Settings 2. Select Energy Saver 3. Set Wake for network access to disabled Laptop Instructions: 1. Open System Settings 2. Select Battery 3. Select Options... 4. Set Wake for network access to Never Terminal Method: Run the following command to disable Wake for network access: $ /usr/bin/sudo /usr/bin/pmset -a womp 0 Profile Method: Create or edit a configuration profile with the following information: 1. The PayloadType string is com.apple.MCX 2. The key to include is com.apple.EnergySaver.desktop.ACPower 3. The key must be set to: <dict> <key>Wake On LAN</key> <integer>0</integer> <key>Wake On Modem Ring</key> <integer>0</integer> </dict> 4. The key to also include is com.apple.EnergySaver.portable.ACPower 5. The key must be set to: <dict> <key>Wake On LAN</key> <integer>0</integer> <key>Wake On Modem Ring</key> <integer>0</integer> </dict> 6. The key to also include is com.apple.EnergySaver.portable.BatteryPower 7. The key must be set to: <dict> <key>Wake On LAN</key> <integer>0</integer> <key>Wake On Modem Ring</key> <integer>0</integer> </dict> Note: Both Wake on LAN and Wake on Modem Ring need to be set. Only setting Wake On LAN will allow the profile to install but not set any settings. This profile will only apply the setting at installation and is not sticky."
     compliance:
       - cis: ["2.9.3"]
@@ -679,28 +661,7 @@ checks:
 
   # 2.10.1 Ensure an Inactivity Interval of 20 Minutes Or Less for the Screen Saver Is Enabled. (Automated) - Not Implemented
 
-  # 2.10.2 Ensure Require Password After Screen Saver Begins or Display Is Turned Off Is Enabled for 5 Seconds or Immediately. (Automated)
-  - id: 35028
-    title: "Ensure Require Password After Screen Saver Begins or Display Is Turned Off Is Enabled for 5 Seconds or Immediately."
-    description: "Sleep and screen saver modes are low power modes that reduce electrical consumption while the system is not in use."
-    rationale: "Prompting for a password when waking from sleep or screen saver mode mitigates the threat of an unauthorized person gaining access to a system in the user's absence."
-    impact: "Without a screenlock in place, anyone with physical access to the computer would be logged in and able to use the active user's session."
-    remediation: "Graphical Method: Perform the following steps to enable a password for unlock after a screen saver begins or after sleep: 1. Open System Settings 2. Select Lock Screen 3. Set Require password after screensaver begins or display is turned off to either After 0 seconds or After 5 seconds Terminal Method: Run the following command to require a password to unlock the computer after the screen saver engages or the computer sleeps: $ /usr/bin/sudo /usr/sbin/sysadminctl -screenLock immediate -password <administrator password> or $ /usr/bin/sudo /usr/sbin/sysadminctl -screenLock 5 seconds -password <administrator password> Profile Method: Create or edit a configuration profile with the following information: 1. The PayloadType string is com.apple.screensaver 2. The key to include is askForPassword 3. The key must be set to <true/> 4. The key to also include is askForPasswordDelay 5. The key must be set to <integer><0,5></integer>."
-    references:
-      - "https://blog.kolide.com/screensaver-security-on-macos-10-13-is-broken-a385726e2ae2"
-      - "https://github.com/rtrouton/profiles/blob/master/SetDefaultScreensaver/SetDefaultScreensaver.mobileconfig"
-    compliance:
-      - cis: ["2.10.2"]
-      - cis_csc_v8: ["4.7"]
-      - cis_csc_v7: ["4.2"]
-      - iso_27001-2013: ["A.9.4.3"]
-      - pci_dss_v3.2.1: ["2.1", "2.1.1"]
-      - pci_dss_v4.0: ["2.2.2", "2.3.1"]
-      - soc_2: ["CC6.3"]
-    condition: all
-    rules:
-      - 'c:osascript -l JavaScript -e "$.NSUserDefaults.alloc.initWithSuiteName(''com.apple.screensaver'').objectForKey(''askForPassword'')" -> n:^(\d+)$ compare == 1'
-      - 'c:osascript -l JavaScript -e "$.NSUserDefaults.alloc.initWithSuiteName(''com.apple.screensaver'').objectForKey(''askForPasswordDelay'')" -> n:^(\d+)$ compare <= 5'
+  # 2.10.2 Ensure Require Password After Screen Saver Begins or Display Is Turned Off Is Enabled for 5 Seconds or Immediately. (Automated) - Not Implemented
 
   # 2.10.3 Ensure a Custom Message for the Login Screen Is Enabled. (Automated)
   - id: 35029
@@ -781,7 +742,7 @@ checks:
       - soc_2: ["CC6.1"]
     condition: all
     rules:
-      - 'not c:dscl . -list /Users hint -> r:^\w*$'
+      - 'not c:dscl . -list /Users hint -> r:^\S+$'
 
   # 2.11.2 Audit Touch ID. (Manual) - Not Implemented
 
@@ -1024,7 +985,7 @@ checks:
       - soc_2: ["CC6.3", "CC6.6", "CC7.1", "CC8.1"]
     condition: all
     rules:
-      - "not c:launchctl list -> r:com.apple.nfsd"
+      - "c:nfsd status -> r:not running"
       - "not f:/etc/exports"
 
   # 5.1.1 Ensure Home Folders Are Secure. (Automated) - Not Implemented

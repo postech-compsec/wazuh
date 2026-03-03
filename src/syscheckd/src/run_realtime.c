@@ -129,7 +129,7 @@ int realtime_adddir(const char *dir, directory_t *configuration) {
     int mode = FIM_MODE(configuration->options);
 
 #ifdef ENABLE_AUDIT
-    if (mode == FIM_WHODATA){
+    if ((mode == FIM_WHODATA) && syscheck.whodata_provider == AUDIT_PROVIDER) {
         add_whodata_directory(dir);
         return 1;
     }
@@ -301,6 +301,7 @@ int realtime_update_watch(const char *wd, const char *dir) {
     configuration = fim_configuration_directory(dir);
 
     if (configuration == NULL) {
+        mdebug2(FIM_CONFIGURATION_NOTFOUND, "file", dir);
         inotify_rm_watch(syscheck.realtime->fd, atoi(wd));
         free(OSHash_Delete_ex(syscheck.realtime->dirtb, wd));
         return 0;
@@ -672,7 +673,7 @@ int realtime_adddir(const char *dir, directory_t *configuration) {
 
     os_calloc(1, sizeof(win32rtfim), rtlocald);
 
-    rtlocald->h = CreateFile(dir, FILE_LIST_DIRECTORY, FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+    rtlocald->h = wCreateFile(dir, FILE_LIST_DIRECTORY, FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                              OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED, NULL);
 
     if (rtlocald->h == INVALID_HANDLE_VALUE || rtlocald->h == NULL) {

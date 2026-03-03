@@ -19,7 +19,7 @@
 #include "commonDefs.h"
 
 using namespace std::chrono_literals;
-auto constexpr MAX_TRIES = 5;
+auto constexpr MAX_TRIES = 10;
 
 SQLiteDBEngine::SQLiteDBEngine(const std::shared_ptr<ISQLiteFactory>& sqliteFactory,
                                const std::string&                     path,
@@ -553,7 +553,9 @@ void SQLiteDBEngine::initialize(const std::string&              path,
     {
         if (!cleanDB(path))
         {
-            throw dbengine_error {DELETE_OLD_DB_ERROR};
+            // Use detailed error message if available, otherwise use default
+            throw dbengine_error {std::make_pair(DELETE_OLD_DB_ERROR.first,
+                                                 m_lastCleanDBError.empty() ? DELETE_OLD_DB_ERROR.second : m_lastCleanDBError)};
         }
 
         m_sqliteConnection = m_sqliteFactory->createConnection(path);
@@ -618,22 +620,34 @@ bool SQLiteDBEngine::cleanDB(const std::string& path)
 {
     auto ret { true };
     auto isRemoved {0};
+    auto lastErrno {0};
 
     if (path.compare(":memory") != 0)
     {
         if (std::ifstream(path))
         {
             isRemoved = std::remove(path.c_str());
+            lastErrno = errno;
 
             for (uint8_t amountTries = 0; amountTries < MAX_TRIES && isRemoved; amountTries++)
             {
                 std::this_thread::sleep_for(1s); //< Sleep for 1s
-                std::cerr << "Sleep for 1s and try to delete database again.\n";
+                std::cerr << "Failed to delete database file '" << path
+                          << "' (errno: " << lastErrno << "). Retry attempt "
+                          << static_cast<int>(amountTries + 1) << "/" << MAX_TRIES << ".\n";
                 isRemoved = std::remove(path.c_str());
+                lastErrno = errno;
             }
 
             if (isRemoved)
             {
+                std::cerr << "Failed to delete database file '" << path
+                          << "' after " << MAX_TRIES << " attempts (errno: " << lastErrno << ").\n";
+
+                // Store detailed error message for exception
+                m_lastCleanDBError = "Error deleting old db file '" + path +
+                                     "' after " + std::to_string(MAX_TRIES) +
+                                     " attempts (errno: " + std::to_string(lastErrno) + ")";
                 ret = false;
             }
         }
@@ -800,7 +814,7 @@ bool SQLiteDBEngine::bindJsonData(const std::shared_ptr<SQLite::IStatement> stmt
 {
     bool retVal { true };
     const auto type { std::get<TableHeader::Type>(cd) };
-    const auto name { std::get<TableHeader::Name>(cd) };
+    const auto& name { std::get<TableHeader::Name>(cd) };
     const auto& it  { valueType.find(name) };
 
     if (valueType.end() != it)
@@ -831,9 +845,9 @@ bool SQLiteDBEngine::bindJsonData(const std::shared_ptr<SQLite::IStatement> stmt
         }
         else if (ColumnType::Integer == type)
         {
-            int32_t value
+            int64_t value
             {
-                jsData.is_number() ? jsData.get<int32_t>() : jsData.is_string()
+                jsData.is_number() ? jsData.get<int64_t>() : jsData.is_string()
                 && jsData.get_ref<const std::string&>().size()
                 ? std::stoi(jsData.get_ref<const std::string&>())
                 : 0
@@ -1000,7 +1014,7 @@ void SQLiteDBEngine::getTableData(std::shared_ptr<SQLite::IStatement>const stmt,
     }
     else if (ColumnType::Integer == type)
     {
-        row[fieldName] = std::make_tuple(type, std::string(), stmt->column(index)->value(int32_t{}), 0, 0, 0);
+        row[fieldName] = std::make_tuple(type, std::string(), stmt->column(index)->value(int64_t{}), 0, 0, 0);
     }
     else if (ColumnType::Text == type)
     {
@@ -1233,27 +1247,27 @@ void SQLiteDBEngine::bindFieldData(const std::shared_ptr<SQLite::IStatement> stm
 
     if (ColumnType::BigInt == type)
     {
-        const auto value { std::get<GenericTupleIndex::GenBigInt>(fieldData) };
+        const auto& value { std::get<GenericTupleIndex::GenBigInt>(fieldData) };
         stmt->bind(index, value);
     }
     else if (ColumnType::UnsignedBigInt == type)
     {
-        const auto value { std::get<GenericTupleIndex::GenUnsignedBigInt>(fieldData) };
+        const auto& value { std::get<GenericTupleIndex::GenUnsignedBigInt>(fieldData) };
         stmt->bind(index, value);
     }
     else if (ColumnType::Integer == type)
     {
-        const auto value { std::get<GenericTupleIndex::GenInteger>(fieldData) };
+        const auto& value { std::get<GenericTupleIndex::GenInteger>(fieldData) };
         stmt->bind(index, value);
     }
     else if (ColumnType::Text == type)
     {
-        const auto value { std::get<GenericTupleIndex::GenString>(fieldData) };
+        const auto& value { std::get<GenericTupleIndex::GenString>(fieldData) };
         stmt->bind(index, value);
     }
     else if (ColumnType::Double == type)
     {
-        const auto value { std::get<GenericTupleIndex::GenDouble>(fieldData) };
+        const auto& value { std::get<GenericTupleIndex::GenDouble>(fieldData) };
         stmt->bind(index, value);
     }
     else
@@ -1715,7 +1729,7 @@ std::string SQLiteDBEngine::buildModifiedRowsQuery(const std::string& t1,
 
     for (const auto& value : tableFields)
     {
-        const auto fieldName {std::get<TableHeader::Name>(value)};
+        const auto& fieldName {std::get<TableHeader::Name>(value)};
         fieldsList.append("CASE WHEN t1.");
         fieldsList.append(fieldName);
         fieldsList.append("<>t2.");

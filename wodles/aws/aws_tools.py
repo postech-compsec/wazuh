@@ -23,10 +23,11 @@ SECURITY_LAKE_IAM_ROLE_AUTHENTICATION_URL = 'https://documentation.wazuh.com/cur
                                         'supported-services/security-lake.html#configuring-an-iam-role'
 
 ALL_REGIONS = (
-    'af-south-1', 'ap-east-1', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3', 'ap-south-1', 'ap-south-2',
-    'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4', 'ca-central-1', 'eu-central-1',
-    'eu-central-2', 'eu-north-1', 'eu-south-1', 'eu-south-2', 'eu-west-1', 'eu-west-2', 'eu-west-3', 'il-central-1',
-    'me-central-1', 'me-south-1', 'sa-east-1', 'us-east-1', 'us-east-2', 'us-west-1', 'us-west-2'
+    'af-south-1', 'ap-east-1', 'ap-east-2', 'ap-northeast-1', 'ap-northeast-2', 'ap-northeast-3', 'ap-south-1', 'ap-south-2',
+    'ap-southeast-1', 'ap-southeast-2', 'ap-southeast-3', 'ap-southeast-4', 'ap-southeast-5', 'ap-southeast-7',
+    'ca-central-1', 'ca-west-1', 'eu-central-1', 'eu-central-2', 'eu-north-1', 'eu-south-1', 'eu-south-2', 'eu-west-1',
+    'eu-west-2', 'eu-west-3', 'il-central-1', 'me-central-1', 'me-south-1', 'mx-central-1', 'sa-east-1', 'us-east-1',
+    'us-east-2', 'us-west-1', 'us-west-2'
 )
 
 RETRY_ATTEMPTS_KEY: str = "max_attempts"
@@ -290,7 +291,12 @@ def args_valid_sqs_name(sqs_name):
     return sqs_name
 
 
-def arg_validate_security_lake_auth_params(external_id: Optional[str], name: Optional[str], iam_role_arn: Optional[str]):
+def arg_validate_security_lake_auth_params(
+        external_id: Optional[str],
+        name: Optional[str],
+        iam_role_arn: Optional[str],
+        profile: Optional[str]
+):
     """
     Validate the Securit Lake authentication arguments.
 
@@ -302,6 +308,8 @@ def arg_validate_security_lake_auth_params(external_id: Optional[str], name: Opt
         Name of the SQS Queue.
     iam_role_arn : Optional[str]
         IAM Role.
+    profile : Optional[str]
+        AWS Profile.
     """
 
     if iam_role_arn is None:
@@ -313,6 +321,8 @@ def arg_validate_security_lake_auth_params(external_id: Optional[str], name: Opt
     if external_id is None:
         error('Used a subscriber but no --external_id provided.')
         sys.exit(21)
+    if profile is None:
+        debug('Used a subscriber but no --aws_profile provided.', 2)
 
 
 def get_aws_config_params() -> configparser.RawConfigParser:

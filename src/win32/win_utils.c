@@ -182,6 +182,16 @@ int local_start()
         merror_exit("Error creating mutex.");
     }
 
+    /* Set wait lock before starting threads */
+    os_setwait();
+
+    /* Initialize buffer before starting threads that may use it */
+    if (agt->buffer) {
+        buffer_init();
+    } else {
+        minfo(DISABLED_BUFFER);
+    }
+
     /* Start syscheck thread */
     w_create_thread(NULL,
                      0,
@@ -257,9 +267,6 @@ int local_start()
         }
     }
 
-    /* Try to connect to server */
-    os_setwait();
-
     /* Socket connection */
     agt->sock = -1;
 
@@ -279,16 +286,13 @@ int local_start()
     }
 
     /* Launch dispatch thread */
-    if (agt->buffer){
-        buffer_init();
+    if (agt->buffer) {
         w_create_thread(NULL,
                          0,
                          dispatch_buffer,
                          NULL,
                          0,
                          (LPDWORD)&threadID);
-    } else {
-        minfo(DISABLED_BUFFER);
     }
 
     /* Configure and start statistics */
@@ -413,6 +417,11 @@ int StartMQWithSpecificOwnerAndPerms(__attribute__((unused)) const char *path
 /* StartMQ for Windows */
 int StartMQ(__attribute__((unused)) const char *path, __attribute__((unused)) short int type, __attribute__((unused)) short int n_tries)
 {
+    return (0);
+}
+
+/* StartMQPredicated for Windows */
+int StartMQPredicated(__attribute__((unused)) const char *path, __attribute__((unused)) short int type, __attribute__((unused)) short int n_tries, __attribute__((unused)) bool (*fn_ptr)()) {
     return (0);
 }
 

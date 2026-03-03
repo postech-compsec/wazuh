@@ -134,6 +134,8 @@ static fim_decoders_t *fim_decoders[] = {
 };
 OSHash *fim_agentinfo;
 
+OSList * g_decoder_thread_list = NULL; ///< List of decoders on threads
+
 // Initialize the necessary information to process the syscheck information
 // LCOV_EXCL_START
 int fim_init(void) {
@@ -157,8 +159,48 @@ int fim_init(void) {
     fim_decoders[REGISTRY_VALUE_DECODER]->modify_name = FIM_REG_VAL_MOD;
     fim_decoders[REGISTRY_VALUE_DECODER]->delete_id = getDecoderfromlist(FIM_REG_VAL_DEL, &os_analysisd_decoder_store);
     fim_decoders[REGISTRY_VALUE_DECODER]->delete_name = FIM_REG_VAL_DEL;
-    if (fim_agentinfo == NULL) return 0;
+    if (fim_agentinfo == NULL) {
+        return 0;
+    }
+
+    // Create registry for decoders used in threads (For hotreload)
+    g_decoder_thread_list = OSList_Create();
+    if (g_decoder_thread_list == NULL) {
+        merror("Error creating the list of decoder info threads");
+        return 0;
+    }
+
     return 1;
+}
+
+void fim_hot_reload(void) {
+    if (fim_agentinfo) {
+        fim_decoders[FILE_DECODER]->add_id = getDecoderfromlist(FIM_NEW, &os_analysisd_decoder_store);
+        fim_decoders[FILE_DECODER]->modify_id = getDecoderfromlist(FIM_MOD, &os_analysisd_decoder_store);
+        fim_decoders[FILE_DECODER]->delete_id = getDecoderfromlist(FIM_DEL, &os_analysisd_decoder_store);
+        fim_decoders[REGISTRY_KEY_DECODER]->add_id = getDecoderfromlist(FIM_REG_KEY_NEW, &os_analysisd_decoder_store);
+        fim_decoders[REGISTRY_KEY_DECODER]->modify_id = getDecoderfromlist(FIM_REG_KEY_MOD, &os_analysisd_decoder_store);
+        fim_decoders[REGISTRY_KEY_DECODER]->delete_id = getDecoderfromlist(FIM_REG_KEY_DEL, &os_analysisd_decoder_store);
+        fim_decoders[REGISTRY_VALUE_DECODER]->add_id = getDecoderfromlist(FIM_REG_VAL_NEW, &os_analysisd_decoder_store);
+        fim_decoders[REGISTRY_VALUE_DECODER]->modify_id = getDecoderfromlist(FIM_REG_VAL_MOD, &os_analysisd_decoder_store);
+        fim_decoders[REGISTRY_VALUE_DECODER]->delete_id = getDecoderfromlist(FIM_REG_VAL_DEL, &os_analysisd_decoder_store);
+
+        // Reload local thread decoders
+        OSListNode * node = OSList_GetFirstNode(g_decoder_thread_list);
+        while (node && node->data) {
+            OSDecoderInfo * fim_decoder = node->data;
+            fim_decoder->id = getDecoderfromlist(FIM_MOD, &os_analysisd_decoder_store);
+            node = OSList_GetNextNode(g_decoder_thread_list);
+        }
+        mdebug1("FIM hotreload decoder completed.");
+    } else {
+        mdebug1("FIM decoder not initialized.");
+    }
+}
+
+void w_hotreload_fim_registry_decoder(OSDecoderInfo * fim_decoder) {
+    assert(fim_decoder != NULL);
+    OSList_AddData(g_decoder_thread_list, fim_decoder);
 }
 
 // Initialize the necessary information to process the syscheck information
@@ -561,7 +603,6 @@ exit_fail:
 int fim_alert (char *f_name, sk_sum_t *oldsum, sk_sum_t *newsum, Eventinfo *lf, _sdb *localsdb, syscheck_event_t event_type) {
     int changes = 0;
     char msg_type[OS_FLSIZE];
-    char buf_ptr[26];
 
     if (event_type == FIM_DELETED) {
         snprintf(msg_type, sizeof(msg_type), "was deleted.");
@@ -663,7 +704,8 @@ int fim_alert (char *f_name, sk_sum_t *oldsum, sk_sum_t *newsum, Eventinfo *lf, 
             }
         }
         /* MD5 message */
-        if (!*newsum->md5 || !*oldsum->md5 || strcmp(newsum->md5, oldsum->md5) == 0) {
+        if (newsum->md5 == NULL || newsum->md5[0] == '\0' || oldsum->md5 == NULL || oldsum->md5[0] == '\0'
+            || strcmp(newsum->md5, oldsum->md5) == 0) {
             localsdb->md5[0] = '\0';
         } else {
             changes = 1;
@@ -674,7 +716,8 @@ int fim_alert (char *f_name, sk_sum_t *oldsum, sk_sum_t *newsum, Eventinfo *lf, 
         }
 
         /* SHA-1 message */
-        if (!*newsum->sha1 || !*oldsum->sha1 || strcmp(newsum->sha1, oldsum->sha1) == 0) {
+        if (newsum->sha1 == NULL || newsum->sha1[0] == '\0' || oldsum->sha1 == NULL || oldsum->sha1[0] == '\0'
+            || strcmp(newsum->sha1, oldsum->sha1) == 0) {
             localsdb->sha1[0] = '\0';
         } else {
             changes = 1;
@@ -1765,6 +1808,12 @@ int fim_fetch_attributes_state(cJSON *attr, Eventinfo *lf, char new_state) {
                 dst_data = &lf->fields[FIM_SYM_PATH].value;
             } else if (strcmp(attr_it->string, "value_type") == 0) {
                 dst_data = &lf->fields[FIM_REGISTRY_VALUE_TYPE].value;
+            } else if (strcmp(attr_it->string, "inode") == 0) { // From 4.13.0 the inode field is a string
+                if (new_state) {
+                    os_strdup(attr_it->valuestring, lf->fields[FIM_INODE].value);
+                } else {
+                    os_strdup(attr_it->valuestring, lf->fields[FIM_INODE_BEFORE].value);
+                }
             }
 
             if (dst_data) {

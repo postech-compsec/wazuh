@@ -7,7 +7,6 @@
 
 import logging
 import sys
-from hashlib import md5
 from json import dumps
 from os.path import abspath, dirname
 
@@ -68,7 +67,7 @@ def start_log_analytics(args):
     )
 
     # Build the request
-    md5_hash = md5(args.la_query.encode()).hexdigest()
+    md5_hash = orm.create_pk(workspace=args.workspace, query=args.la_query)
     url = f'{URL_ANALYTICS}/v1/workspaces/{args.workspace}/query'
     body = build_log_analytics_query(
         query=args.la_query,
@@ -87,6 +86,7 @@ def start_log_analytics(args):
             md5_hash=md5_hash,
             query=args.la_query,
             tag=args.la_tag,
+            tenant=args.la_tenant_domain,
         )
     except HTTPError as e:
         logging.error(f'Log Analytics: {e}')
@@ -121,7 +121,7 @@ def build_log_analytics_query(
             )
     except orm.AzureORMError as e:
         logging.error(
-            f'Error trying to obtain row object from "{orm.LogAnalytics.__tablename__}" using md5="{md5}": '
+            f'Error trying to obtain row object from "{orm.LogAnalytics.__tablename__}" using md5="{md5_hash}": '
             f'{e}'
         )
         sys.exit(1)
@@ -161,7 +161,7 @@ def build_log_analytics_query(
 
 
 def get_log_analytics_events(
-        url: str, body: dict, headers: dict, md5_hash: str, query: str, tag: str
+        url: str, body: dict, headers: dict, md5_hash: str, query: str, tag: str, tenant:str
 ):
     """Get the logs, process the response and iterate the events.
 
@@ -175,6 +175,8 @@ def get_log_analytics_events(
         The header for the request, containing the authentication token.
     md5_hash : str
         md5 value used to search the query in the file containing the dates.
+    tenant : str
+        The tenant domain.
 
     Raises
     ------
@@ -189,7 +191,7 @@ def get_log_analytics_events(
             columns = response.json()['tables'][0]['columns']
             rows = response.json()['tables'][0]['rows']
             if len(rows) == 0:
-                logging.info('Log Analytics: There are no new results')
+                logging.info(f'Log Analytics: There are no new results for {tenant}')
             else:
                 time_position = get_time_position(columns)
                 if time_position is not None:
@@ -202,11 +204,11 @@ def get_log_analytics_events(
                         query=query,
                     )
                 else:
-                    logging.error('Error: No TimeGenerated field was found')
+                    logging.error('No TimeGenerated field was found')
 
         except KeyError as e:
             logging.error(
-                f'Error: It was not possible to obtain the columns and rows from the event: "{e}".'
+                f'It was not possible to obtain the columns and rows from the event: "{e}".'
             )
     else:
         logging.error(f"Error with Log Analytics request: {response.json()}")

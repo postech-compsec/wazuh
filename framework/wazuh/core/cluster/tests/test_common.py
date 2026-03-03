@@ -3,7 +3,6 @@
 # This program is free software; you can redistribute it and/or modify it under the terms of GPLv2
 
 import _hashlib
-import _io
 import abc
 import asyncio
 import hashlib
@@ -13,12 +12,12 @@ import os
 import sys
 from contextvars import ContextVar
 from datetime import datetime
-from unittest.mock import patch, MagicMock, mock_open, call, ANY, AsyncMock
+from unittest.mock import patch, MagicMock, call, ANY, AsyncMock, mock_open
 
 import cryptography
 import pytest
 from freezegun import freeze_time
-from uvloop import EventLoopPolicy, new_event_loop, Loop
+from uvloop import EventLoopPolicy, new_event_loop
 
 from wazuh import Wazuh
 from wazuh.core import exception
@@ -650,15 +649,16 @@ async def test_handler_update_chunks_wdb(send_request_mock):
     handler = cluster_common.Handler(fernet_key, cluster_items)
     handler.server = ServerMock(None)
 
-    with patch('wazuh.core.cluster.cluster.run_in_pool',
-               return_value={'total_updated': 0, 'errors_per_folder': {'key': 'value'}, 'generic_errors': ['ERR'],
-                             'updated_chunks': 2, 'time_spent': 6,
-                             'error_messages': {'chunks': [[0, 0], [1, 1]], 'others': ['other1', 'other2']}}):
+    with patch('wazuh.core.cluster.common.send_data_to_wdb', new_callable=AsyncMock) as send_data_to_wdb_mock:
         with patch.object(LoggerMock, "debug") as logger_debug_mock:
             with patch.object(LoggerMock, "debug2") as logger_debug2_mock:
                 with patch.object(LoggerMock, "error") as logger_error_mock:
+                    send_data_to_wdb_mock.return_value = {
+                        'total_updated': 0, 'errors_per_folder': {'key': 'value'}, 'generic_errors': ['ERR'],
+                        'updated_chunks': 2, 'time_spent': 6,
+                        'error_messages': {'chunks': [[0, 0], [1, 1]], 'others': ['other1', 'other2']}}
                     assert await handler.update_chunks_wdb(
-                        data={'chunks': [0, 1, 2, 3, 4]}, info_type='info',
+                        data={'chunks': [0, 1, 2, 3, 4]}, info_type='agent-groups',
                         logger=logger, error_command=b'ERROR', timeout=10) == {'error_messages': [0, 1],
                                                                                'errors_per_folder': {'key': 'value'},
                                                                                'generic_errors': ['ERR'],
@@ -672,14 +672,16 @@ async def test_handler_update_chunks_wdb(send_request_mock):
 
     # Test Exception
     send_request_mock.reset_mock()
-    with pytest.raises(exception.WazuhClusterError,
-                       match=r'.*Error 3037 - Error while processing Agent-info chunks: .*'):
-        await handler.update_chunks_wdb(data={'chunks': [0, 1, 2, 3, 4]}, info_type='info',
-                                        logger=logger, error_command=b'ERROR', timeout=10)
+    error_message = 'error'
+    with patch('wazuh.core.cluster.common.send_data_to_wdb', side_effect=Exception(error_message)):
+        with pytest.raises(exception.WazuhClusterError,
+                        match=r'.*Error 3037 - Error while processing Agent-info chunks: .*'):
+            await handler.update_chunks_wdb(data={'chunks': [0, 1, 2, 3, 4]}, info_type='info',
+                                            logger=logger, error_command=b'ERROR', timeout=10)
+
     send_request_mock.assert_has_calls(
         [call(command=b'ERROR',
-              data=b'error processing info chunks in process pool: '
-                   b'Error 2005 - Could not connect to wdb socket: [Errno 2] No such file or directory')])
+              data=f'error processing info chunks in process pool: {error_message}'.encode())])
 
 
 @pytest.mark.asyncio
@@ -734,7 +736,7 @@ async def test_handler_send_string():
         with patch.object(logging.getLogger("wazuh"), "error") as logger_mock:
             assert exception.WazuhClusterError(3020).message.encode() in await handler.send_string(b"something")
             logger_mock.assert_called_once_with(
-                f'There was an error while trying to send a string: Error 3020 - Timeout sending request',
+                'There was an error while trying to send a string: Error 3020 - Timeout sending request',
                 exc_info=False)
 
 
@@ -1033,11 +1035,22 @@ def test_handler_receive_file():
     """Test if a descriptor file is created for an incoming file."""
     handler = cluster_common.Handler(fernet_key, cluster_items)
 
-    assert handler.receive_file(b"data") == (b"ok ", b"Ready to receive new file")
-    assert "fd" in handler.in_file[b"data"]
-    assert isinstance(handler.in_file[b"data"]["fd"], _io.BufferedWriter)
-    assert "checksum" in handler.in_file[b"data"]
-    assert isinstance(handler.in_file[b"data"]["checksum"], _hashlib.HASH)
+    path = b"/queue/cluster/testfile"
+
+    with patch('builtins.open', mock_open()) as open_mock:
+        assert handler.receive_file(path) == (b"ok ", b"Ready to receive new file")
+    assert "fd" in handler.in_file[path]
+    assert handler.in_file[path]["fd"] == open_mock.return_value
+    assert "checksum" in handler.in_file[path]
+    assert isinstance(handler.in_file[path]["checksum"], _hashlib.HASH)
+
+
+def test_handler_receive_file_rejects_invalid_and_disallowed_paths():
+    """Ensure receive_file rejects invalid paths and writes outside allowed cluster directories."""
+    handler = cluster_common.Handler(fernet_key, cluster_items)
+
+    # Disallowed path (attempt to write into /etc)
+    assert handler.receive_file(b"/etc/ossec.conf") == (b"err", b"Write path not allowed")
 
 
 def test_handler_update_file():
@@ -1507,6 +1520,40 @@ async def test_sync_wazuh_db_retrieve_information(socket_mock):
                 'Could not obtain data from wazuh-db: Error 1000 - Wazuh Internal Error')
 
 
+@patch('wazuh.core.wdb_http.WazuhDBHTTPClient')
+async def test_sync_wazuh_db_retrieve_agents_information(wdb_http_client_mock):
+    """Validate that the `retrieve_agents_information` method works as expected."""
+    logger = logging.getLogger('wazuh')
+    handler = cluster_common.Handler(fernet_key, cluster_items)
+    sync_object = cluster_common.SyncWazuhdb(manager=handler, logger=logger, cmd=b'syn_a_w_m',
+                                             data_retriever=None,
+                                             get_data_command='global sync-agent-info-get ',
+                                             set_data_command='global sync-agent-info-set')
+
+    agents_info = {'id': 1, 'name': 'test'}
+    wdb_http_client_mock.return_value.close = AsyncMock()
+    get_agents_sync_mock = AsyncMock(return_value=agents_info)
+    wdb_http_client_mock.return_value.get_agents_sync = get_agents_sync_mock
+
+    assert await sync_object.retrieve_agents_information() == {'id': 1, 'name': 'test'}
+
+
+async def test_sync_wazuh_db_retrieve_agents_information_ko():
+    """Validate that the `retrieve_agents_information` method handles exceptions successfully."""
+    logger = logging.getLogger('wazuh')
+    handler = cluster_common.Handler(fernet_key, cluster_items)
+    sync_object = cluster_common.SyncWazuhdb(manager=handler, logger=logger, cmd=b'syn_a_w_m',
+                                             data_retriever=None,
+                                             get_data_command='global sync-agent-info-get ',
+                                             set_data_command='global sync-agent-info-set')
+
+    with patch('wazuh.core.wdb_http.WazuhDBHTTPClient', side_effect=exception.WazuhException(1000)):
+        with patch.object(sync_object.logger, 'error') as logger_error_mock:
+            assert await sync_object.retrieve_agents_information() is None
+            logger_error_mock.assert_called_with(
+                'Could not obtain data from wazuh-db: Error 1000 - Wazuh Internal Error')
+
+
 @pytest.mark.asyncio
 @freeze_time('1970-01-01')
 @patch("json.dumps", return_value="")
@@ -1527,14 +1574,14 @@ async def test_sync_wazuh_db_sync_ok(perf_counter_mock, json_dumps_mock):
                 send_request_mock.assert_called_once_with(command=b"cmd", data=b"OK")
                 json_dumps_mock.assert_called_with({'set_data_command': 'set_command',
                                                     'payload': {}, 'chunks': ['a', 'b']})
-                logger_debug_mock.assert_has_calls([call(f"Sending chunks.")])
+                logger_debug_mock.assert_has_calls([call("Sending chunks.")])
 
             send_string_mock.assert_called_with(b"")
 
     # Test else
     with patch.object(sync_wazuh_db.logger, "info") as logger_info_mock:
         assert await sync_wazuh_db.sync(start_time=-10, chunks=[]) is True
-        logger_info_mock.assert_called_once_with(f"Finished in 10.000s. Updated 0 chunks.")
+        logger_info_mock.assert_called_once_with("Finished in 10.000s. Updated 0 chunks.")
 
     # Test except
     with patch("wazuh.core.cluster.common.Handler.send_string", return_value=b'Error 1'):
@@ -1588,7 +1635,7 @@ def test_error_receiving_agent_information():
 
 
 @patch("wazuh.core.cluster.common.WazuhDBConnection")
-def test_send_data_to_wdb(WazuhDBConnection_mock):
+async def test_send_data_to_wdb(WazuhDBConnection_mock):
     """Check if the data chunks are being properly forward to the Wazuh-db socket."""
 
     class MockWazuhDBConnection:
@@ -1613,30 +1660,32 @@ def test_send_data_to_wdb(WazuhDBConnection_mock):
             pass
 
     WazuhDBConnection_mock.return_value = MockWazuhDBConnection()
+    chunks = ['[{"data": "1chunk"}]', '[{"data": "2chunk"}]']
 
-    result = cluster_common.send_data_to_wdb(data={'chunks': ['[{"data": ""}]'], 'payload': {}, 'set_data_command': ''},
-                                             timeout=15, info_type='agent-groups')
+    result = await cluster_common.send_data_to_wdb(data={'chunks': ['[{"data": ""}]'], 'payload': {},
+                                                         'set_data_command': ''}, timeout=15, info_type='agent-groups')
     assert result['error_messages']['others'] == ['Timeout while processing agent-groups chunks.']
 
     WazuhDBConnection_mock.return_value.exceptions += 1
-    result = cluster_common.send_data_to_wdb(data={'chunks': ['1chunk', '2chunk'], 'set_data_command': ''},
-                                             timeout=15)
+    result = await cluster_common.send_data_to_wdb(data={'chunks': chunks,
+                                                         'payload': {}, 'set_data_command': ''},
+                                                         timeout=15, info_type='agent-groups')
     assert result['updated_chunks'] == 2
 
     WazuhDBConnection_mock.return_value.exceptions += 1
-    result = cluster_common.send_data_to_wdb(data={'chunks': ['1chunk', '2chunk'], 'set_data_command': ''},
-                                             timeout=15)
+    result = await cluster_common.send_data_to_wdb(data={'chunks': chunks, 'set_data_command': ''},
+                                             timeout=15, info_type='agent-groups')
     assert result['updated_chunks'] == 0
 
     WazuhDBConnection_mock.return_value.exceptions += 1
-    result = cluster_common.send_data_to_wdb(data={'chunks': ['1chunk', '2chunk'], 'set_data_command': ''},
-                                             timeout=15)
+    result = await cluster_common.send_data_to_wdb(data={'chunks': chunks, 'payload': {}, 'set_data_command': ''},
+                                             timeout=15, info_type='agent-groups')
     assert result['error_messages']['chunks'] == [(0, ''), (1, '')]
 
     with patch('wazuh.core.cluster.master.utils.Timeout', side_effect=Exception):
-        result = cluster_common.send_data_to_wdb(data={'chunks': ['1chunk', '2chunk'], 'set_data_command': ''},
-                                                 timeout=15)
-        assert result['error_messages']['others'] == ['Error while processing agent-info chunks: ']
+        result = await cluster_common.send_data_to_wdb(data={'chunks': chunks, 'set_data_command': ''},
+                                                 timeout=15, info_type='agent-groups')
+        assert result['error_messages']['others'] == ['Error while processing agent-groups chunks: ']
 
 
 @patch.object(logging, "error")
@@ -1659,7 +1708,12 @@ def test_asyncio_exception_handler(format_tb, mock_loop, mock_logging):
     mock_logging.assert_called_once_with(output)
 
 
-def test_wazuh_json_encoder_default():
+@patch('wazuh.core.common.os.chmod')
+@patch('wazuh.core.common.os.chown')
+@patch('wazuh.core.common.wazuh_gid', return_value=0)
+@patch('wazuh.core.common.wazuh_uid', return_value=0)
+@patch('wazuh.core.common.INSTALLATION_UID_PATH', os.path.join('/tmp', 'installation_uid'))
+def test_wazuh_json_encoder_default(mock_chmod, mock_chown, mock_gid, mock_uid):
     """Test if a special JSON encoder is defined for Wazuh."""
 
     wazuh_encoder = cluster_common.WazuhJSONEncoder()
@@ -1718,19 +1772,44 @@ def test_wazuh_json_encoder_default():
             wazuh_encoder.default({"key": "value"})
 
 
-def test_as_wazuh_object_ok():
+@patch('wazuh.core.common.os.chmod')
+@patch('wazuh.core.common.os.chown')
+@patch('wazuh.core.common.wazuh_gid', return_value=0)
+@patch('wazuh.core.common.wazuh_uid', return_value=0)
+@patch('wazuh.core.common.INSTALLATION_UID_PATH', os.path.join('/tmp', 'installation_uid'))
+def test_as_wazuh_object_ok(mock_chmod, mock_chown, mock_gid, mock_uid):
     """Test the different outputs taking into account the input values."""
 
     # Test the first condition and nested if
     assert cluster_common.as_wazuh_object({"__callable__": {"__name__": "type", "__wazuh__": "version"}}) == "server"
 
-    # Test the first condition and nested else
-    assert isinstance(
+    # Test the first condition - non-internal callable must be blocked
+    with pytest.raises(exception.WazuhInternalError) as err:
         cluster_common.as_wazuh_object({"__callable__": {"__name__": "path", "__qualname__": "__loader__.value",
-                                                         "__module__": "os"}}), str)
+                                                        "__module__": "os"}})
+    assert "Decoding callable from module" in str(err.value)
 
-    assert cluster_common.as_wazuh_object({"__callable__": {"__name__": "__name__", "__qualname__": "value",
-                                                            "__module__": "itertools"}}) == "itertools"
+    with pytest.raises(exception.WazuhInternalError) as err:
+        cluster_common.as_wazuh_object({"__callable__": {"__name__": "__name__", "__qualname__": "value",
+                                                        "__module__": "itertools"}})
+    assert "Decoding callable from module" in str(err.value)
+
+    # Test the first condition - allowed callable packages must be processed
+    func =  cluster_common.as_wazuh_object({"__callable__": {"__name__": "check_user_master",
+                                                             "__module__": "api.authentication",
+                                                             "__qualname__": "check_user_master",
+                                                             "__type__": "function"}})
+    assert callable(func)
+    assert func.__module__ == "api.authentication"
+    assert func.__name__ == "check_user_master"
+
+    func =  cluster_common.as_wazuh_object({"__callable__": {"__name__": "get_node",
+                                                             "__module__": "wazuh.core.cluster.cluster",
+                                                             "__qualname__": "get_node",
+                                                             "__type__": "function"}})
+    assert callable(func)
+    assert func.__module__ == "wazuh.core.cluster.cluster"
+    assert func.__name__ == "get_node"
 
     # Test the second condition
     assert isinstance(cluster_common.as_wazuh_object(
@@ -1761,7 +1840,12 @@ def test_as_wazuh_object_ok():
            {"__wazuh_datetime_bad__": "2021-10-14"}
 
 
-def test_as_wazuh_object_ko():
+@patch('wazuh.core.common.os.chmod')
+@patch('wazuh.core.common.os.chown')
+@patch('wazuh.core.common.wazuh_gid', return_value=0)
+@patch('wazuh.core.common.wazuh_uid', return_value=0)
+@patch('wazuh.core.common.INSTALLATION_UID_PATH', os.path.join('/tmp', 'installation_uid'))
+def test_as_wazuh_object_ko(mock_chmod, mock_chown, mock_gid, mock_uid):
     """Test if the exceptions are correctly raised."""
 
     with pytest.raises(exception.WazuhInternalError, match=r'.* 1000 .*'):

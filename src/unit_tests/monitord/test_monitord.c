@@ -339,7 +339,7 @@ void test_monitor_queue_connect_msg_fail(void **state) {
     expect_string(__wrap_SendMSG, locmsg, ARGV0);
     expect_value(__wrap_SendMSG, loc, LOCALFILE_MQ);
     will_return(__wrap_SendMSG, -1);
-    expect_string(__wrap__merror, formatted_msg, QUEUE_SEND);
+    expect_string(__wrap__mdebug1, formatted_msg, QUEUE_SEND);
 
     monitor_queue_connect();
 
@@ -475,7 +475,7 @@ void test_MonitordConfig_success(void **state) {
     result = MonitordConfig(cfg, &mond, no_agents, day_wait);
 
     assert_int_equal(result, OS_SUCCESS);
-    assert_int_equal(mond.global.agents_disconnection_time, 600);
+    assert_int_equal(mond.global.agents_disconnection_time, 900);
     assert_int_equal(mond.global.agents_disconnection_alert_time, 0);
 
     assert_null(mond.agents);

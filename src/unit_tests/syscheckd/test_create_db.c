@@ -200,7 +200,7 @@ static int setup_fim_data(void **state) {
     fim_data->new_data->user_name = strdup("test1");
     fim_data->new_data->group_name = strdup("testing1");
     fim_data->new_data->mtime = 1570184224;
-    fim_data->new_data->inode = 1152921500312810880;
+    fim_data->new_data->inode = 1152921500312810881;
     strcpy(fim_data->new_data->hash_md5, "3691689a513ace7e508297b583d7550d");
     strcpy(fim_data->new_data->hash_sha1, "07f05add1049244e7e75ad0f54f24d8094cd8f8b");
     strcpy(fim_data->new_data->hash_sha256, "672a8ceaea40a441f0268ca9bbb33e9959643c6262667b61fbe57694df224d40");
@@ -267,6 +267,31 @@ static int setup_group(void **state) {
     directory_t *directory0 = fim_create_directory(path, WHODATA_ACTIVE, NULL, 512, NULL, 1024, 1);
 
     OSList_InsertData(removed_entries, NULL, directory0);
+
+    return 0;
+}
+
+static int setup_fim_regex_group(void **state) {
+    if (setup_fim_data(state) != 0)
+        return -1;
+
+    test_mode = 0;
+    expect_any_always(__wrap__mdebug1, formatted_msg);
+
+    expect_function_call_any(__wrap_pthread_rwlock_wrlock);
+    expect_function_call_any(__wrap_pthread_rwlock_unlock);
+    expect_function_call_any(__wrap_pthread_mutex_lock);
+    expect_function_call_any(__wrap_pthread_mutex_unlock);
+    expect_function_call_any(__wrap_pthread_rwlock_rdlock);
+
+    // Read and setup global values.
+    Read_Syscheck_Config("test_syscheck4.conf");
+
+    syscheck.rt_delay = 1;
+    syscheck.max_depth = 256;
+    syscheck.file_max_size = 1024;
+
+    test_mode = 1;
 
     return 0;
 }
@@ -833,7 +858,7 @@ static void test_fim_attributes_json(void **state) {
     assert_string_equal(cJSON_GetStringValue(group_name), "testing");
     cJSON *inode = cJSON_GetObjectItem(fim_data->json, "inode");
     assert_non_null(inode);
-    assert_int_equal(inode->valueint, 606060);
+    assert_string_equal(inode->valuestring, "606060");
     cJSON *mtime = cJSON_GetObjectItem(fim_data->json, "mtime");
     assert_non_null(mtime);
     assert_int_equal(mtime->valueint, 1570184223);
@@ -986,7 +1011,7 @@ static void test_fim_check_ignore_strncasecmp(void **state) {
 
     expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
 
-    ret = fim_check_ignore("/EtC/dumPDateS");
+    ret = fim_check_ignore("/EtC/dumPDateS", FIM_REGULAR);
 
     assert_int_equal(ret, 1);
 }
@@ -1005,13 +1030,13 @@ static void test_fim_check_ignore_strncasecmp(void **state) {
     expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
 
 
-    ret = fim_check_ignore(expanded_path);
+    ret = fim_check_ignore(expanded_path, FIM_REGULAR);
 
     assert_int_equal(ret, 1);
 }
 #endif
 
-static void test_fim_check_ignore_regex(void **state) {
+static void test_fim_check_ignore_regex_file(void **state) {
     int ret;
     char debug_msg[OS_MAXSTR];
 
@@ -1024,7 +1049,25 @@ static void test_fim_check_ignore_regex(void **state) {
     expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
 #endif
 
-    ret = fim_check_ignore("/test/files/test.swp");
+    ret = fim_check_ignore("/test/files/test.swp", FIM_REGULAR);
+
+    assert_int_equal(ret, 1);
+}
+
+static void test_fim_check_ignore_regex_directory(void **state) {
+    int ret;
+    char debug_msg[OS_MAXSTR];
+
+
+#ifndef TEST_WINAGENT
+    snprintf(debug_msg, OS_MAXSTR, FIM_IGNORE_SREGEX, "/test/test_directory", "test_dir");
+    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+#else
+    snprintf(debug_msg, OS_MAXSTR, FIM_IGNORE_SREGEX, "/test/test_directory", "test_dir");
+    expect_string(__wrap__mdebug2, formatted_msg, debug_msg);
+#endif
+
+    ret = fim_check_ignore("/test/test_directory", FIM_DIRECTORY);
 
     assert_int_equal(ret, 1);
 }
@@ -1033,7 +1076,7 @@ static void test_fim_check_ignore_regex(void **state) {
 static void test_fim_check_ignore_failure(void **state) {
    int ret;
 
-    ret = fim_check_ignore("/test/files/test.sp");
+    ret = fim_check_ignore("/test/files/test.sp", FIM_REGULAR);
 
     assert_int_equal(ret, 0);
 }
@@ -1276,8 +1319,6 @@ static void test_fim_configuration_directory_file(void **state) {
 static void test_fim_configuration_directory_not_found(void **state) {
     const char *path = "/invalid";
     directory_t *ret;
-
-    expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'/invalid'");
 
     expect_function_call_any(__wrap_pthread_rwlock_wrlock);
     expect_function_call_any(__wrap_pthread_rwlock_unlock);
@@ -1867,6 +1908,7 @@ static void test_fim_checker_fim_directory(void **state) {
     will_return(__wrap_readdir, fim_data->entry);
     will_return(__wrap_readdir, NULL);
     will_return(__wrap_readdir, NULL);
+    will_return_always(__wrap_closedir, 0);
 
     fim_checker(path, &evt_data, NULL, NULL, NULL);
 }
@@ -1900,6 +1942,7 @@ static void test_fim_checker_fim_directory_on_max_recursion_level(void **state) 
     will_return(__wrap_opendir, 1);
     strcpy(fim_data->entry->d_name, "test");
     will_return(__wrap_readdir, fim_data->entry);
+    will_return(__wrap_closedir, 0);
 
     expect_string(__wrap_lstat, filename, "/media/test");
     will_return(__wrap_lstat, &statbuf);
@@ -2008,6 +2051,7 @@ static void test_fim_scan_db_full_double_scan(void **state) {
 
         will_return(__wrap_opendir, 1);
         will_return(__wrap_readdir, NULL);
+        will_return(__wrap_closedir, 0);
     }
 
     expect_wrapper_fim_db_get_count_file_entry(50000);
@@ -2034,6 +2078,7 @@ static void test_fim_scan_db_full_double_scan(void **state) {
 
         will_return(__wrap_opendir, 1);
         will_return(__wrap_readdir, NULL);
+        will_return(__wrap_closedir, 0);
     }
     expect_wrapper_fim_db_get_count_file_entry(50000);
 
@@ -2093,6 +2138,7 @@ static void test_fim_scan_db_full_not_double_scan(void **state) {
 
         will_return(__wrap_opendir, 1);
         will_return(__wrap_readdir, NULL);
+        will_return(__wrap_closedir, 0);
     }
 
     expect_wrapper_fim_db_get_count_file_entry(25000);
@@ -2155,6 +2201,7 @@ static void test_fim_scan_realtime_enabled(void **state) {
 
         will_return(__wrap_opendir, 1);
         will_return(__wrap_readdir, NULL);
+        will_return(__wrap_closedir, 0);
     }
 
     // fim_scan
@@ -2225,6 +2272,7 @@ static void test_fim_scan_no_limit(void **state) {
 
         will_return(__wrap_opendir, 1);
         will_return(__wrap_readdir, NULL);
+        will_return(__wrap_closedir, 0);
     }
     expect_function_call_any(__wrap_fim_db_transaction_deleted_rows);
 
@@ -2279,9 +2327,9 @@ static void test_fim_checker_deleted_file(void **state) {
 
     str_lowercase(expanded_path);
 
-    expect_string(wrap__stat64, __file, expanded_path);
-    will_return(wrap__stat64, &stat_s);
-    will_return(wrap__stat64, -1);
+    expect_string(__wrap_utf8_stat64, pathname, expanded_path);
+    will_return(__wrap_utf8_stat64, &stat_s);
+    will_return(__wrap_utf8_stat64, -1);
 
     errno = 1;
 
@@ -2330,9 +2378,9 @@ static void test_fim_checker_deleted_file_enoent(void **state) {
     fim_data->local_data->options = 511;
     strcpy(fim_data->local_data->checksum, "");
 
-    expect_string(wrap__stat64, __file, expanded_path);
-    will_return(wrap__stat64, &stat_s);
-    will_return(wrap__stat64, -1);
+    expect_string(__wrap_utf8_stat64, pathname, expanded_path);
+    will_return(__wrap_utf8_stat64, &stat_s);
+    will_return(__wrap_utf8_stat64, -1);
 
     errno = ENOENT;
 
@@ -2362,9 +2410,9 @@ static void test_fim_checker_fim_regular(void **state) {
         fail();
     }
 
-    expect_string(wrap__stat64, __file, expanded_path);
-    will_return(wrap__stat64, &stat_s);
-    will_return(wrap__stat64, 0);
+    expect_string(__wrap_utf8_stat64, pathname, expanded_path);
+    will_return(__wrap_utf8_stat64, &stat_s);
+    will_return(__wrap_utf8_stat64, 0);
 
     str_lowercase(expanded_path);
 
@@ -2396,9 +2444,9 @@ static void test_fim_checker_fim_regular_ignore(void **state) {
 
     str_lowercase(expanded_path);
 
-    expect_string(wrap__stat64, __file, expanded_path);
-    will_return(wrap__stat64, &stat_s);
-    will_return(wrap__stat64, 0);
+    expect_string(__wrap_utf8_stat64, pathname, expanded_path);
+    will_return(__wrap_utf8_stat64, &stat_s);
+    will_return(__wrap_utf8_stat64, 0);
 
     expect_string(__wrap_HasFilesystem, path, expanded_path);
     will_return(__wrap_HasFilesystem, 0);
@@ -2426,9 +2474,9 @@ static void test_fim_checker_fim_regular_restrict(void **state) {
 
     str_lowercase(expanded_path);
 
-    expect_string(wrap__stat64, __file, expanded_path);
-    will_return(wrap__stat64, &stat_s);
-    will_return(wrap__stat64, 0);
+    expect_string(__wrap_utf8_stat64, pathname, expanded_path);
+    will_return(__wrap_utf8_stat64, &stat_s);
+    will_return(__wrap_utf8_stat64, 0);
 
     expect_string(__wrap_HasFilesystem, path, expanded_path);
     will_return(__wrap_HasFilesystem, 0);
@@ -2455,9 +2503,9 @@ static void test_fim_checker_fim_regular_warning(void **state) {
 
     str_lowercase(expanded_path);
 
-    expect_string(wrap__stat64, __file, expanded_path);
-    will_return(wrap__stat64, &stat_s);
-    will_return(wrap__stat64, 0);
+    expect_string(__wrap_utf8_stat64, pathname, expanded_path);
+    will_return(__wrap_utf8_stat64, &stat_s);
+    will_return(__wrap_utf8_stat64, 0);
 
     expect_string(__wrap_HasFilesystem, path, expanded_path);
     will_return(__wrap_HasFilesystem, 0);
@@ -2494,12 +2542,12 @@ static void test_fim_checker_fim_directory(void **state) {
 
     snprintf(expanded_path_test, OS_MAXSTR, "%s\\test", expanded_path);
 
-    expect_string(wrap__stat64, __file, expanded_path);
-    expect_string(wrap__stat64, __file, expanded_path_test);
-    will_return(wrap__stat64, &stat_s);
-    will_return(wrap__stat64, 0);
-    will_return(wrap__stat64, &stat_s);
-    will_return(wrap__stat64, 0);
+    expect_string(__wrap_utf8_stat64, pathname, expanded_path);
+    expect_string(__wrap_utf8_stat64, pathname, expanded_path_test);
+    will_return(__wrap_utf8_stat64, &stat_s);
+    will_return(__wrap_utf8_stat64, 0);
+    will_return(__wrap_utf8_stat64, &stat_s);
+    will_return(__wrap_utf8_stat64, 0);
 
     expect_string(__wrap_HasFilesystem, path, expanded_path);
     expect_string(__wrap_HasFilesystem, path, expanded_path_test);
@@ -2510,7 +2558,7 @@ static void test_fim_checker_fim_directory(void **state) {
     will_return_always(__wrap_opendir, 1);
     will_return(__wrap_readdir, fim_data->entry);
     will_return(__wrap_readdir, NULL);
-
+    will_return(__wrap_closedir, 0);
 
     snprintf(skip_directory_message, OS_MAXSTR,
         "(6347): Directory '%s' is already on the max recursion_level (0), it will not be scanned.", expanded_path_test);
@@ -2555,9 +2603,9 @@ static void test_fim_checker_root_file_within_recursion_level(void **state) {
     expect_string(__wrap_w_get_file_attrs, file_path, "c:\\test.file");
     will_return(__wrap_w_get_file_attrs, 123456);
 
-    expect_string(wrap__stat64, __file, "c:\\test.file");
-    will_return(wrap__stat64, &statbuf);
-    will_return(wrap__stat64, 0);
+    expect_string(__wrap_utf8_stat64, pathname, "c:\\test.file");
+    will_return(__wrap_utf8_stat64, &statbuf);
+    will_return(__wrap_utf8_stat64, 0);
 
     expect_string(__wrap_HasFilesystem, path, "c:\\test.file");
     will_return(__wrap_HasFilesystem, 0);
@@ -2604,15 +2652,16 @@ static void test_fim_scan_db_full_double_scan(void **state) {
         }
         str_lowercase(expanded_dirs[i]);
 
-        expect_string(wrap__stat64, __file, expanded_dirs[i]);
-        will_return(wrap__stat64, &directory_stat);
-        will_return(wrap__stat64, 0);
+        expect_string(__wrap_utf8_stat64, pathname, expanded_dirs[i]);
+        will_return(__wrap_utf8_stat64, &directory_stat);
+        will_return(__wrap_utf8_stat64, 0);
 
         expect_string(__wrap_HasFilesystem, path, expanded_dirs[i]);
         will_return(__wrap_HasFilesystem, 0);
 
         will_return(__wrap_readdir, NULL);
         will_return(__wrap_opendir, 1);
+        will_return(__wrap_closedir, 0);
     }
     expect_string_count(__wrap_realtime_adddir, dir, "c:\\windows\\system32\\windowspowershell\\v1.0",1);
     will_return_maybe(__wrap_realtime_adddir, 0);
@@ -2666,14 +2715,15 @@ static void test_fim_scan_db_full_not_double_scan(void **state) {
         }
         str_lowercase(expanded_dirs[i]);
 
-        expect_string(wrap__stat64, __file, expanded_dirs[i]);
-        will_return(wrap__stat64, &buf);
-        will_return(wrap__stat64, 0);
+        expect_string(__wrap_utf8_stat64, pathname, expanded_dirs[i]);
+        will_return(__wrap_utf8_stat64, &buf);
+        will_return(__wrap_utf8_stat64, 0);
         expect_string(__wrap_HasFilesystem, path, expanded_dirs[i]);
         will_return(__wrap_HasFilesystem, 0);
 
         will_return(__wrap_opendir, 1);
         will_return(__wrap_readdir, NULL);
+        will_return(__wrap_closedir, 0);
     }
 
     expect_string_count(__wrap_realtime_adddir, dir, "c:\\windows\\system32\\windowspowershell\\v1.0",1);
@@ -2728,14 +2778,15 @@ static void test_fim_scan_no_limit(void **state) {
         }
         str_lowercase(expanded_dirs[i]);
 
-        expect_string(wrap__stat64, __file, expanded_dirs[i]);
-        will_return(wrap__stat64, &buf);
-        will_return(wrap__stat64, 0);
+        expect_string(__wrap_utf8_stat64, pathname, expanded_dirs[i]);
+        will_return(__wrap_utf8_stat64, &buf);
+        will_return(__wrap_utf8_stat64, 0);
         expect_string(__wrap_HasFilesystem, path, expanded_dirs[i]);
         will_return(__wrap_HasFilesystem, 0);
 
         will_return(__wrap_opendir, 1);
         will_return(__wrap_readdir, NULL);
+        will_return(__wrap_closedir, 0);
     }
     expect_string_count(__wrap_realtime_adddir, dir, "c:\\windows\\system32\\windowspowershell\\v1.0",1);
     will_return_maybe(__wrap_realtime_adddir, 0);
@@ -2747,13 +2798,6 @@ static void test_fim_scan_no_limit(void **state) {
 }
 
 #endif
-
-static void test_fim_checker_unsupported_path(void **state) {
-    const char * PATH = "Unsupported\xFF\x02";
-    expect_string(__wrap__mwarn, formatted_msg, "(6955): Ignoring file 'Unsupported\xFF\x02' due to unsupported name (non-UTF8).");
-
-    fim_checker(PATH, NULL, NULL, NULL, NULL);
-}
 
 /* fim_check_db_state */
 static void test_fim_check_db_state_normal_to_empty(void **state) {
@@ -3065,6 +3109,7 @@ static void test_fim_directory(void **state) {
     will_return(__wrap_opendir, 1);
     will_return(__wrap_readdir, fim_data->entry);
     will_return(__wrap_readdir, NULL);
+    will_return(__wrap_closedir, 0);
 
 #ifndef TEST_WINAGENT
     expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'test/test'");
@@ -3087,6 +3132,7 @@ static void test_fim_directory_ignore(void **state) {
     will_return(__wrap_opendir, 1);
     will_return(__wrap_readdir, fim_data->entry);
     will_return(__wrap_readdir, NULL);
+    will_return(__wrap_closedir, 0);
 
     ret = fim_directory(".", &evt_data, NULL, NULL, NULL);
 
@@ -3248,9 +3294,9 @@ static void test_fim_realtime_event_file_exists(void **state) {
     will_return(__wrap_lstat, &buf);
     will_return(__wrap_lstat, 0);
 #else
-    expect_string(wrap__stat64, __file, "/test");
-    will_return(wrap__stat64, &buf);
-    will_return(wrap__stat64, 0);
+    expect_string(__wrap_utf8_stat64, pathname, "/test");
+    will_return(__wrap_utf8_stat64, &buf);
+    will_return(__wrap_utf8_stat64, 0);
 #endif
 
     expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'/test'");
@@ -3290,9 +3336,9 @@ static void test_fim_realtime_event_file_missing(void **state) {
     will_return(__wrap_lstat, &stat_buf);
     will_return(__wrap_lstat, -1);
 #else
-    expect_string(wrap__stat64, __file, path);
-    will_return(wrap__stat64, &stat_buf);
-    will_return(wrap__stat64, -1);
+    expect_string(__wrap_utf8_stat64, pathname, path);
+    will_return(__wrap_utf8_stat64, &stat_buf);
+    will_return(__wrap_utf8_stat64, -1);
 #endif
     errno = ENOENT;
 
@@ -3318,9 +3364,9 @@ static void test_fim_whodata_event_file_exists(void **state) {
     will_return(__wrap_lstat, &buf);
     will_return(__wrap_lstat, 0);
 #else
-    expect_string(wrap__stat64, __file, fim_data->w_evt->path);
-    will_return(wrap__stat64, &buf);
-    will_return(wrap__stat64, 0);
+    expect_string(__wrap_utf8_stat64, pathname, fim_data->w_evt->path);
+    will_return(__wrap_utf8_stat64, &buf);
+    will_return(__wrap_utf8_stat64, 0);
 #endif
 
     expect_string(__wrap__mdebug2, formatted_msg, "(6319): No configuration found for (file):'./test/test.file'");
@@ -3342,9 +3388,9 @@ static void test_fim_whodata_event_file_missing(void **state) {
     will_return(__wrap_lstat, &buf);
     will_return(__wrap_lstat, -1);
 #else
-    expect_string(wrap__stat64, __file, fim_data->w_evt->path);
-    will_return(wrap__stat64, &buf);
-    will_return(wrap__stat64, -1);
+    expect_string(__wrap_utf8_stat64, pathname, fim_data->w_evt->path);
+    will_return(__wrap_utf8_stat64, &buf);
+    will_return(__wrap_utf8_stat64, -1);
 #endif
     errno = ENOENT;
 
@@ -3690,6 +3736,7 @@ static void test_update_wildcards_config_remove_config() {
 #ifndef TEST_WINAGENT
     expect_string(__wrap_remove_audit_rule_syscheck, path, resolvedpath1);
     expect_string(__wrap_remove_audit_rule_syscheck, path, resolvedpath2);
+
 #endif
 
     // Remove configuration loop
@@ -3878,9 +3925,9 @@ static void test_transaction_callback_modify_report_changes(void **state) {
 static void test_transaction_callback_delete(void **state) {
     txn_data_t *data = (txn_data_t *) *state;
 #ifndef TEST_WINAGENT
-    cJSON *result = cJSON_Parse("{\"path\":\"/etc/a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":801978,\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
+    cJSON *result = cJSON_Parse("{\"path\":\"/etc/a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":\"801978\",\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
 #else
-    cJSON *result = cJSON_Parse("{\"path\":\"c:\\\\windows\\\\a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":801978,\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
+    cJSON *result = cJSON_Parse("{\"path\":\"c:\\\\windows\\\\a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":\"801978\",\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
 #endif
 
     fim_txn_context_t *txn_context = data->txn_context;
@@ -3913,10 +3960,10 @@ static void test_transaction_callback_delete_report_changes(void **state) {
     fim_txn_context_t *txn_context = data->txn_context;
 #ifndef TEST_WINAGENT
     const char* path = "/etc/a_test_file.txt";
-    cJSON *result = cJSON_Parse("{\"path\":\"/etc/a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":801978,\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
+    cJSON *result = cJSON_Parse("{\"path\":\"/etc/a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":\"801978\",\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
 #else
     const char *path = "c:\\windows\\a_test_file.txt";
-    cJSON *result = cJSON_Parse("{\"path\":\"c:\\\\windows\\\\a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":801978,\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
+    cJSON *result = cJSON_Parse("{\"path\":\"c:\\\\windows\\\\a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":\"801978\",\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
 #endif
     data->dbsync_event = result;
 
@@ -3943,9 +3990,9 @@ static void test_transaction_callback_delete_report_changes(void **state) {
 static void test_transaction_callback_delete_full_db(void **state) {
     txn_data_t *data = (txn_data_t *) *state;
 #ifndef TEST_WINAGENT
-    cJSON *result = cJSON_Parse("{\"path\":\"/etc/a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":801978,\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
+    cJSON *result = cJSON_Parse("{\"path\":\"/etc/a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":\"801978\",\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
 #else
-    cJSON *result = cJSON_Parse("{\"path\":\"c:\\\\windows\\\\a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":801978,\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
+    cJSON *result = cJSON_Parse("{\"path\":\"c:\\\\windows\\\\a_test_file.txt\",\"size\":11,\"last_event\":123456789,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":\"801978\",\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
 #endif
 
     fim_txn_context_t *txn_context = data->txn_context;
@@ -3976,10 +4023,10 @@ static void test_transaction_callback_full_db(void **state) {
     txn_data_t *data = (txn_data_t *) *state;
 #ifndef TEST_WINAGENT
     char* path = "/etc/a_test_file.txt";
-    cJSON *result = cJSON_Parse("{\"path\":\"/etc/a_test_file.txt\",\"size\":11,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":801978,\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
+    cJSON *result = cJSON_Parse("{\"path\":\"/etc/a_test_file.txt\",\"size\":11,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":\"801978\",\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
 #else
     char *path = "c:\\windows\\a_test_file.txt";
-    cJSON *result = cJSON_Parse("{\"path\":\"c:\\\\windows\\\\a_test_file.txt\",\"size\":11,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":801978,\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
+    cJSON *result = cJSON_Parse("{\"path\":\"c:\\\\windows\\\\a_test_file.txt\",\"size\":11,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":\"801978\",\"mtime\":1645001693,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"cfdd740677ed8b250e93081e72b4d97b1c846fdc\"}");
 #endif
     char debug_msg[OS_SIZE_128] = {0};
 
@@ -4078,13 +4125,13 @@ void test_fim_calculate_dbsync_difference(void **state){
 
     #ifndef TEST_WINAGENT
         char* changed_data = "{\"size\":0, \"perm\":\"rw-rw-r--\", \"attributes\":\"NULL\", \"uid\":\"1000\", \"gid\":\"1000\", \
-        \"user_name\":\"root\", \"group_name\":\"root\", \"mtime\":123456789, \"inode\":1, \"hash_md5\":\"0123456789abcdef0123456789abcdef\", \
+        \"user_name\":\"root\", \"group_name\":\"root\", \"mtime\":123456789, \"inode\":\"1\", \"hash_md5\":\"0123456789abcdef0123456789abcdef\", \
         \"hash_sha1\":\"0123456789abcdef0123456789abcdef01234567\", \"hash_sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", \
         \"checksum\":\"0123456789abcdef0123456789abcdef01234567\" }";
     #else
         DEFAULT_FILE_DATA.options |= CHECK_ATTRS;
         char* changed_data = "{\"size\":0, \"perm\":\"{\\\"S-1-5-32-544\\\":{\\\"name\\\":\\\"Administrators\\\",\\\"allowed\\\":[\\\"delete\\\",\\\"read_control\\\",\\\"write_dac\\\",\\\"write_owner\\\",\\\"synchronize\\\",\\\"read_data\\\",\\\"write_data\\\",\\\"append_data\\\",\\\"read_ea\\\",\\\"write_ea\\\",\\\"execute\\\",\\\"read_attributes\\\",\\\"write_attributes\\\"]},\\\"S-1-5-18\\\":{\\\"name\\\":\\\"SYSTEM\\\",\\\"allowed\\\":[\\\"delete\\\",\\\"read_control\\\",\\\"write_dac\\\",\\\"write_owner\\\",\\\"synchronize\\\",\\\"read_data\\\",\\\"write_data\\\",\\\"append_data\\\",\\\"read_ea\\\",\\\"write_ea\\\",\\\"execute\\\",\\\"read_attributes\\\",\\\"write_attributes\\\"]},\\\"S-1-5-32-545\\\":{\\\"name\\\":\\\"Users\\\",\\\"allowed\\\":[\\\"read_control\\\",\\\"synchronize\\\",\\\"read_data\\\",\\\"read_ea\\\",\\\"execute\\\",\\\"read_attributes\\\"]},\\\"S-1-5-11\\\":{\\\"name\\\":\\\"Authenticated Users\\\",\\\"allowed\\\":[\\\"delete\\\",\\\"read_control\\\",\\\"synchronize\\\",\\\"read_data\\\",\\\"write_data\\\",\\\"append_data\\\",\\\"read_ea\\\",\\\"write_ea\\\",\\\"execute\\\",\\\"read_attributes\\\",\\\"write_attributes\\\"]}}\", \"attributes\":\"NULL\", \"uid\":\"1000\", \"gid\":\"1000\", \
-        \"user_name\":\"root\", \"group_name\":\"root\", \"mtime\":123456789, \"inode\":1, \"hash_md5\":\"0123456789abcdef0123456789abcdef\", \
+        \"user_name\":\"root\", \"group_name\":\"root\", \"mtime\":123456789, \"inode\":\"1\", \"hash_md5\":\"0123456789abcdef0123456789abcdef\", \
         \"hash_sha1\":\"0123456789abcdef0123456789abcdef01234567\", \"hash_sha256\":\"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\", \
         \"checksum\":\"0123456789abcdef0123456789abcdef01234567\" }";
     #endif
@@ -4115,7 +4162,7 @@ void test_fim_calculate_dbsync_difference(void **state){
     assert_string_equal(cJSON_GetObjectItem(old_attributes, "user_name")->valuestring, "root");
     assert_string_equal(cJSON_GetObjectItem(old_attributes, "group_name")->valuestring, "root");
     assert_int_equal(cJSON_GetObjectItem(old_attributes, "mtime")->valueint, 123456789);
-    assert_int_equal(cJSON_GetObjectItem(old_attributes, "inode")->valueint, 1);
+    assert_string_equal(cJSON_GetObjectItem(old_attributes, "inode")->valuestring, "1");
     assert_string_equal(cJSON_GetObjectItem(old_attributes, "hash_md5")->valuestring, "0123456789abcdef0123456789abcdef");
     assert_string_equal(cJSON_GetObjectItem(old_attributes, "hash_sha1")->valuestring, "0123456789abcdef0123456789abcdef01234567");
     assert_string_equal(cJSON_GetObjectItem(old_attributes, "hash_sha256")->valuestring, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
@@ -4157,7 +4204,7 @@ void test_fim_calculate_dbsync_difference_no_changed_data(void **state){
     assert_string_equal(cJSON_GetObjectItem(old_attributes, "user_name")->valuestring, "root");
     assert_string_equal(cJSON_GetObjectItem(old_attributes, "group_name")->valuestring, "root");
     assert_int_equal(cJSON_GetObjectItem(old_attributes, "mtime")->valueint, 123456789);
-    assert_int_equal(cJSON_GetObjectItem(old_attributes, "inode")->valueint, 1);
+    assert_string_equal(cJSON_GetObjectItem(old_attributes, "inode")->valuestring, "1");
     assert_string_equal(cJSON_GetObjectItem(old_attributes, "hash_md5")->valuestring, "0123456789abcdef0123456789abcdef");
     assert_string_equal(cJSON_GetObjectItem(old_attributes, "hash_sha1")->valuestring, "0123456789abcdef0123456789abcdef01234567");
     assert_string_equal(cJSON_GetObjectItem(old_attributes, "hash_sha256")->valuestring, "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef");
@@ -4260,15 +4307,15 @@ static void test_dbsync_attributes_json(void **state) {
     directory_t configuration = { .options = -1, .tag = "tag_name" };
     json_struct_t *data = *state;
 #ifndef TEST_WINAGENT
-    const char *result_str = "{\"type\":\"file\",\"size\":11,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":271017,\"mtime\":1646124392,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"c0edc82c463da5f4ab8dd420a778a9688a923a72\"}";
-    cJSON *dbsync_event = cJSON_Parse("{\"attributes\":\"\",\"checksum\":\"c0edc82c463da5f4ab8dd420a778a9688a923a72\",\"dev\":64768,\"gid\":\"0\",\"group_name\":\"root\",\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"inode\":271017,\"last_event\":1646124394,\"mode\":0,\"mtime\":1646124392,\"options\":131583,\"path\":\"/etc/testfile\",\"perm\":\"rw-r--r--\",\"scanned\":1,\"size\":11,\"uid\":\"0\",\"user_name\":\"root\"}");
+    const char *result_str = "{\"type\":\"file\",\"size\":11,\"perm\":\"rw-r--r--\",\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"root\",\"group_name\":\"root\",\"inode\":\"271017\",\"mtime\":1646124392,\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"checksum\":\"c0edc82c463da5f4ab8dd420a778a9688a923a72\"}";
+    cJSON *dbsync_event = cJSON_Parse("{\"attributes\":\"\",\"checksum\":\"c0edc82c463da5f4ab8dd420a778a9688a923a72\",\"dev\":64768,\"gid\":\"0\",\"group_name\":\"root\",\"hash_md5\":\"d73b04b0e696b0945283defa3eee4538\",\"hash_sha1\":\"e7509a8c032f3bc2a8df1df476f8ef03436185fa\",\"hash_sha256\":\"8cd07f3a5ff98f2a78cfc366c13fb123eb8d29c1ca37c79df190425d5b9e424d\",\"inode\":\"271017\",\"last_event\":1646124394,\"mode\":0,\"mtime\":1646124392,\"options\":131583,\"path\":\"/etc/testfile\",\"perm\":\"rw-r--r--\",\"scanned\":1,\"size\":11,\"uid\":\"0\",\"user_name\":\"root\"}");
 #else
     cJSON *dbsync_event = cJSON_Parse("{\"size\":0, \"perm\":\"{\\\"S-1-5-32-544\\\":{\\\"name\\\":\\\"Administrators\\\",\\\"allowed\\\":[\\\"delete\\\",\\\"read_control\\\",\\\"write_dac\\\",\\\"write_owner\\\",\\\"synchronize\\\",\\\"read_data\\\",\\\"write_data\\\",\\\"append_data\\\",\\\"read_ea\\\",\\\"write_ea\\\",\\\"execute\\\",\\\"read_attributes\\\",\\\"write_attributes\\\"]},\\\"S-1-5-18\\\":{\\\"name\\\":\\\"SYSTEM\\\",\\\"allowed\\\":[\\\"delete\\\",\\\"read_control\\\",\\\"write_dac\\\",\\\"write_owner\\\",\\\"synchronize\\\",\\\"read_data\\\",\\\"write_data\\\",\\\"append_data\\\",\\\"read_ea\\\",\\\"write_ea\\\",\\\"execute\\\",\\\"read_attributes\\\",\\\"write_attributes\\\"]},\\\"S-1-5-32-545\\\":{\\\"name\\\":\\\"Users\\\",\\\"allowed\\\":[\\\"read_control\\\",\\\"synchronize\\\",\\\"read_data\\\",\\\"read_ea\\\",\\\"execute\\\",\\\"read_attributes\\\"]},\\\"S-1-5-11\\\":{\\\"name\\\":\\\"Authenticated Users\\\",\\\"allowed\\\":[\\\"delete\\\",\\\"read_control\\\",\\\"synchronize\\\",\\\"read_data\\\",\\\"write_data\\\",\\\"append_data\\\",\\\"read_ea\\\",\\\"write_ea\\\",\\\"execute\\\",\\\"read_attributes\\\",\\\"write_attributes\\\"]}}\", \"attributes\":\"ARCHIVE\", \"uid\":\"0\", \"gid\":\"0\", \
-        \"user_name\":\"Administrators\", \"group_name\":\"\", \"mtime\":1646145212, \"inode\":0, \"hash_md5\":\"d41d8cd98f00b204e9800998ecf8427e\", \
+        \"user_name\":\"Administrators\", \"group_name\":\"\", \"mtime\":1646145212, \"inode\":\"0\", \"hash_md5\":\"d41d8cd98f00b204e9800998ecf8427e\", \
         \"hash_sha1\":\"da39a3ee5e6b4b0d3255bfef95601890afd80709\", \"hash_sha256\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\", \
         \"checksum\":\"ac962fef86e12e656b882fc88170fff24bf10a77\" }");
 
-    char *result_str = "{\"type\":\"file\",\"size\":0,\"perm\":{\"S-1-5-32-544\":{\"name\":\"Administrators\",\"allowed\":[\"delete\",\"read_control\",\"write_dac\",\"write_owner\",\"synchronize\",\"read_data\",\"write_data\",\"append_data\",\"read_ea\",\"write_ea\",\"execute\",\"read_attributes\",\"write_attributes\"]},\"S-1-5-18\":{\"name\":\"SYSTEM\",\"allowed\":[\"delete\",\"read_control\",\"write_dac\",\"write_owner\",\"synchronize\",\"read_data\",\"write_data\",\"append_data\",\"read_ea\",\"write_ea\",\"execute\",\"read_attributes\",\"write_attributes\"]},\"S-1-5-32-545\":{\"name\":\"Users\",\"allowed\":[\"read_control\",\"synchronize\",\"read_data\",\"read_ea\",\"execute\",\"read_attributes\"]},\"S-1-5-11\":{\"name\":\"Authenticated Users\",\"allowed\":[\"delete\",\"read_control\",\"synchronize\",\"read_data\",\"write_data\",\"append_data\",\"read_ea\",\"write_ea\",\"execute\",\"read_attributes\",\"write_attributes\"]}},\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"Administrators\",\"inode\":0,\"mtime\":1646145212,\"hash_md5\":\"d41d8cd98f00b204e9800998ecf8427e\",\"hash_sha1\":\"da39a3ee5e6b4b0d3255bfef95601890afd80709\",\"hash_sha256\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"attributes\":\"ARCHIVE\",\"checksum\":\"ac962fef86e12e656b882fc88170fff24bf10a77\"}";
+    char *result_str = "{\"type\":\"file\",\"size\":0,\"perm\":{\"S-1-5-32-544\":{\"name\":\"Administrators\",\"allowed\":[\"delete\",\"read_control\",\"write_dac\",\"write_owner\",\"synchronize\",\"read_data\",\"write_data\",\"append_data\",\"read_ea\",\"write_ea\",\"execute\",\"read_attributes\",\"write_attributes\"]},\"S-1-5-18\":{\"name\":\"SYSTEM\",\"allowed\":[\"delete\",\"read_control\",\"write_dac\",\"write_owner\",\"synchronize\",\"read_data\",\"write_data\",\"append_data\",\"read_ea\",\"write_ea\",\"execute\",\"read_attributes\",\"write_attributes\"]},\"S-1-5-32-545\":{\"name\":\"Users\",\"allowed\":[\"read_control\",\"synchronize\",\"read_data\",\"read_ea\",\"execute\",\"read_attributes\"]},\"S-1-5-11\":{\"name\":\"Authenticated Users\",\"allowed\":[\"delete\",\"read_control\",\"synchronize\",\"read_data\",\"write_data\",\"append_data\",\"read_ea\",\"write_ea\",\"execute\",\"read_attributes\",\"write_attributes\"]}},\"uid\":\"0\",\"gid\":\"0\",\"user_name\":\"Administrators\",\"inode\":\"0\",\"mtime\":1646145212,\"hash_md5\":\"d41d8cd98f00b204e9800998ecf8427e\",\"hash_sha1\":\"da39a3ee5e6b4b0d3255bfef95601890afd80709\",\"hash_sha256\":\"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"attributes\":\"ARCHIVE\",\"checksum\":\"ac962fef86e12e656b882fc88170fff24bf10a77\"}";
 #endif
     cJSON *attributes = cJSON_CreateObject();
 
@@ -4300,11 +4347,6 @@ int main(void) {
 
         /* fim_audit_json */
         cmocka_unit_test_teardown(test_fim_audit_json, teardown_delete_json),
-
-        /* fim_check_ignore */
-        cmocka_unit_test(test_fim_check_ignore_strncasecmp),
-        cmocka_unit_test(test_fim_check_ignore_regex),
-        cmocka_unit_test(test_fim_check_ignore_failure),
 
         /* fim_check_restrict */
         cmocka_unit_test(test_fim_check_restrict_success),
@@ -4396,7 +4438,6 @@ int main(void) {
 #ifndef TEST_WINAGENT
         cmocka_unit_test_setup_teardown(test_fim_checker_fim_directory_on_max_recursion_level, setup_struct_dirent, teardown_struct_dirent),
 #endif
-        cmocka_unit_test(test_fim_checker_unsupported_path),
 
         /* fim_directory */
         cmocka_unit_test_setup_teardown(test_fim_directory, setup_struct_dirent, teardown_struct_dirent),
@@ -4459,7 +4500,13 @@ int main(void) {
         /* dbsync_attributes_json */
         cmocka_unit_test_setup_teardown(test_dbsync_attributes_json, setup_json_event_attributes, teardown_json_event_attributes),
     };
-
+    const struct CMUnitTest fim_regex_tests[] = {
+        /* fim_check_ignore */
+        cmocka_unit_test(test_fim_check_ignore_strncasecmp),
+        cmocka_unit_test(test_fim_check_ignore_regex_file),
+        cmocka_unit_test(test_fim_check_ignore_regex_directory),
+        cmocka_unit_test(test_fim_check_ignore_failure),
+    };
     const struct CMUnitTest root_monitor_tests[] = {
         cmocka_unit_test(test_fim_checker_root_ignore_file_under_recursion_level),
         cmocka_unit_test(test_fim_checker_root_file_within_recursion_level),
@@ -4473,6 +4520,7 @@ int main(void) {
     int retval;
 
     retval = cmocka_run_group_tests(tests, setup_group, teardown_group);
+    retval += cmocka_run_group_tests(fim_regex_tests, setup_fim_regex_group, teardown_group);
     retval += cmocka_run_group_tests(root_monitor_tests, setup_root_group, teardown_group);
     retval += cmocka_run_group_tests(wildcards_tests, setup_wildcards, teardown_wildcards);
 

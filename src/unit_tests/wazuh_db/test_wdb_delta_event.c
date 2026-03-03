@@ -29,6 +29,9 @@ cJSON * wdb_dbsync_get_field_default(const struct field * field);
 #define ANY_PTR_VALUE 1
 #define TEST_INDEX    1
 #define HWINFO_TABLE "sys_hwinfo"
+#define USERS_TABLE "sys_users"
+#define GROUPS_TABLE "sys_groups"
+#define SERVICES_TABLE "sys_services"
 
 /* wdb_dbsync_stmt_bind_from_json */
 
@@ -362,6 +365,165 @@ void test_wdb_dbsync_stmt_bind_hwinfo_ram_usage_from_valid_value_to_number (void
     cJSON_Delete(value);
 }
 
+/* wdb_dbsync_stmt_bind_from_json for users */
+void test_wdb_dbsync_stmt_bind_users_multiple_fields_valid_numeric_value(void **state) {
+    cJSON * values[3] = {
+        cJSON_CreateNumber(-1),
+        cJSON_CreateNumber(0),
+        cJSON_CreateNumber(1)
+    };
+
+    const char * fields[] = {
+        "user_password_expiration_date",                  // First integer field
+        "user_password_inactive_days",
+        "user_password_max_days_between_changes",
+        "user_password_min_days_between_changes",
+        "user_password_warning_days_before_expiration",
+        "user_last_login",                                // First long field
+        "user_id",
+        "user_group_id",
+        "user_auth_failed_count",
+        "process_pid",
+        "user_uid_signed",
+        "user_group_id_signed",
+        "user_created",                                   // First double field
+        "user_auth_failed_timestamp",
+        "user_password_last_change"
+    };
+
+    for (int i = 0; i < sizeof(values)/sizeof(values[0]); ++i) {
+        int value = i - 1;
+        for (int j = 0; j < sizeof(fields)/sizeof(fields[0]); ++j) {
+            int field_type = FIELD_INTEGER;
+            // Testing integer values
+            if (j < 5) {
+                // Call expected mocks. All fields should be greater or equal than zero,
+                // except user_password_expiration_date that should be greater than zero.
+                if ((i > 1 && j == 0) || (i > 0 && j > 0)) {
+                    expect_value(__wrap_sqlite3_bind_int, index, TEST_INDEX);
+                    expect_value(__wrap_sqlite3_bind_int, value, value);
+                    will_return(__wrap_sqlite3_bind_int, SQLITE_OK);
+                } else {
+                    expect_value(__wrap_sqlite3_bind_null, index, TEST_INDEX);
+                    will_return(__wrap_sqlite3_bind_null, SQLITE_OK);
+                }
+            }
+            // Testing long values
+            if (j >= 5 && j < 12) {
+                field_type = FIELD_INTEGER_LONG;
+                // Call expected mocks. user_last_login should be greater than zero.
+                // user_id,  user_group_id, user_auth_failed_count, process_pid should be greater or equal than zero.
+                // The rest of the fields do not have any contraints.
+                if ((i > 1 && j == 5) || (i > 0 && j >= 6 && j < 10 ) || j >= 10) {
+                    expect_value(__wrap_sqlite3_bind_int64, index, TEST_INDEX);
+                    expect_value(__wrap_sqlite3_bind_int64, value, value);
+                    will_return(__wrap_sqlite3_bind_int64, SQLITE_OK);
+                } else {
+                    expect_value(__wrap_sqlite3_bind_null, index, TEST_INDEX);
+                    will_return(__wrap_sqlite3_bind_null, SQLITE_OK);
+                }
+            }
+            // Testing double values
+            if (j >= 12) {
+                field_type = FIELD_REAL;
+                // Call expected mocks. All fields should be greater than zero.
+                if (i > 1) {
+                    expect_value(__wrap_sqlite3_bind_double, index, TEST_INDEX);
+                    expect_value(__wrap_sqlite3_bind_double, value, value);
+                    will_return(__wrap_sqlite3_bind_double, SQLITE_OK);
+                } else {
+                    expect_value(__wrap_sqlite3_bind_null, index, TEST_INDEX);
+                    will_return(__wrap_sqlite3_bind_null, SQLITE_OK);
+                }
+            }
+            assert_true(wdb_dbsync_stmt_bind_from_json((sqlite3_stmt *) ANY_PTR_VALUE, TEST_INDEX, field_type, values[i], fields[j], USERS_TABLE, true));
+        }
+        cJSON_Delete(values[i]);
+    }
+}
+
+/* wdb_dbsync_stmt_bind_from_json for groups */
+void test_wdb_dbsync_stmt_bind_groups_multiple_fields_numeric_values(void **state) {
+    cJSON * values[3] = {
+        cJSON_CreateNumber(-1),
+        cJSON_CreateNumber(0),
+        cJSON_CreateNumber(1)
+    };
+
+    const char * fields [] = {
+        "group_id",
+        "group_id_signed"
+    };
+
+    for (int i = 0; i < sizeof(values)/sizeof(values[0]); ++i) {
+        int value = i - 1;
+        for (int j = 0; j < sizeof(fields)/sizeof(fields[0]); ++j) {
+            // If field is group_id the accepted value is greater or equal than zero.
+            if ((i > 0 && j == 0) || j == 1) {
+                expect_value(__wrap_sqlite3_bind_int64, index, TEST_INDEX);
+                expect_value(__wrap_sqlite3_bind_int64, value, value);
+                will_return(__wrap_sqlite3_bind_int64, SQLITE_OK);
+            } else {
+                expect_value(__wrap_sqlite3_bind_null, index, TEST_INDEX);
+                will_return(__wrap_sqlite3_bind_null, SQLITE_OK);
+            }
+            assert_true(wdb_dbsync_stmt_bind_from_json((sqlite3_stmt *) ANY_PTR_VALUE, TEST_INDEX, FIELD_INTEGER_LONG, values[i], fields[j], GROUPS_TABLE, true));
+        }
+        cJSON_Delete(values[i]);
+    }
+}
+
+/* wdb_dbsync_stmt_bind_from_json for services */
+void test_wdb_dbsync_stmt_bind_services_multiple_fields_numeric_values(void **state) {
+    cJSON * values[3] = {
+        cJSON_CreateNumber(-1),
+        cJSON_CreateNumber(0),
+        cJSON_CreateNumber(1)
+    };
+
+    // long fields
+    const char * fields [] = {
+        "service_frequency",            // First long field
+        "service_process_pid",
+        "service_target_ephemeral_id",
+        "service_exit_code",            // First int field
+        "service_win32_exit_code"
+    };
+
+    for (int i = 0; i < sizeof(values)/sizeof(values[0]); ++i) {
+        int value = i - 1;
+        for (int j = 0; j < sizeof(fields)/sizeof(fields[0]); ++j) {
+            int field_type = FIELD_INTEGER_LONG;
+            if (j >= 0 && j < 3) {
+                // The accepted long values are greater or equal than zero for all fields.
+                if (i > 0) {
+                    expect_value(__wrap_sqlite3_bind_int64, index, TEST_INDEX);
+                    expect_value(__wrap_sqlite3_bind_int64, value, value);
+                    will_return(__wrap_sqlite3_bind_int64, SQLITE_OK);
+                } else {
+                    printf("field: %s\n", fields[j]);
+                    expect_value(__wrap_sqlite3_bind_null, index, TEST_INDEX);
+                    will_return(__wrap_sqlite3_bind_null, SQLITE_OK);
+                }
+            }
+            if (j >= 3) {
+                field_type = FIELD_INTEGER;
+                // The accepted int values are greater or equal than zero for all fields.
+                if (i > 0) {
+                    expect_value(__wrap_sqlite3_bind_int, index, TEST_INDEX);
+                    expect_value(__wrap_sqlite3_bind_int, value, value);
+                    will_return(__wrap_sqlite3_bind_int, SQLITE_OK);
+                } else {
+                    expect_value(__wrap_sqlite3_bind_null, index, TEST_INDEX);
+                    will_return(__wrap_sqlite3_bind_null, SQLITE_OK);
+                }
+            }
+            assert_true(wdb_dbsync_stmt_bind_from_json((sqlite3_stmt *) ANY_PTR_VALUE, TEST_INDEX, field_type, values[i], fields[j], SERVICES_TABLE, true));
+        }
+        cJSON_Delete(values[i]);
+    }
+}
+
 /* wdb_upsert_dsync */
 
 void test_wdb_upsert_dbsync_err(void ** state) {
@@ -668,6 +830,153 @@ void test_wdb_upsert_dbsync_packages_null_pk_field (void **state) {
     cJSON_Delete(delta);
 }
 
+void test_wdb_upsert_dbsync_big_fields_number (void **state) {
+    // In a real scenario the number of fields won't be this big. There's no table containing over 1000 fields.
+    struct column_list TEST_FIELDS[OS_SIZE_1024];
+    for (int i = 0; i < OS_SIZE_1024; ++i) {
+        char field_name[32];
+        snprintf(field_name, sizeof(field_name), "f_%d", i + 1);
+        TEST_FIELDS[i].value.type = FIELD_INTEGER;
+        TEST_FIELDS[i].value.index = i + 1;
+        TEST_FIELDS[i].value.is_aux_field = false;
+        if (i == 0) {
+            TEST_FIELDS[i].value.is_pk = true;
+        } else {
+            TEST_FIELDS[i].value.is_pk = false;
+        }
+        TEST_FIELDS[i].value.source_name = NULL;
+        TEST_FIELDS[i].value.target_name = strdup(field_name);
+        TEST_FIELDS[i].value.default_value.integer = 0;
+        TEST_FIELDS[i].value.convert_empty_string_as_null = true;
+        TEST_FIELDS[i].next = (i < OS_SIZE_1024 - 1) ? &TEST_FIELDS[i + 1] : NULL;
+    }
+
+    struct kv const TEST_TABLE = {"table_origin_name", "table_target_name", false, TEST_FIELDS};
+
+    char data[OS_SIZE_20480] = "{";
+    for (int i = 0; i < OS_SIZE_1024; i++) {
+        char field_entry[64];
+        snprintf(field_entry, sizeof(field_entry) - 1, "\"f_%d\":%d", i + 1, i + 1000);
+        strcat(data, field_entry);
+        if (i < OS_SIZE_1024 - 1) {
+            strcat(data, ",");
+        }
+    }
+    strcat(data, "}");
+
+    cJSON * delta = cJSON_Parse(data);
+    expect_string(__wrap__merror, formatted_msg,
+                  "Exceeding maximum query size of 2048 bytes adding values placeholders.");
+    assert_false(wdb_upsert_dbsync((wdb_t *) ANY_PTR_VALUE, &TEST_TABLE, delta));
+
+    cJSON_Delete(delta);
+    for (int i = 0; i < OS_SIZE_1024; i++) {
+        free((void *)TEST_FIELDS[i].value.target_name);
+    }
+}
+
+void test_wdb_upsert_dbsync_query_size_exceeded_on_conflict_clause (void **state) {
+    // In a real scenario the number of fields won't be this big.
+    const int fields_number = 1000; // Adjusted to trigger the size limit on conflict clause
+    struct column_list TEST_FIELDS[fields_number];
+    for (int i = 0; i < fields_number; ++i) {
+        char field_name[32];
+        snprintf(field_name, sizeof(field_name), "f_%d", i + 1);
+        TEST_FIELDS[i].value.type = FIELD_INTEGER;
+        TEST_FIELDS[i].value.index = i + 1;
+        TEST_FIELDS[i].value.is_aux_field = false;
+        if (i == 0) {
+            TEST_FIELDS[i].value.is_pk = true;
+        } else {
+            TEST_FIELDS[i].value.is_pk = false;
+        }
+        TEST_FIELDS[i].value.source_name = NULL;
+        TEST_FIELDS[i].value.target_name = strdup(field_name);
+        TEST_FIELDS[i].value.default_value.integer = 0;
+        TEST_FIELDS[i].value.convert_empty_string_as_null = true;
+        TEST_FIELDS[i].next = (i < fields_number - 1) ? &TEST_FIELDS[i + 1] : NULL;
+    }
+
+    struct kv const TEST_TABLE = {"table_origin_name", "table_target_name", false, TEST_FIELDS};
+
+    char data[OS_SIZE_20480] = "{";
+    for (int i = 0; i < fields_number; i++) {
+        char field_entry[64];
+        snprintf(field_entry, sizeof(field_entry) - 1, "\"f_%d\":%d", i + 1, i + 1000);
+        strcat(data, field_entry);
+        if (i < fields_number - 1) {
+            strcat(data, ",");
+        }
+    }
+    strcat(data, "}");
+
+    cJSON * delta = cJSON_Parse(data);
+    expect_string(__wrap__merror, formatted_msg,
+                  "Exceeding maximum query size of 2048 bytes adding conflict clause.");
+    assert_false(wdb_upsert_dbsync((wdb_t *) ANY_PTR_VALUE, &TEST_TABLE, delta));
+
+    cJSON_Delete(delta);
+    for (int i = 0; i < fields_number; i++) {
+        free((void *)TEST_FIELDS[i].value.target_name);
+    }
+}
+
+void test_wdb_upsert_dbsync_big_field_name_first_condition (void **state) {
+    // This is a hardcoded value, it won't be this big in real scenarios.
+    char long_field_name[2049];
+    memset(long_field_name, 'A', 2048);
+    long_field_name[2048] = '\0';
+
+    struct column_list const TEST_FIELDS[] = {
+        // PKs
+        {.value = {FIELD_INTEGER, 1, false, true, NULL, "test_1", {.integer = 0}, true}, .next = &TEST_FIELDS[1]},
+        // Regular fields
+        {.value = {FIELD_INTEGER_LONG, 2, false, false, NULL, long_field_name, {.integer_long = 0}, true}, .next = &TEST_FIELDS[2]},
+        {.value = {FIELD_REAL, 3, false, false, NULL, "test_2", {.real = 0.0}, true}, .next = NULL},
+    };
+
+    struct kv const TEST_TABLE = {"table_origin_name", "table_target_name", false, TEST_FIELDS};
+
+    char data[OS_SIZE_2048 + OS_SIZE_256] = {0};
+    snprintf(data, OS_SIZE_2048 + OS_SIZE_256 - 1,
+             "{\"test_1\":4321,\"%s\":9223372036854775807,\"test_2\":12345.6789}",
+             long_field_name);
+
+    cJSON * delta = cJSON_Parse(data);
+    expect_string(__wrap__merror, formatted_msg,
+                  "Exceeding maximum query size of 2048 bytes adding first field."),
+    assert_false(wdb_upsert_dbsync((wdb_t *) ANY_PTR_VALUE, &TEST_TABLE, delta));
+    cJSON_Delete(delta);
+}
+
+void test_wdb_upsert_dbsync_big_subsequent_field_name (void **state) {
+    // This is a hardcoded value, it won't be this big in real scenarios.
+    char long_field_name[2049];
+    memset(long_field_name, 'A', 2048);
+    long_field_name[2048] = '\0';
+
+    struct column_list const TEST_FIELDS[] = {
+        // PKs
+        {.value = {FIELD_INTEGER, 1, false, true, NULL, "test_1", {.integer = 0}, true}, .next = &TEST_FIELDS[1]},
+        // Regular fields
+        {.value = {FIELD_INTEGER_LONG, 2, false, false, NULL, "test_2", {.integer_long = 0}, true}, .next = &TEST_FIELDS[2]},
+        {.value = {FIELD_REAL, 3, false, false, NULL, long_field_name, {.real = 0.0}, true}, .next = NULL},
+    };
+
+    struct kv const TEST_TABLE = {"table_origin_name", "table_target_name", false, TEST_FIELDS};
+
+    char data[OS_SIZE_2048 + OS_SIZE_256] = {0};
+    snprintf(data, OS_SIZE_2048 + OS_SIZE_256 - 1,
+             "{\"test_1\":4321,\"test_2\":\"value_2\",\"%s\":9223372036854775807}",
+             long_field_name);
+
+    cJSON * delta = cJSON_Parse(data);
+    expect_string(__wrap__merror, formatted_msg,
+                  "Exceeding maximum query size of 2048 bytes adding subsequent fields.");
+    assert_false(wdb_upsert_dbsync((wdb_t *) ANY_PTR_VALUE, &TEST_TABLE, delta));
+    cJSON_Delete(delta);
+}
+
 //
 // wdb_delete_dbsync
 //
@@ -827,6 +1136,58 @@ void test_wdb_delete_dbsync_packages_null_pk_field (void **state) {
     cJSON_Delete(delta);
 }
 
+void test_wdb_delete_dbsync_big_first_pk_field_name(void **state) {
+    // 2048 characters long pk field name. This is a hardcoded value and it won't be that long in real cases.
+    char long_pk[2049];
+    memset(long_pk, 'A', 2048);
+    long_pk[2048] = '\0';
+
+    struct column_list const TEST_FIELDS[] = {
+        // PKs.
+        {.value = {FIELD_INTEGER, 1, false, true, NULL, long_pk, {.integer = 0}, true}, .next = &TEST_FIELDS[1]},
+        {.value = {FIELD_TEXT, 2, false, true, NULL, "test_2", {.text = ""}, false}, .next = &TEST_FIELDS[2] },
+        // Regular field.
+        {.value = {FIELD_INTEGER, 3, false, false, NULL, "test_3", {.integer = 0}, true}, .next = NULL},
+    };
+
+    struct kv const TEST_TABLE = {"packages", "sys_programs", false, TEST_FIELDS};
+
+    char data[OS_SIZE_2048 + OS_SIZE_256] = {0};
+    snprintf(data, OS_SIZE_2048 + OS_SIZE_256 - 1, "{\"%s\":4321,\"test_2\":null,\"test_3\":1234}", long_pk);
+
+    cJSON * delta = cJSON_Parse(data);
+    expect_string(__wrap__merror, formatted_msg, "Exceeding maximum query size of 2048 bytes adding first pk.");
+
+    assert_false(wdb_delete_dbsync((wdb_t *) ANY_PTR_VALUE, &TEST_TABLE, delta));
+    cJSON_Delete(delta);
+}
+
+void test_wdb_delete_dbsync_big_second_pk_field_name(void **state) {
+    // 2048 characters long pk field name. This is a hardcoded value and it won't be that long in real cases.
+    char long_pk[2049];
+    memset(long_pk, 'A', 2048);
+    long_pk[2048] = '\0';
+
+    struct column_list const TEST_FIELDS[] = {
+        // PKs.
+        {.value = {FIELD_INTEGER, 1, false, true, NULL, "test_1", {.integer = 0}, true}, .next = &TEST_FIELDS[1]},
+        { .value = { FIELD_TEXT, 2, false, true, NULL, long_pk, {.text = ""}, false}, .next = &TEST_FIELDS[2] },
+        // Regular field.
+        {.value = {FIELD_INTEGER, 3, false, false, NULL, "test_3", {.integer = 0}, true}, .next = NULL},
+    };
+
+    struct kv const TEST_TABLE = {"packages", "sys_programs", false, TEST_FIELDS};
+
+    char data[OS_SIZE_256 + OS_SIZE_2048] = {0};
+    snprintf(data, OS_SIZE_256 + OS_SIZE_2048 - 1, "{\"test_1\":4321,\"%s\":null,\"test_3\":1234}", long_pk);
+
+    cJSON * delta = cJSON_Parse(data);
+    expect_string(__wrap__merror, formatted_msg, "Exceeding maximum query size of 2048 bytes adding subsequent pks.");
+
+    assert_false(wdb_delete_dbsync((wdb_t *) ANY_PTR_VALUE, &TEST_TABLE, delta));
+    cJSON_Delete(delta);
+}
+
 /* wdb_dbsync_get_field_default */
 
 void test_wdb_dbsync_get_field_default_null(void ** state) { assert_null(wdb_dbsync_get_field_default(NULL)); }
@@ -937,6 +1298,12 @@ int main() {
         cmocka_unit_test(test_wdb_dbsync_stmt_bind_hwinfo_ram_free_from_valid_value_to_number),
         cmocka_unit_test(test_wdb_dbsync_stmt_bind_hwinfo_ram_total_from_valid_value_to_number),
         cmocka_unit_test(test_wdb_dbsync_stmt_bind_hwinfo_ram_usage_from_valid_value_to_number),
+        // wdb_dbsync_stmt_bind_from_json for users
+        cmocka_unit_test(test_wdb_dbsync_stmt_bind_users_multiple_fields_valid_numeric_value),
+        // wdb_dbsync_stmt_bind_from_json for groups
+        cmocka_unit_test(test_wdb_dbsync_stmt_bind_groups_multiple_fields_numeric_values),
+        // wdb_dbsync_stmt_bind_from_json for services
+        cmocka_unit_test(test_wdb_dbsync_stmt_bind_services_multiple_fields_numeric_values),
         /* wdb_upsert_dbsync */
         cmocka_unit_test(test_wdb_upsert_dbsync_err),
         cmocka_unit_test(test_wdb_upsert_dbsync_bad_cache),
@@ -954,6 +1321,13 @@ int main() {
         cmocka_unit_test(test_wdb_delete_dbsync_stmt_nok),
         cmocka_unit_test(test_wdb_delete_dbsync_packages_not_present_pk_field),
         cmocka_unit_test(test_wdb_delete_dbsync_packages_null_pk_field),
+        /* Event data validation */
+        cmocka_unit_test(test_wdb_upsert_dbsync_big_fields_number),
+        cmocka_unit_test(test_wdb_upsert_dbsync_query_size_exceeded_on_conflict_clause),
+        cmocka_unit_test(test_wdb_upsert_dbsync_big_field_name_first_condition),
+        cmocka_unit_test(test_wdb_upsert_dbsync_big_subsequent_field_name),
+        cmocka_unit_test(test_wdb_delete_dbsync_big_first_pk_field_name),
+        cmocka_unit_test(test_wdb_delete_dbsync_big_second_pk_field_name),
         };
 
     return cmocka_run_group_tests(tests, NULL, NULL);

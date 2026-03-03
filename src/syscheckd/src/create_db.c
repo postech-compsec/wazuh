@@ -15,6 +15,11 @@
 #include "time_op.h"
 #include "db/include/db.h"
 #include "registry/registry.h"
+#ifdef __linux__
+#ifdef ENABLE_AUDIT
+#include "ebpf/include/ebpf_whodata.h"
+#endif /* ENABLE_AUDIT */
+#endif /* __linux__ */
 
 #ifdef WAZUH_UNIT_TESTING
 #ifdef WIN32
@@ -128,12 +133,17 @@ cJSON * fim_calculate_dbsync_difference(const fim_file_data *data,
     }
 
     if (data->options & CHECK_INODE) {
-        if (aux = cJSON_GetObjectItem(changed_data, "inode"), aux != NULL) {
-            cJSON_AddNumberToObject(old_attributes, "inode", aux->valueint);
-            cJSON_AddItemToArray(changed_attributes, cJSON_CreateString("inode"));
-
+        if ((aux = cJSON_GetObjectItem(changed_data, "inode")) != NULL) {
+            if (cJSON_IsString(aux)) {
+                cJSON_AddStringToObject(old_attributes, "inode", cJSON_GetStringValue(aux));
+                cJSON_AddItemToArray(changed_attributes, cJSON_CreateString("inode"));
+            } else {
+                mwarn(FIM_WARN_INODE_WRONG_TYPE);
+            }
         } else {
-            cJSON_AddNumberToObject(old_attributes, "inode", data->inode);
+            char inode_str[32];
+            snprintf(inode_str, sizeof(inode_str), "%llu", data->inode);
+            cJSON_AddStringToObject(old_attributes, "inode", inode_str);
         }
     }
 
@@ -264,8 +274,12 @@ static void dbsync_attributes_json(const cJSON *dbsync_event, const directory_t 
     }
 
     if (configuration->options & CHECK_INODE) {
-        if (aux = cJSON_GetObjectItem(dbsync_event, "inode"), aux != NULL) {
-            cJSON_AddNumberToObject(attributes, "inode", aux->valueint);
+        if ((aux = cJSON_GetObjectItem(dbsync_event, "inode")) != NULL) {
+            if (cJSON_IsString(aux)) {
+                cJSON_AddStringToObject(attributes, "inode", cJSON_GetStringValue(aux));
+            } else {
+                mwarn(FIM_WARN_INODE_WRONG_TYPE);
+            }
         }
     }
 
@@ -333,6 +347,7 @@ static void transaction_callback(ReturnTypeCallback resultType, const cJSON* res
     }
 
     if (configuration = fim_configuration_directory(path), configuration == NULL) {
+        mdebug2(FIM_CONFIGURATION_NOTFOUND, "file", path);
         goto end;
     }
 
@@ -381,7 +396,18 @@ static void transaction_callback(ReturnTypeCallback resultType, const cJSON* res
     cJSON_AddStringToObject(json_event, "type", "event");
     cJSON_AddItemToObject(json_event, "data", data);
 
+#ifdef WIN32
+    char *utf8_path = auto_to_utf8(path);
+    if (utf8_path) {
+        cJSON_AddStringToObject(data, "path", utf8_path);
+        os_free(utf8_path);
+    } else {
+        cJSON_AddStringToObject(data, "path", path);
+    }
+#else
     cJSON_AddStringToObject(data, "path", path);
+#endif
+
     cJSON_AddNumberToObject(data, "version", 2.0);
     cJSON_AddStringToObject(data, "mode", FIM_EVENT_MODE[txn_context->evt_data->mode]);
     cJSON_AddStringToObject(data, "type", FIM_EVENT_TYPE_ARRAY[txn_context->evt_data->type]);
@@ -621,6 +647,12 @@ time_t fim_scan() {
     }
     audit_queue_full_reported = 0;
 
+#ifdef __linux__
+#ifdef ENABLE_AUDIT
+    ebpf_kernel_queue_full_reported = 0;
+#endif /* ENABLE_AUDIT */
+#endif  /* __linux__ */
+
     return end_of_scan;
 }
 
@@ -632,11 +664,6 @@ void fim_checker(const char *path,
     directory_t *configuration;
     int depth;
 
-    if (!w_utf8_valid(path)) {
-        mwarn(FIM_INVALID_FILE_NAME, path);
-        return;
-    }
-
 #ifdef WIN32
     // Ignore the recycle bin.
     if (check_removed_file(path)){
@@ -646,6 +673,7 @@ void fim_checker(const char *path,
 
     configuration = fim_configuration_directory(path);
     if (configuration == NULL) {
+        mdebug2(FIM_CONFIGURATION_NOTFOUND, "file", path);
         return;
     }
 
@@ -674,7 +702,7 @@ void fim_checker(const char *path,
     }
 
     // Deleted file. Sending alert.
-    if (w_stat(path, &(evt_data->statbuf)) == -1) {
+    if (w_lstat(path, &(evt_data->statbuf)) == -1) {
         if(errno != ENOENT) {
             mdebug1(FIM_STAT_FAILED, path, errno, strerror(errno));
             return;
@@ -717,16 +745,17 @@ void fim_checker(const char *path,
         }
     }
 #endif
+    mode_t path_type = evt_data->statbuf.st_mode & S_IFMT;
 
     if (HasFilesystem(path, syscheck.skip_fs)) {
         return;
     }
 
-    if (fim_check_ignore(path) == 1) {
+    if (fim_check_ignore(path, path_type) == 1) {
         return;
     }
 
-    switch (evt_data->statbuf.st_mode & S_IFMT) {
+    switch (path_type) {
 #ifndef WIN32
     case FIM_LINK:
         // Fallthrough
@@ -773,7 +802,7 @@ int fim_directory(const char *dir,
     }
 
     // Open the directory given
-    dp = opendir(dir);
+    dp = wopendir(dir);
 
     if (!dp) {
         mwarn(FIM_PATH_NOT_OPEN, dir, strerror(errno));
@@ -923,7 +952,7 @@ void fim_realtime_event(char *file) {
     struct stat file_stat;
 
     // If the file exists, generate add or modify events.
-    if (w_stat(file, &file_stat) >= 0) {
+    if (w_lstat(file, &file_stat) >= 0) {
         event_data_t evt_data = { .mode = FIM_REALTIME, .w_evt = NULL, .report_event = true };
 
         /* Need a sleep here to avoid triggering on vim
@@ -948,11 +977,10 @@ void create_windows_who_data_events(void * data, void * ctx)
 }
 
 void fim_whodata_event(whodata_evt * w_evt) {
-
     struct stat file_stat;
 
     // If the file exists, generate add or modify events.
-    if(w_stat(w_evt->path, &file_stat) >= 0) {
+    if(w_lstat(w_evt->path, &file_stat) >= 0) {
         event_data_t evt_data = { .mode = FIM_WHODATA, .w_evt = w_evt, .report_event = true };
 
         fim_rt_delay();
@@ -1024,6 +1052,7 @@ void fim_process_missing_entry(char * pathname, fim_event_mode mode, whodata_evt
 
     configuration = fim_configuration_directory(pathname);
     if (NULL == configuration) {
+        mdebug2(FIM_CONFIGURATION_NOTFOUND, "file", pathname);
         return;
     }
 
@@ -1172,10 +1201,20 @@ directory_t *fim_configuration_directory(const char *path) {
     OSListNode *node_it;
     int top = 0;
     int match = 0;
+    char *pathname = NULL;
 
     if (!path || *path == '\0') {
         return NULL;
     }
+
+#ifdef WIN32
+    pathname = auto_to_ansi(path);
+    if (!pathname) {
+        return NULL;
+    }
+#else
+    os_strdup(path, pathname);
+#endif
 
     trail_path_separator(full_path, path, sizeof(full_path));
 
@@ -1194,10 +1233,7 @@ directory_t *fim_configuration_directory(const char *path) {
         os_free(real_path);
     }
 
-    if (dir == NULL) {
-        mdebug2(FIM_CONFIGURATION_NOTFOUND, "file", path);
-    }
-
+    os_free(pathname);
     return dir;
 }
 
@@ -1433,7 +1469,18 @@ cJSON *fim_json_event(const fim_entry *new_data,
     cJSON * data = cJSON_CreateObject();
     cJSON_AddItemToObject(json_event, "data", data);
 
+#ifdef WIN32
+    char *utf8_path = auto_to_utf8(new_data->file_entry.path);
+    if (utf8_path) {
+        cJSON_AddStringToObject(data, "path", utf8_path);
+        os_free(utf8_path);
+    } else {
+        cJSON_AddStringToObject(data, "path", new_data->file_entry.path);
+    }
+#else
     cJSON_AddStringToObject(data, "path", new_data->file_entry.path);
+#endif
+
     cJSON_AddNumberToObject(data, "version", 2.0);
     cJSON_AddStringToObject(data, "mode", FIM_EVENT_MODE[evt_data->mode]);
     cJSON_AddStringToObject(data, "type", FIM_EVENT_TYPE_ARRAY[evt_data->type]);
@@ -1502,7 +1549,9 @@ cJSON * fim_attributes_json(const fim_file_data * data) {
     }
 
     if (data->options & CHECK_INODE) {
-        cJSON_AddNumberToObject(attributes, "inode", data->inode);
+        char inode_str[32];
+        snprintf(inode_str, sizeof(inode_str), "%llu", data->inode);
+        cJSON_AddStringToObject(attributes, "inode", inode_str);
     }
 
     if (data->options & CHECK_MTIME) {
@@ -1615,20 +1664,20 @@ cJSON * fim_json_compare_attrs(const fim_file_data * old_data, const fim_file_da
 cJSON * fim_audit_json(const whodata_evt * w_evt) {
     cJSON * fim_audit = cJSON_CreateObject();
 
-    cJSON_AddStringToObject(fim_audit, "user_id", w_evt->user_id);
-    cJSON_AddStringToObject(fim_audit, "user_name", w_evt->user_name);
-    cJSON_AddStringToObject(fim_audit, "process_name", w_evt->process_name);
+    if (w_evt->user_id) cJSON_AddStringToObject(fim_audit, "user_id", w_evt->user_id);
+    if (w_evt->user_name) cJSON_AddStringToObject(fim_audit, "user_name", w_evt->user_name);
+    if (w_evt->process_name) cJSON_AddStringToObject(fim_audit, "process_name", w_evt->process_name);
     cJSON_AddNumberToObject(fim_audit, "process_id", w_evt->process_id);
 #ifndef WIN32
-    cJSON_AddStringToObject(fim_audit, "cwd", w_evt->cwd);
-    cJSON_AddStringToObject(fim_audit, "group_id", w_evt->group_id);
-    cJSON_AddStringToObject(fim_audit, "group_name", w_evt->group_name);
-    cJSON_AddStringToObject(fim_audit, "audit_uid", w_evt->audit_uid);
-    cJSON_AddStringToObject(fim_audit, "audit_name", w_evt->audit_name);
-    cJSON_AddStringToObject(fim_audit, "effective_uid", w_evt->effective_uid);
-    cJSON_AddStringToObject(fim_audit, "effective_name", w_evt->effective_name);
-    cJSON_AddStringToObject(fim_audit, "parent_name", w_evt->parent_name);
-    cJSON_AddStringToObject(fim_audit, "parent_cwd", w_evt->parent_cwd);
+    if (w_evt->cwd) cJSON_AddStringToObject(fim_audit, "cwd", w_evt->cwd);
+    if (w_evt->group_id) cJSON_AddStringToObject(fim_audit, "group_id", w_evt->group_id);
+    if (w_evt->group_name) cJSON_AddStringToObject(fim_audit, "group_name", w_evt->group_name);
+    if (w_evt->audit_uid) cJSON_AddStringToObject(fim_audit, "audit_uid", w_evt->audit_uid);
+    if (w_evt->audit_name) cJSON_AddStringToObject(fim_audit, "audit_name", w_evt->audit_name);
+    if (w_evt->effective_uid) cJSON_AddStringToObject(fim_audit, "effective_uid", w_evt->effective_uid);
+    if (w_evt->effective_name) cJSON_AddStringToObject(fim_audit, "effective_name", w_evt->effective_name);
+    if (w_evt->parent_name) cJSON_AddStringToObject(fim_audit, "parent_name", w_evt->parent_name);
+    if (w_evt->parent_cwd) cJSON_AddStringToObject(fim_audit, "parent_cwd", w_evt->parent_cwd);
     cJSON_AddNumberToObject(fim_audit, "ppid", w_evt->ppid);
 #endif
 
@@ -1648,7 +1697,7 @@ cJSON * fim_scan_info_json(fim_scan_event event, long timestamp) {
     return root;
 }
 
-int fim_check_ignore (const char *file_name) {
+int fim_check_ignore (const char *file_name, mode_t path_type) {
     // Check if the file should be ignored
     if (syscheck.ignore) {
         int i = 0;
@@ -1666,8 +1715,12 @@ int fim_check_ignore (const char *file_name) {
         int i = 0;
         while (syscheck.ignore_regex[i] != NULL) {
             if (OSMatch_Execute(file_name, strlen(file_name), syscheck.ignore_regex[i])) {
-                mdebug2(FIM_IGNORE_SREGEX, file_name, syscheck.ignore_regex[i]->raw);
-                return 1;
+                if (path_type == FIM_DIRECTORY && syscheck.ignore_regex[i]->raw[0] == '!') {
+                    return 0;
+                } else {
+                    mdebug2(FIM_IGNORE_SREGEX, file_name, syscheck.ignore_regex[i]->raw);
+                    return 1;
+                }
             }
             i++;
         }
@@ -1792,7 +1845,7 @@ void update_wildcards_config() {
             }
 #endif
 #if ENABLE_AUDIT
-            if (FIM_MODE(dir_it->options) == FIM_WHODATA) {
+            if ((FIM_MODE(dir_it->options) == FIM_WHODATA) && syscheck.whodata_provider == AUDIT_PROVIDER) {
                 remove_audit_rule_syscheck(dir_it->path);
             }
 #endif

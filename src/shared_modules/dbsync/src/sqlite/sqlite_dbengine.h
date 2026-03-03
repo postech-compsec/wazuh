@@ -84,7 +84,7 @@ using TableColumns =
     std::vector<ColumnData>;
 
 using TableField =
-    std::tuple<int32_t, std::string, int32_t, int64_t, uint64_t, double_t>;
+    std::tuple<int32_t, std::string, int64_t, int64_t, uint64_t, double_t>;
 
 using Row = std::map<std::string, TableField>;
 
@@ -323,6 +323,7 @@ class SQLiteDBEngine final : public DbSync::IDbEngine
         std::unique_ptr<SQLite::ITransaction> m_transaction;
         std::mutex m_maxRowsMutex;
         std::map<std::string, MaxRows> m_maxRows;
+        std::string m_lastCleanDBError;
 };
 
 #endif // _SQLITE_DBENGINE_H

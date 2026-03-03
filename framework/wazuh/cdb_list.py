@@ -149,6 +149,7 @@ def upload_list_file(filename: str = None, content: str = None, overwrite: bool 
             delete_file_with_backup(backup_file, full_path, delete_list_file)
 
         upload_file(content, to_relative_path(full_path), check_xml_formula_values=False)
+
         result.affected_items.append(to_relative_path(full_path))
         result.total_affected_items = len(result.affected_items)
         # Remove back up file if no exceptions were raised.
@@ -182,6 +183,7 @@ def delete_list_file(filename: list) -> AffectedItemsWazuhResult:
 
     try:
         delete_list(to_relative_path(full_path))
+
         result.affected_items.append(to_relative_path(full_path))
     except WazuhError as e:
         result.add_failed_item(id_=to_relative_path(full_path), error=e)

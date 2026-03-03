@@ -109,7 +109,7 @@ void save_compress_file(const diff_data *diff);
 int is_file_nodiff(const char *filename);
 int is_registry_nodiff(const char *key_name, const char *value_name, int arch);
 char *gen_diff_str(const diff_data *diff);
-char *fim_diff_generate(const diff_data *diff);
+char *fim_diff_generate(const diff_data *diff, bool is_file);
 
 void expect_gen_diff_generate(gen_diff_struct *gen_diff_data_container) {
     FILE *fp = (FILE*)2345;
@@ -908,7 +908,7 @@ void test_save_compress_file_rename_fail(void **state) {
 
     expect_rename_ex(diff->compress_tmp_file, diff->compress_file, -1);
 
-    expect_string(__wrap__merror, formatted_msg, "(1124): Could not rename file '/path/to/compress/tmp/file' to '/path/to/compress/file' due to [(0)-(Success)].");
+    expect_string(__wrap__mdebug2, formatted_msg, "(1124): Could not rename file '/path/to/compress/tmp/file' to '/path/to/compress/file' due to [(0)-(Success)].");
 
     save_compress_file(diff);
     assert_int_equal(syscheck.diff_folder_size, 0);
@@ -1022,9 +1022,12 @@ void test_fim_diff_generate_filters_fail(void **state) {
     diff->file_origin = strdup("\%wrong path");
     diff->diff_file = strdup("\%wrong path");
 
+    expect_string(__wrap_utf8_GetShortPathName, utf8_path, "\%wrong path");
+    will_return(__wrap_utf8_GetShortPathName, strdup("\%wrong path"));
+
     expect_string(__wrap__mdebug1, formatted_msg, "(6200): Diff execution skipped for containing insecure characters.");
 
-    char *diff_str = fim_diff_generate(diff);
+    char *diff_str = fim_diff_generate(diff, true);
     assert_ptr_equal(diff_str, NULL);
 }
 
@@ -1034,12 +1037,35 @@ void test_fim_diff_generate_status_equal(void **state) {
     diff->file_origin = strdup("/path/to/file/origin");
     diff->diff_file = strdup("/path/to/diff/file");
 
+    expect_string(__wrap_utf8_GetShortPathName, utf8_path, "/path/to/file/origin");
+    will_return(__wrap_utf8_GetShortPathName, strdup("/path/to/file/origin"));
+
     expect_system(0);
 
     expect_string(__wrap__mdebug2, formatted_msg, "(6352): Command diff/fc output 0, files are the same");
 
-    char *diff_str = fim_diff_generate(diff);
+    char *diff_str = fim_diff_generate(diff, true);
     assert_ptr_equal(diff_str, NULL);
+}
+
+void test_fim_diff_generate_utf8_short_path(void **state) {
+    diff_data *diff = *state;
+
+    diff->uncompress_file = strdup("C:\\tmp\\original.txt");
+    diff->file_origin      = strdup("C:\\tmp\\tést.txt");
+    diff->diff_file        = strdup("C:\\tmp\\diff.txt");
+
+    expect_string(__wrap_utf8_GetShortPathName, utf8_path, "C:\\tmp\\tést.txt");
+    will_return(__wrap_utf8_GetShortPathName, strdup("C:\\tmp\\TEST~1.TXT"));
+
+    expect_system(0);
+
+    expect_string(__wrap__mdebug2, formatted_msg,
+                  "(6352): Command diff/fc output 0, files are the same");
+
+    char *diff_str = fim_diff_generate(diff, true);
+
+    assert_null(diff_str);
 }
 #endif
 
@@ -1050,6 +1076,11 @@ void test_fim_diff_generate_status_error(void **state) {
     diff->file_origin = strdup("/path/to/file/origin");
     diff->diff_file = strdup("/path/to/diff/file");
 
+#ifdef TEST_WINAGENT
+    expect_string(__wrap_utf8_GetShortPathName, utf8_path, "/path/to/file/origin");
+    will_return(__wrap_utf8_GetShortPathName, strdup("/path/to/file/origin"));
+#endif
+
     expect_system(-1);
 
 #ifdef TEST_WINAGENT
@@ -1058,7 +1089,7 @@ void test_fim_diff_generate_status_error(void **state) {
     expect_string(__wrap__merror, formatted_msg, "(6714): Command diff output an error");
 #endif
 
-    char *diff_str = fim_diff_generate(diff);
+    char *diff_str = fim_diff_generate(diff, true);
     assert_ptr_equal(diff_str, NULL);
 }
 
@@ -1069,6 +1100,11 @@ void test_fim_diff_generate_status_ok(void **state) {
     gen_diff_data_container->diff->file_origin = strdup("/path/to/file/origin");
     gen_diff_data_container->diff->diff_file = strdup("/path/to/diff/file");
 
+#ifdef TEST_WINAGENT
+    expect_string(__wrap_utf8_GetShortPathName, utf8_path, "/path/to/file/origin");
+    will_return(__wrap_utf8_GetShortPathName, strdup("/path/to/file/origin"));
+#endif
+
 #ifndef TEST_WINAGENT
     expect_system(256);
 #else
@@ -1077,7 +1113,7 @@ void test_fim_diff_generate_status_ok(void **state) {
 
     expect_gen_diff_generate(gen_diff_data_container);
 
-    char *diff_str = fim_diff_generate(gen_diff_data_container->diff);
+    char *diff_str = fim_diff_generate(gen_diff_data_container->diff, true);
     assert_string_equal(diff_str, gen_diff_data_container->strarray[1]);
     free(diff_str);
 }
@@ -1503,6 +1539,76 @@ void test_fim_registry_value_diff_generate_diff_str(void **state) {
 
     assert_string_equal(diff_str, gen_diff_data_container->strarray[1]);
 }
+
+void test_fim_registry_value_diff_utf16_REG_SZ(void **state) {
+    const char *key_name = "HKEY_LOCAL_MACHINE\\Software\\Classes\\batfile";
+    const char *value_name = "valuename";
+    const char value_data_utf16[] = "v\0a\0l\0u\0e\0\0\0";
+    const char *expected_canonical = "v"; // It is expected to stop at the first null byte.
+    DWORD data_type = REG_EXPAND_SZ;
+    registry_t *configuration = &syscheck.registry[0];
+
+    expect_mkdir_ex("queue/diff/tmp", 0);
+    FILE *fp = (FILE *)1234;
+    expect_wfopen("queue/diff/tmp/[x64] " KEY_NAME_HASHED VALUE_NAME_HASHED, "w", fp);
+    expect_fprintf(fp, expected_canonical, 0);
+    expect_fclose(fp, 0);
+
+    expect_fim_diff_check_limits("queue/diff/tmp/[x64] " KEY_NAME_HASHED VALUE_NAME_HASHED, COMPRESS_FOLDER_REG, 0);
+
+    expect_w_uncompress_gzfile("queue/diff/registry/[x64] " KEY_NAME_HASHED "/" VALUE_NAME_HASHED "/last-entry.gz", "queue/diff/tmp/tmp-entry", fp);
+
+    expect_fim_diff_create_compress_file("queue/diff/tmp/[x64] " KEY_NAME_HASHED VALUE_NAME_HASHED, "queue/diff/tmp/tmp-entry.gz", 0);
+
+    expect_mkdir_ex(COMPRESS_FOLDER_REG, 0);
+
+    expect_save_compress_file("queue/diff/tmp/tmp-entry.gz", "queue/diff/registry/[x64] " KEY_NAME_HASHED "/" VALUE_NAME_HASHED "/last-entry.gz", 0);
+
+    expect_string(__wrap_rmdir_ex, name, "queue/diff/tmp");
+    will_return(__wrap_rmdir_ex, 0);
+
+    char *diff_str = fim_registry_value_diff(key_name, value_name, value_data_utf16, data_type, configuration);
+
+    assert_string_equal(diff_str, "Unable to calculate diff due to no previous data stored for this registry value.");
+    free(diff_str);
+}
+
+void test_fim_registry_value_diff_utf16_REG_MULTI_SZ(void **state) {
+    const char *key_name = "HKEY_LOCAL_MACHINE\\Software\\Classes\\batfile";
+    const char *value_name = "valuename";
+    const char value_data_utf16_multi[] = "o\0n\0e\0\0\0t\0w\0o\0\0\0\0\0";
+
+    // It is expected to stop at the first double null byte for REG_MULTI_SZ registries.
+    const char *expected_canonical = "o\n" "n\n" "e\n"; 
+    DWORD data_type = REG_MULTI_SZ;
+    registry_t *configuration = &syscheck.registry[0];
+
+    expect_mkdir_ex("queue/diff/tmp", 0);
+    FILE *fp2 = (FILE *)1234;
+    expect_wfopen("queue/diff/tmp/[x64] " KEY_NAME_HASHED VALUE_NAME_HASHED, "w", fp2);
+    expect_fprintf(fp2, "o\n", 0);
+    expect_fprintf(fp2, "n\n", 0);
+    expect_fprintf(fp2, "e\n", 0);
+    expect_fclose(fp2, 0);
+
+    expect_fim_diff_check_limits("queue/diff/tmp/[x64] " KEY_NAME_HASHED VALUE_NAME_HASHED, COMPRESS_FOLDER_REG, 0);
+
+    expect_w_uncompress_gzfile("queue/diff/registry/[x64] " KEY_NAME_HASHED "/" VALUE_NAME_HASHED "/last-entry.gz", "queue/diff/tmp/tmp-entry", fp2);
+
+    expect_fim_diff_create_compress_file("queue/diff/tmp/[x64] " KEY_NAME_HASHED VALUE_NAME_HASHED, "queue/diff/tmp/tmp-entry.gz", 0);
+
+    expect_mkdir_ex(COMPRESS_FOLDER_REG, 0);
+
+    expect_save_compress_file("queue/diff/tmp/tmp-entry.gz", "queue/diff/registry/[x64] " KEY_NAME_HASHED "/" VALUE_NAME_HASHED "/last-entry.gz", 0);
+
+    expect_string(__wrap_rmdir_ex, name, "queue/diff/tmp");
+    will_return(__wrap_rmdir_ex, 0);
+
+    char *diff_str = fim_registry_value_diff(key_name, value_name, value_data_utf16_multi, data_type, configuration);
+
+    assert_string_equal(diff_str, "Unable to calculate diff due to no previous data stored for this registry value.");
+    free(diff_str);
+}
 #endif
 
 void test_fim_file_diff_wrong_initialize(void **state) {
@@ -1765,6 +1871,11 @@ void test_fim_file_diff_generate_fail(void **state) {
 
     expect_fim_diff_compare(UNCOMPRESS_FILE, GENERIC_PATH, md5sum_old, md5sum_new, 0);
 
+#ifdef TEST_WINAGENT
+    expect_string(__wrap_utf8_GetShortPathName, utf8_path, GENERIC_PATH);
+    will_return(__wrap_utf8_GetShortPathName, strdup(GENERIC_PATH));
+#endif
+
     expect_fim_diff_generate(gen_diff_data_container, 1);
 
 #ifndef TEST_WINAGENT
@@ -1813,6 +1924,11 @@ void test_fim_file_diff_generate_diff_str(void **state) {
     expect_fim_diff_create_compress_file(GENERIC_PATH, COMPRESS_TMP_FILE, 0);
 
     expect_fim_diff_compare(UNCOMPRESS_FILE, GENERIC_PATH, md5sum_old, md5sum_new, 0);
+
+#ifdef TEST_WINAGENT
+    expect_string(__wrap_utf8_GetShortPathName, utf8_path, GENERIC_PATH);
+    will_return(__wrap_utf8_GetShortPathName, strdup(GENERIC_PATH));
+#endif
 
     expect_fim_diff_generate(gen_diff_data_container, 0);
 
@@ -1885,6 +2001,11 @@ void test_fim_file_diff_generate_diff_str_too_long(void **state) {
     expect_fim_diff_create_compress_file(GENERIC_PATH, COMPRESS_TMP_FILE, 0);
 
     expect_fim_diff_compare(UNCOMPRESS_FILE, GENERIC_PATH, md5sum_old, md5sum_new, 0);
+
+#ifdef TEST_WINAGENT
+    expect_string(__wrap_utf8_GetShortPathName, utf8_path, GENERIC_PATH);
+    will_return(__wrap_utf8_GetShortPathName, strdup(GENERIC_PATH));
+#endif
 
     expect_fim_diff_generate(gen_diff_data_container, 0);
 
@@ -2062,6 +2183,7 @@ int main(void) {
 #ifdef TEST_WINAGENT
         cmocka_unit_test_setup_teardown(test_fim_diff_generate_filters_fail, setup_diff_data, teardown_free_diff_data),
         cmocka_unit_test_setup_teardown(test_fim_diff_generate_status_equal, setup_diff_data, teardown_free_diff_data),
+        cmocka_unit_test_setup_teardown(test_fim_diff_generate_utf8_short_path, setup_diff_data, teardown_free_diff_data),
 
         // fim_diff_registry_tmp
         cmocka_unit_test_setup_teardown(test_fim_diff_registry_tmp_fopen_fail, setup_diff_data, teardown_free_diff_data),
@@ -2083,6 +2205,8 @@ int main(void) {
         cmocka_unit_test(test_fim_registry_value_diff_nodiff),
         cmocka_unit_test_setup_teardown(test_fim_registry_value_diff_generate_fail, setup_full_diff_functionality, teardown_full_diff_functionality),
         cmocka_unit_test_setup_teardown(test_fim_registry_value_diff_generate_diff_str, setup_full_diff_functionality, teardown_full_diff_functionality),
+        cmocka_unit_test(test_fim_registry_value_diff_utf16_REG_SZ),
+        cmocka_unit_test(test_fim_registry_value_diff_utf16_REG_MULTI_SZ),
 #endif
 
         // fim_file_diff

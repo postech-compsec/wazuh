@@ -32,11 +32,12 @@ private:
     std::string m_host;
     std::string m_health;
     std::string m_indexName;
-    bool m_indexerInitialized = false;
+    std::atomic<bool> m_indexerInitialized = false;
     std::function<void(const std::string&)> m_initTemplateCallback = {};
     std::function<void(const std::string&)> m_initIndexCallback = {};
     std::function<void(const std::string&)> m_publishCallback = {};
     std::function<std::string(const std::string&)> m_searchCallback = {};
+    std::function<void(const std::string&)> m_deleteScrollCallback = {};
 
 public:
     /**
@@ -48,17 +49,12 @@ public:
      * @param indexName Name of the index.
      */
     FakeIndexer(std::string host, int port, std::string health, std::string indexName)
-        : m_thread(&FakeIndexer::run, this)
+        : m_thread()
         , m_port(port)
         , m_host(std::move(host))
         , m_health(std::move(health))
         , m_indexName(std::move(indexName))
     {
-        // Wait until server is ready.
-        while (!m_server.is_running())
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        }
     }
 
     ~FakeIndexer()
@@ -67,6 +63,20 @@ public:
         if (m_thread.joinable())
         {
             m_thread.join();
+        }
+    }
+
+    /**
+     * @brief Initiates the server.
+     *
+     */
+    void start()
+    {
+        m_thread = std::thread(&FakeIndexer::run, this);
+        // Wait until server is ready.
+        while (!m_server.is_running())
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     }
 
@@ -121,13 +131,23 @@ public:
     }
 
     /**
+     * @brief Sets the delete scroll callback.
+     *
+     * @param callback New callback.
+     */
+    void setDeleteScrollCallback(std::function<void(const std::string&)> callback)
+    {
+        m_deleteScrollCallback = std::move(callback);
+    }
+
+    /**
      * @brief Returns the indexer initialized flag.
      *
      * @return True if initialized, false otherwise.
      */
     bool initialized() const
     {
-        return m_indexerInitialized;
+        return m_indexerInitialized.load();
     }
 
     /**
@@ -267,6 +287,25 @@ public:
                               res.set_content(e.what(), "text/plain");
                           }
                       });
+
+        m_server.Delete("/_search/scroll/:scroll_id",
+                        [this](const httplib::Request& req, httplib::Response& res)
+                        {
+                            try
+                            {
+                                if (m_deleteScrollCallback)
+                                {
+                                    m_deleteScrollCallback(req.path_params.at("scroll_id"));
+                                }
+                                res.status = 200;
+                                res.set_content("Scroll deleted", "text/plain");
+                            }
+                            catch (const std::exception& e)
+                            {
+                                res.status = 500;
+                                res.set_content(e.what(), "text/plain");
+                            }
+                        });
 
         m_server.set_keep_alive_max_count(1);
         m_server.listen(m_host, m_port);

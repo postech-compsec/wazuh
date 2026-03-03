@@ -13,11 +13,14 @@
 #include "HTTPRequest.hpp"
 #include "keyStore.hpp"
 #include "loggerHelper.h"
+#include "reflectiveJson.hpp"
 #include "secureCommunication.hpp"
 #include "serverSelector.hpp"
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <grp.h>
+#include <mutex>
 #include <pwd.h>
 #include <unistd.h>
 
@@ -32,16 +35,16 @@ constexpr auto MINIMAL_ELEMENTS_PER_BULK {5};
 
 constexpr auto HTTP_BAD_REQUEST {400};
 constexpr auto HTTP_CONTENT_LENGTH {413};
+constexpr auto HTTP_VERSION_CONFLICT {409};
 constexpr auto HTTP_TOO_MANY_REQUESTS {429};
 
 constexpr auto RECURSIVE_MAX_DEPTH {20};
 
 namespace Log
 {
-    std::function<void(
-        const int, const std::string&, const std::string&, const int, const std::string&, const std::string&, va_list)>
+    std::function<void(const int, const char*, const char*, const int, const char*, const char*, va_list)>
         GLOBAL_LOG_FUNCTION;
-};
+}; // namespace Log
 constexpr auto MAX_WAIT_TIME {60};
 constexpr auto START_TIME {1};
 constexpr auto DOUBLE_FACTOR {2};
@@ -56,6 +59,8 @@ constexpr auto SYNC_QUEUE_LIMIT = 4096;
 
 // Abuse control
 constexpr auto MINIMAL_SYNC_TIME {30}; // In minutes
+
+static std::mutex G_CREDENTIAL_MUTEX;
 
 static void mergeCaRootCertificates(const std::vector<std::string>& filePaths, std::string& caRootCertificate)
 {
@@ -115,8 +120,6 @@ static void initConfiguration(SecureCommunication& secureCommunication, const nl
     std::string caRootCertificate;
     std::string sslCertificate;
     std::string sslKey;
-    std::string username;
-    std::string password;
 
     if (config.contains("ssl"))
     {
@@ -147,8 +150,11 @@ static void initConfiguration(SecureCommunication& secureCommunication, const nl
         }
     }
 
-    Keystore::get(INDEXER_COLUMN, USER_KEY, username);
-    Keystore::get(INDEXER_COLUMN, PASSWORD_KEY, password);
+    // Basically we need to lock a global mutex, because the keystore::get method open the same database connection, and
+    // that action is not thread safe.
+    std::lock_guard lock(G_CREDENTIAL_MUTEX);
+    static auto username = Keystore::get(INDEXER_COLUMN, USER_KEY);
+    static auto password = Keystore::get(INDEXER_COLUMN, PASSWORD_KEY);
 
     if (username.empty() && password.empty())
     {
@@ -189,31 +195,77 @@ static void builderBulkIndex(std::string& bulkData, std::string_view id, std::st
     bulkData.append(R"({"index":{"_index":")");
     bulkData.append(index);
     bulkData.append(R"(","_id":")");
-    bulkData.append(id);
+
+    // Escape special characters in ID to prevent JSON parsing errors
+    if (needEscape(id))
+    {
+        std::string escapedId;
+        escapeJSONString(id, escapedId);
+        bulkData.append(escapedId);
+    }
+    else
+    {
+        bulkData.append(id);
+    }
+
     bulkData.append(R"("}})");
     bulkData.append("\n");
     bulkData.append(data);
     bulkData.append("\n");
 }
 
-bool IndexerConnector::abuseControl(const std::string& agentId)
+/**
+ * @brief Fast check if error is resource_already_exists_exception
+ */
+static inline bool isResourceAlreadyExists(std::string_view errorBody) noexcept
 {
-    const auto currentTime = std::chrono::system_clock::now();
-    // If the agent is in the map, check if the last sync was less than MINIMAL_SYNC_TIME minutes ago.
-    if (const auto lastSync = m_lastSync.find(agentId); lastSync != m_lastSync.end())
+    return errorBody.find("resource_already_exists_exception") != std::string_view::npos;
+}
+
+/**
+ * @brief Fast check if error is template priority conflict
+ */
+static inline bool isTemplatePriorityConflict(std::string_view errorBody) noexcept
+{
+    return errorBody.find("illegal_argument_exception") != std::string_view::npos &&
+           errorBody.find("multiple index templates") != std::string_view::npos &&
+           errorBody.find("same priority") != std::string_view::npos;
+}
+
+/**
+ * @brief Fast check if error is validation_exception with shard limit
+ */
+static inline bool isShardLimitError(std::string_view errorBody) noexcept
+{
+    return errorBody.find("validation_exception") != std::string_view::npos &&
+           errorBody.find("maximum shards open") != std::string_view::npos;
+}
+
+static inline void extractErrorInfo(const std::string& errorBody, std::string& type, std::string& reason) noexcept
+{
+    try
     {
-        const auto diff = std::chrono::duration_cast<std::chrono::minutes>(currentTime - lastSync->second);
-        // If the last sync was less than MINIMAL_SYNC_TIME minutes ago, return true.
-        if (diff.count() < MINIMAL_SYNC_TIME)
+        const auto errorJson = nlohmann::json::parse(errorBody);
+        if (errorJson.contains("error"))
         {
-            logDebug2(IC_NAME, "Agent '%s' sync omitted due to abuse control.", agentId.c_str());
-            return true;
+            const auto& error = errorJson.at("error");
+            if (error.contains("type"))
+            {
+                type = error.at("type").get_ref<const std::string&>();
+            }
+            if (error.contains("reason"))
+            {
+                reason = error.at("reason").get_ref<const std::string&>();
+            }
         }
     }
-    // If the agent is not in the map, add it to the map with the current time.
-    m_lastSync[agentId] = currentTime;
-    return false;
+    catch (const nlohmann::json::exception&)
+    {
+        logError(IC_NAME, "Failed to parse error body JSON.");
+    }
 }
+
+// ------- IndexerConnector methods implementation -------
 
 nlohmann::json IndexerConnector::getAgentDocumentsIds(const std::string& url,
                                                       const std::string& agentId,
@@ -222,20 +274,34 @@ nlohmann::json IndexerConnector::getAgentDocumentsIds(const std::string& url,
     nlohmann::json postData;
     nlohmann::json responseJson;
     constexpr auto ELEMENTS_PER_QUERY {10000}; // The max value for queries is 10000 in the wazuh-indexer.
+    std::string scrollId;
 
     postData["query"]["match"]["agent.id"] = agentId;
     postData["size"] = ELEMENTS_PER_QUERY;
     postData["_source"] = nlohmann::json::array({"_id"});
 
     {
-        const auto onSuccess = [&responseJson](const std::string& response)
+        const auto onSuccess = [&responseJson, &scrollId](const std::string& response)
         {
             responseJson = nlohmann::json::parse(response);
+            scrollId = responseJson.at("_scroll_id").get_ref<const std::string&>();
         };
 
-        const auto onError = [](const std::string& error, const long statusCode)
+        const auto onError = [](const std::string& error, const long statusCode, const std::string& errorBody)
         {
-            logError(IC_NAME, "%s, status code: %ld.", error.c_str(), statusCode);
+            if (statusCode >= 400 && statusCode < 500)
+            {
+                std::string type, reason;
+                extractErrorInfo(errorBody, type, reason);
+
+                if (!type.empty() && !reason.empty())
+                {
+                    logWarn(IC_NAME,
+                            "Failed to retrieve agent documents - type: '%s', reason: '%s'",
+                            type.c_str(),
+                            reason.c_str());
+                }
+            }
             throw std::runtime_error(error);
         };
 
@@ -250,11 +316,10 @@ nlohmann::json IndexerConnector::getAgentDocumentsIds(const std::string& url,
     // If the response have more than ELEMENTS_PER_QUERY elements, we need to scroll.
     if (responseJson.at("hits").at("total").at("value").get<int>() > ELEMENTS_PER_QUERY)
     {
-        const auto& scrollId = responseJson.at("_scroll_id").get_ref<const std::string&>();
         const auto scrollUrl = url + "/_search/scroll";
         const auto scrollData = R"({"scroll":"1m","scroll_id":")" + scrollId + "\"}";
 
-        const auto onError = [](const std::string& error, const long)
+        const auto onError = [](const std::string& error, const long, const std::string& /*errorBody*/)
         {
             throw std::runtime_error(error);
         };
@@ -277,6 +342,25 @@ nlohmann::json IndexerConnector::getAgentDocumentsIds(const std::string& url,
                                          ConfigurationParameters {});
         }
     }
+
+    // Delete the scroll id.
+    const auto deleteScrollUrl = url + "/_search/scroll/" + scrollId;
+
+    const auto onError = [&](const std::string& error, const long statusCode, const std::string& errorBody)
+    {
+        logError(IC_NAME, "%s, status code: %ld, response body: %s.", error.c_str(), statusCode, errorBody.c_str());
+        // print payload
+        logError(IC_NAME, "Url: %s", deleteScrollUrl.c_str());
+    };
+    const auto onSuccess = [](const std::string& response)
+    {
+        logDebug2(IC_NAME, "Response: %s", response.c_str());
+    };
+
+    HTTPRequest::instance().delete_(
+        RequestParameters {.url = HttpURL(deleteScrollUrl), .secureCommunication = secureCommunication},
+        PostRequestParameters {.onSuccess = onSuccess, .onError = onError},
+        ConfigurationParameters {});
 
     return responseJson;
 }
@@ -319,9 +403,25 @@ void IndexerConnector::sendBulkReactive(const std::vector<std::pair<std::string,
             logDebug2(IC_NAME, "Response: %s", response.c_str());
         };
 
-        const auto onError =
-            [this, &actions, &url, &secureCommunication, depth](const std::string& error, const long statusCode)
+        const auto onError = [this, &actions, &url, &secureCommunication, depth](
+                                 const std::string& error, const long statusCode, const std::string& errorBody)
         {
+            // Handle 4xx errors with detailed logging
+            if (statusCode >= 400 && statusCode < 500)
+            {
+                std::string type, reason;
+                extractErrorInfo(errorBody, type, reason);
+
+                if (!type.empty() && !reason.empty())
+                {
+                    logWarn(IC_NAME,
+                            "Sync operation failed for index '%s' - type: '%s', reason: '%s'",
+                            m_indexName.c_str(),
+                            type.c_str(),
+                            reason.c_str());
+                }
+            }
+
             if (statusCode == HTTP_CONTENT_LENGTH)
             {
                 logWarn(IC_NAME, "The request is too large. Splitting the bulk data.");
@@ -338,6 +438,11 @@ void IndexerConnector::sendBulkReactive(const std::vector<std::pair<std::string,
                 sendBulkReactive(left, url, secureCommunication, depth + 1);
                 sendBulkReactive(right, url, secureCommunication, depth + 1);
             }
+            else if (statusCode == HTTP_VERSION_CONFLICT)
+            {
+                logDebug2(IC_NAME, "Document version conflict, sync omitted.");
+                throw std::runtime_error("Document version conflict, sync omitted.");
+            }
             else if (statusCode == HTTP_TOO_MANY_REQUESTS)
             {
                 logDebug2(IC_NAME, "Too many requests, sync ommited.");
@@ -345,7 +450,8 @@ void IndexerConnector::sendBulkReactive(const std::vector<std::pair<std::string,
             }
             else
             {
-                logError(IC_NAME, "%s, status code: %ld.", error.c_str(), statusCode);
+                logError(
+                    IC_NAME, "%s, status code: %ld, response body: %s.", error.c_str(), statusCode, errorBody.c_str());
                 throw std::runtime_error(error);
             }
         };
@@ -412,24 +518,277 @@ void IndexerConnector::diff(const nlohmann::json& responseJson,
     sendBulkReactive(actions, url, secureCommunication);
 }
 
+std::string IndexerConnector::hashMappings(const std::string& mappings)
+{
+    // Using SHA1
+    Utils::HashData hash;
+    hash.update(mappings.c_str(), mappings.size());
+    return Utils::asciiToHex(hash.hash());
+}
+
+void IndexerConnector::validateMappings(const nlohmann::json& templateData,
+                                        const std::shared_ptr<ServerSelector>& selector,
+                                        const SecureCommunication& secureCommunication)
+{
+    if (templateData.contains("template") && templateData["template"].contains("mappings"))
+    {
+        // Get template mappings.
+        auto& templateMappings = templateData["template"]["mappings"];
+
+        const auto onError = [](const std::string& error, const long statusCode, const std::string& responseBody)
+        {
+            logError(
+                IC_NAME, "%s, status code: %ld, response body: %s.", error.c_str(), statusCode, responseBody.c_str());
+            throw std::runtime_error(error);
+        };
+
+        const auto onSuccess = [](const std::string&)
+        {
+            // Not used
+        };
+
+        // Get current mappings.
+        nlohmann::json currentMappings;
+        HTTPRequest::instance().get(
+            RequestParameters {.url = HttpURL(selector->getNext() + "/" + m_indexName + "/_mapping"),
+                               .secureCommunication = secureCommunication},
+            PostRequestParameters {.onSuccess = [&currentMappings](const std::string& response)
+                                   { currentMappings = nlohmann::json::parse(response, nullptr, false); },
+                                   .onError = onError},
+            ConfigurationParameters {});
+
+        if (currentMappings.is_discarded())
+        {
+            throw std::runtime_error("Couldn't retrieve current mappings.");
+        }
+
+        // Calculating hashes.
+        auto hashTemplateMappings = hashMappings(templateMappings.dump());
+        auto hashCurrentMappings = hashMappings(currentMappings[m_indexName]["mappings"].dump());
+        if (hashTemplateMappings != hashCurrentMappings)
+        {
+            logDebug2(IC_NAME,
+                      "Current mappings '%s' do not match the expected mappings '%s'.",
+                      hashCurrentMappings.c_str(),
+                      hashTemplateMappings.c_str());
+
+            // Block write operations to the index.
+            logDebug2(IC_NAME, "Blocking write operations to index '%s'.", m_indexName.c_str());
+            HTTPRequest::instance().put(
+                RequestParametersJson {.url = HttpURL(selector->getNext() + "/" + m_indexName + "/_block/write"),
+                                       .secureCommunication = secureCommunication},
+                PostRequestParameters {.onSuccess = [this](const std::string& response) { m_blockedIndex = true; },
+                                       .onError = onError},
+                ConfigurationParameters {});
+
+            // Get settings of the index.
+            nlohmann::json currentSettings;
+            HTTPRequest::instance().get(
+                RequestParameters {.url = HttpURL(selector->getNext() + "/" + m_indexName + "/_settings"),
+                                   .secureCommunication = secureCommunication},
+                PostRequestParameters {.onSuccess = [&currentSettings](const std::string& response)
+                                       { currentSettings = nlohmann::json::parse(response, nullptr, false); },
+                                       .onError = onError},
+                ConfigurationParameters {});
+
+            if (currentSettings.is_discarded())
+            {
+                throw std::runtime_error("Invalid current settings retrieved.");
+            }
+
+            // Prepare clone settings.
+            std::string cloneSettings =
+                R"({"settings":{"index":{"number_of_shards":)" +
+                currentSettings[m_indexName]["settings"]["index"]["number_of_shards"].get_ref<const std::string&>() +
+                R"(,"number_of_replicas":)" +
+                currentSettings[m_indexName]["settings"]["index"]["number_of_replicas"].get_ref<const std::string&>() +
+                R"(}}})";
+
+            // Remove any previous backup if exists.
+            std::string currentIndices;
+            HTTPRequest::instance().get(
+                RequestParameters {.url = HttpURL(selector->getNext() + "/_cat/indices/"),
+                                   .secureCommunication = secureCommunication},
+                PostRequestParameters {.onSuccess = [&currentIndices](const std::string& response)
+                                       { currentIndices = response; },
+                                       .onError = onError},
+                ConfigurationParameters {});
+
+            if (currentIndices.find(m_indexName + "-backup") != std::string::npos)
+            {
+                logDebug2(IC_NAME, "Deleting previous backup index '%s-backup'.", m_indexName.c_str());
+                HTTPRequest::instance().delete_(
+                    RequestParameters {.url = HttpURL(selector->getNext() + "/" + m_indexName + "-backup"),
+                                       .secureCommunication = secureCommunication},
+                    PostRequestParameters {.onSuccess = onSuccess, .onError = onError},
+                    ConfigurationParameters {});
+            }
+
+            logDebug2(IC_NAME, "Cloning index '%s' to '%s-backup'.", m_indexName.c_str(), m_indexName.c_str());
+            HTTPRequest::instance().put(RequestParameters {.url = HttpURL(selector->getNext() + "/" + m_indexName +
+                                                                          "/_clone/" + m_indexName + "-backup"),
+                                                           .data = cloneSettings,
+                                                           .secureCommunication = secureCommunication},
+                                        PostRequestParameters {.onSuccess = onSuccess, .onError = onError},
+                                        ConfigurationParameters {});
+
+            // Delete index
+            logDebug2(IC_NAME, "Deleting index '%s'.", m_indexName.c_str());
+            HTTPRequest::instance().delete_(RequestParameters {.url = HttpURL(selector->getNext() + "/" + m_indexName),
+                                                               .secureCommunication = secureCommunication},
+                                            PostRequestParameters {.onSuccess =
+                                                                       [this](const std::string& response)
+                                                                   {
+                                                                       m_blockedIndex = false;
+                                                                       m_deletedIndex = true;
+                                                                   },
+                                                                   .onError = onError},
+                                            ConfigurationParameters {});
+
+            // Reindex data.
+            std::string reindexData = R"({"source":{"index":")" + m_indexName + "-backup" + R"("},"dest":{"index":")" +
+                                      m_indexName + R"("}})";
+            logDebug2(IC_NAME,
+                      "Reindexing data from '%s-backup' to '%s'. With data: %s",
+                      m_indexName.c_str(),
+                      m_indexName.c_str(),
+                      reindexData.c_str());
+
+            auto start = std::chrono::high_resolution_clock::now();
+            HTTPRequest::instance().post(RequestParameters {.url = HttpURL(selector->getNext() + "/_reindex"),
+                                                            .data = reindexData,
+                                                            .secureCommunication = secureCommunication},
+                                         PostRequestParameters {.onSuccess = onSuccess, .onError = onError},
+                                         ConfigurationParameters {});
+            auto end = std::chrono::high_resolution_clock::now();
+
+            logInfo(IC_NAME,
+                    "It tooks '%ld' seconds to reindex the index '%s'.",
+                    std::chrono::duration_cast<std::chrono::seconds>(end - start).count(),
+                    m_indexName.c_str());
+
+            // Delete backup index.
+            logDebug2(IC_NAME, "Deleting backup index '%s-backup'.", m_indexName.c_str());
+            HTTPRequest::instance().delete_(
+                RequestParameters {.url = HttpURL(selector->getNext() + "/" + m_indexName + "-backup"),
+                                   .secureCommunication = secureCommunication},
+                PostRequestParameters {.onSuccess = onSuccess, .onError = onError},
+                ConfigurationParameters {});
+        }
+    }
+    else
+    {
+        throw std::runtime_error("Invalid template.");
+    }
+}
+
+void IndexerConnector::rollbackIndexChanges(const std::shared_ptr<ServerSelector>& selector,
+                                            const SecureCommunication& secureCommunication)
+{
+    if (m_blockedIndex)
+    {
+        const auto onError = [](const std::string& error, const long statusCode, const std::string& errorBody)
+        {
+            logError(IC_NAME, "%s, status code: %ld, response body: %s.", error.c_str(), statusCode, errorBody.c_str());
+            throw std::runtime_error(error);
+        };
+
+        const auto onSuccess = [](const std::string&)
+        {
+            // Not used
+        };
+
+        // Unblock write operations to the index.
+        logDebug2(IC_NAME, "Unblocking write operations to index '%s'.", m_indexName.c_str());
+        HTTPRequest::instance().put(
+            RequestParameters {.url = HttpURL(selector->getNext() + "/" + m_indexName + "/_settings"),
+                               .data = R"({"index":{"blocks":{"write":false}}})",
+                               .secureCommunication = secureCommunication},
+            PostRequestParameters {.onSuccess = onSuccess, .onError = onError},
+            ConfigurationParameters {});
+
+        m_blockedIndex = false;
+    }
+}
+
 void IndexerConnector::initialize(const nlohmann::json& templateData,
                                   const nlohmann::json& updateMappingsData,
                                   const std::shared_ptr<ServerSelector>& selector,
                                   const SecureCommunication& secureCommunication)
 {
     // Define the error callback
-    auto onError = [](const std::string& error, const long statusCode)
+    auto onError = [this](const std::string& error, const long statusCode, const std::string& errorBody)
     {
-        if (statusCode != HTTP_BAD_REQUEST) // Assuming 400 is for bad requests which we expect to handle differently
+        // Special case: Resource already exists during initialization - SILENCE
+        if (statusCode == HTTP_BAD_REQUEST && isResourceAlreadyExists(errorBody))
         {
+            return; // Silently continue, don't throw
+        }
+
+        // Special case: Template priority conflict - SILENCE (cleanup issue)
+        if (statusCode == HTTP_BAD_REQUEST && isTemplatePriorityConflict(errorBody))
+        {
+            return; // Silently continue, cleanup will handle it
+        }
+
+        // Extract error info once for all 4xx cases
+        std::string type, reason;
+        if (statusCode >= 400 && statusCode < 500)
+        {
+            extractErrorInfo(errorBody, type, reason);
+        }
+
+        // Special case: Shard limit exceeded - LOG WITH RECOMMENDATION
+        if (statusCode == HTTP_BAD_REQUEST && isShardLimitError(errorBody))
+        {
+            logWarn(IC_NAME,
+                    "Indexer request failed - type: '%s', reason: '%s' - Consider increasing "
+                    "cluster.max_shards_per_node setting",
+                    type.c_str(),
+                    reason.c_str());
+
             std::string errorMessage = error;
             if (statusCode != NOT_USED)
             {
                 errorMessage += " (Status code: " + std::to_string(statusCode) + ")";
             }
-
             throw std::runtime_error(errorMessage);
         }
+
+        // Generic 4xx errors - LOG WITH DETAILS
+        if (statusCode >= 400 && statusCode < 500)
+        {
+            if (!type.empty() && !reason.empty())
+            {
+                logWarn(IC_NAME, "Indexer request failed - type: '%s', reason: '%s'", type.c_str(), reason.c_str());
+            }
+            else
+            {
+                // Log with raw body for debugging when JSON parsing fails
+                logWarn(IC_NAME,
+                        "Indexer request failed - status: %ld, response: %s",
+                        statusCode,
+                        errorBody.empty() ? error.c_str() : errorBody.c_str());
+            }
+        }
+        else if (statusCode >= 500)
+        {
+            // 5xx errors - server issues
+            logError(IC_NAME, "Indexer server error - status: %ld, error: %s", statusCode, error.c_str());
+        }
+        else
+        {
+            // Connection errors, timeouts, etc.
+            logError(IC_NAME, "Indexer connection error: %s", error.c_str());
+        }
+
+        // Throw for all non-silenced errors
+        std::string errorMessage = error;
+        if (statusCode != NOT_USED)
+        {
+            errorMessage += " (Status code: " + std::to_string(statusCode) + ")";
+        }
+        throw std::runtime_error(errorMessage);
     };
 
     // Define the success callback
@@ -453,15 +812,43 @@ void IndexerConnector::initialize(const nlohmann::json& templateData,
                                 PostRequestParameters {.onSuccess = onSuccess, .onError = onError},
                                 ConfigurationParameters {});
 
-    // Create new mappings after update.
-    if (!updateMappingsData.empty())
+    // At this point the template is already created or updated and the index initialized.
+    try
     {
-        HTTPRequest::instance().put(
-            RequestParametersJson {.url = HttpURL(selector->getNext() + "/" + m_indexName + "/_mapping"),
-                                   .data = updateMappingsData,
-                                   .secureCommunication = secureCommunication},
-            PostRequestParameters {.onSuccess = onSuccess, .onError = onError},
-            ConfigurationParameters {});
+        validateMappings(templateData, selector, secureCommunication);
+        // Re-initialize Index in case no documents where reindexed.
+        HTTPRequest::instance().put(RequestParametersJson {.url = HttpURL(selector->getNext() + "/" + m_indexName),
+                                                           .data = templateData.at("template"),
+                                                           .secureCommunication = secureCommunication},
+                                    PostRequestParameters {.onSuccess = onSuccess, .onError = onError},
+                                    ConfigurationParameters {});
+    }
+    catch (const std::exception& e)
+    {
+        logWarn(IC_NAME,
+                "Failed to reindex for: %s. %s. Updating mappings fallback mechanism.",
+                m_indexName.c_str(),
+                e.what());
+        rollbackIndexChanges(selector, secureCommunication);
+        // Re-initialize Index if it was not recreated during reindexing.
+        if (m_deletedIndex)
+        {
+            HTTPRequest::instance().put(RequestParametersJson {.url = HttpURL(selector->getNext() + "/" + m_indexName),
+                                                               .data = templateData.at("template"),
+                                                               .secureCommunication = secureCommunication},
+                                        PostRequestParameters {.onSuccess = onSuccess, .onError = onError},
+                                        ConfigurationParameters {});
+        }
+        // Fallback legacy mechanism. Create new mappings after update.
+        if (!updateMappingsData.empty())
+        {
+            HTTPRequest::instance().put(
+                RequestParametersJson {.url = HttpURL(selector->getNext() + "/" + m_indexName + "/_mapping"),
+                                       .data = updateMappingsData,
+                                       .secureCommunication = secureCommunication},
+                PostRequestParameters {.onSuccess = onSuccess, .onError = onError},
+                ConfigurationParameters {});
+        }
     }
 
     m_initialized = true;
@@ -469,8 +856,7 @@ void IndexerConnector::initialize(const nlohmann::json& templateData,
 }
 
 void IndexerConnector::preInitialization(
-    const std::function<void(
-        const int, const std::string&, const std::string&, const int, const std::string&, const std::string&, va_list)>&
+    const std::function<void(const int, const char*, const char*, const int, const char*, const char*, va_list)>&
         logFunction,
     const nlohmann::json& config)
 {
@@ -484,20 +870,22 @@ void IndexerConnector::preInitialization(
 
     if (Utils::haveUpperCaseCharacters(m_indexName))
     {
-        throw std::runtime_error("Index name must be lowercase.");
+        throw std::runtime_error("Index name must be lowercase: " + m_indexName);
     }
 
-    m_db = std::make_unique<Utils::RocksDBWrapper>(std::string(DATABASE_BASE_PATH) + "db/" + m_indexName);
+    m_db = std::make_unique<Utils::RocksDBWrapper>(
+        std::string(DATABASE_BASE_PATH) + "db/" + m_indexName, true, true, true);
 }
 
 IndexerConnector::IndexerConnector(
     const nlohmann::json& config,
     const std::string& templatePath,
     const std::string& updateMappingsPath,
-    const std::function<void(
-        const int, const std::string&, const std::string&, const int, const std::string&, const std::string&, va_list)>&
+    const bool useSeekDelete,
+    const std::function<void(const int, const char*, const char*, const int, const char*, const char*, va_list)>&
         logFunction,
     const uint32_t& timeout)
+    : m_useSeekDelete(useSeekDelete)
 {
     preInitialization(logFunction, config);
 
@@ -579,14 +967,30 @@ IndexerConnector::IndexerConnector(
                 // If the element should not be indexed, only delete it from the sync database.
                 const auto noIndex = parsedData.contains("no-index") ? parsedData.at("no-index").get<bool>() : false;
 
-                if (operation.compare("DELETED") == 0)
+                if (operation == "DELETED")
                 {
-                    logDebug2(IC_NAME, "Added document for deletion with id: %s.", id.c_str());
-                    if (!noIndex)
+                    if (m_useSeekDelete)
                     {
-                        builderBulkDelete(bulkData, id, m_indexName);
+                        for (const auto& [key, _] : m_db->seek(id))
+                        {
+                            logDebug2(IC_NAME, "Added document for deletion with id: %s.", key.c_str());
+                            if (!noIndex)
+                            {
+                                builderBulkDelete(bulkData, key, m_indexName);
+                            }
+
+                            m_db->delete_(key);
+                        }
                     }
-                    m_db->delete_(id);
+                    else
+                    {
+                        if (!noIndex)
+                        {
+                            builderBulkDelete(bulkData, id, m_indexName);
+                        }
+
+                        m_db->delete_(id);
+                    }
                 }
                 else if (operation.compare("DELETED_BY_QUERY") == 0)
                 {
@@ -664,8 +1068,36 @@ IndexerConnector::IndexerConnector(
                     }
                 };
 
-                const auto onError = [this, &data, bulkSize](const std::string& error, const long statusCode)
+                const auto onError = [this, &data, bulkSize](
+                                         const std::string& error, const long statusCode, const std::string& errorBody)
                 {
+                    // Handle 4xx errors with detailed logging
+                    if (statusCode >= 400 && statusCode < 500)
+                    {
+                        std::string type, reason;
+                        extractErrorInfo(errorBody, type, reason);
+
+                        // Special case: Shard limit exceeded
+                        if (statusCode == HTTP_BAD_REQUEST && isShardLimitError(errorBody))
+                        {
+                            logWarn(IC_NAME,
+                                    "Document operation failed for index '%s' - type: '%s', reason: '%s' - Consider "
+                                    "increasing cluster.max_shards_per_node setting",
+                                    m_indexName.c_str(),
+                                    type.c_str(),
+                                    reason.c_str());
+                        }
+                        // Generic 4xx logging
+                        else if (!type.empty() && !reason.empty())
+                        {
+                            logWarn(IC_NAME,
+                                    "Document operation failed for index '%s' - type: '%s', reason: '%s'",
+                                    m_indexName.c_str(),
+                                    type.c_str(),
+                                    reason.c_str());
+                        }
+                    }
+
                     if (statusCode == HTTP_CONTENT_LENGTH)
                     {
                         m_successCount = 0;
@@ -696,6 +1128,11 @@ IndexerConnector::IndexerConnector(
                                                      "indexer.");
                         }
                     }
+                    else if (statusCode == HTTP_VERSION_CONFLICT)
+                    {
+                        logDebug2(IC_NAME, "Document version conflict, retrying in 1 second.");
+                        throw std::runtime_error("Document version conflict, retrying in 1 second.");
+                    }
                     else if (statusCode == HTTP_TOO_MANY_REQUESTS)
                     {
                         logDebug2(IC_NAME, "Too many requests, retrying in 1 second.");
@@ -703,7 +1140,11 @@ IndexerConnector::IndexerConnector(
                     }
                     else
                     {
-                        logError(IC_NAME, "%s, status code: %ld.", error.c_str(), statusCode);
+                        logError(IC_NAME,
+                                 "%s, status code: %ld, response body: %s.",
+                                 error.c_str(),
+                                 statusCode,
+                                 errorBody.c_str());
                         throw std::runtime_error(error);
                     }
                 };
@@ -729,28 +1170,64 @@ IndexerConnector::IndexerConnector(
             }
         },
         DATABASE_BASE_PATH + m_indexName,
-        ELEMENTS_PER_BULK);
+        ELEMENTS_PER_BULK,
+        UNLIMITED_QUEUE_SIZE,
+        true);
 
     m_syncQueue = std::make_unique<ThreadSyncQueue>(
         // coverity[missing_lock]
         [this, selector, secureCommunication](const std::string& agentId)
         {
+            std::unique_lock lock(m_syncMutex);
+
+            // Check if we should skip due to rate limit
+            const auto now = std::chrono::system_clock::now();
+
+            // Check if sync is already in progress for this agent
+            if (m_syncInProgress.find(agentId) != m_syncInProgress.end())
+            {
+                logDebug2(IC_NAME, "Agent '%s' sync already in progress, skipping.", agentId.c_str());
+                return;
+            }
+
+            // Check last successful sync time
+            if (auto syncIt = m_lastSync.find(agentId); syncIt != m_lastSync.end())
+            {
+                const auto elapsed = std::chrono::duration_cast<std::chrono::minutes>(now - syncIt->second);
+                if (elapsed.count() < MINIMAL_SYNC_TIME)
+                {
+                    logDebug2(IC_NAME,
+                              "Agent '%s' sync blocked by rate limit (elapsed: %ld min, remaining: %ld min).",
+                              agentId.c_str(),
+                              elapsed.count(),
+                              MINIMAL_SYNC_TIME - elapsed.count());
+                    return;
+                }
+            }
+
+            // Mark sync as in progress BEFORE releasing lock
+            m_syncInProgress.insert(agentId);
+
+            lock.unlock(); // release mutex for long-running sync
+
             try
             {
-                std::scoped_lock lock(m_syncMutex);
-                if (!abuseControl(agentId))
-                {
-                    logDebug2(IC_NAME, "Syncing agent '%s' with the indexer.", agentId.c_str());
-                    diff(getAgentDocumentsIds(selector->getNext(), agentId, secureCommunication),
-                         agentId,
-                         secureCommunication,
-                         selector);
-                }
+                logDebug2(IC_NAME, "Syncing agent '%s' with indexer.", agentId.c_str());
+                diff(getAgentDocumentsIds(selector->getNext(), agentId, secureCommunication),
+                     agentId,
+                     secureCommunication,
+                     selector);
+
+                lock.lock();
+                m_lastSync[agentId] = std::chrono::system_clock::now();
+                m_syncInProgress.erase(agentId); // Clear in-progress flag
+                logDebug2(IC_NAME, "Agent '%s' sync succeeded.", agentId.c_str());
             }
             catch (const std::exception& e)
             {
-                logWarn(IC_NAME, "Failed to sync agent '%s' with the indexer.", agentId.c_str());
-                logDebug1(IC_NAME, "Error: %s", e.what());
+                lock.lock();
+                m_syncInProgress.erase(agentId); // Clear in-progress flag even on failure
+                logWarn(IC_NAME, "Failed to sync agent '%s': %s", agentId.c_str(), e.what());
             }
         },
         SYNC_WORKERS,
@@ -758,7 +1235,11 @@ IndexerConnector::IndexerConnector(
 
     m_initializeThread = std::thread(
         // coverity[copy_constructor_call]
-        [this, templateData, updateMappingsData, selector, secureCommunication]()
+        [this,
+         templateData,
+         updateMappingsData,
+         selector = std::move(selector),
+         secureCommunication = std::move(secureCommunication)]()
         {
             auto sleepTime = std::chrono::seconds(START_TIME);
             std::unique_lock lock(m_mutex);
@@ -777,7 +1258,7 @@ IndexerConnector::IndexerConnector(
                 }
                 catch (const std::exception& e)
                 {
-                    logDebug1(IC_NAME,
+                    logDebug2(IC_NAME,
                               "Unable to initialize IndexerConnector for index '%s': %s. Retrying in %ld "
                               "seconds.",
                               m_indexName.c_str(),
@@ -798,9 +1279,10 @@ IndexerConnector::IndexerConnector(
 
 IndexerConnector::IndexerConnector(
     const nlohmann::json& config,
-    const std::function<void(
-        const int, const std::string&, const std::string&, const int, const std::string&, const std::string&, va_list)>&
+    const bool useSeekDelete,
+    const std::function<void(const int, const char*, const char*, const int, const char*, const char*, va_list)>&
         logFunction)
+    : m_useSeekDelete(useSeekDelete)
 {
     preInitialization(logFunction, config);
 
@@ -817,7 +1299,17 @@ IndexerConnector::IndexerConnector(
                 // We only sync the local DB when the indexer is disabled
                 if (parsedData.at("operation").get_ref<const std::string&>().compare("DELETED") == 0)
                 {
-                    m_db->delete_(id);
+                    if (m_useSeekDelete)
+                    {
+                        for (const auto& [key, _] : m_db->seek(id))
+                        {
+                            m_db->delete_(key);
+                        }
+                    }
+                    else
+                    {
+                        m_db->delete_(id);
+                    }
                 }
                 // We made the same operation for DELETED_BY_QUERY as for DELETED
                 else if (parsedData.at("operation").get_ref<const std::string&>().compare("DELETED_BY_QUERY") == 0)
@@ -841,7 +1333,9 @@ IndexerConnector::IndexerConnector(
             }
         },
         DATABASE_BASE_PATH + m_indexName,
-        ELEMENTS_PER_BULK);
+        ELEMENTS_PER_BULK,
+        UNLIMITED_QUEUE_SIZE,
+        true);
 
     m_syncQueue = std::make_unique<ThreadSyncQueue>(
         [](const std::string& agentId)

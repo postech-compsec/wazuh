@@ -7,7 +7,6 @@
 
 import json
 import sys
-from hashlib import md5
 from os.path import abspath, dirname, join, realpath
 from unittest.mock import MagicMock, call, patch
 
@@ -91,7 +90,7 @@ def test_start_log_analytics(
         domain=tenant,
         scope=f'{URL_ANALYTICS}/.default',
     )
-    md5_hash = md5(query.encode()).hexdigest()
+    md5_hash = orm.create_pk(workspace=workspace, query=query)
     mock_build.assert_called_with(query=query, offset=offset, reparse=reparse, md5_hash=md5_hash)
     mock_get_logs.assert_called_with(
         url=f'{URL_ANALYTICS}/v1/workspaces/{workspace}/query',
@@ -100,6 +99,7 @@ def test_start_log_analytics(
         md5_hash=md5_hash,
         query=query,
         tag=tag,
+        tenant=tenant
     )
 
 
@@ -220,7 +220,8 @@ def test_get_log_analytics_events(mock_get, mock_position, mock_iter, mock_updat
     body = 'body'
     headers = 'headers'
     tag = 'test'
-    get_log_analytics_events(url=url, body=body, headers=headers, md5_hash='', query=la_query, tag=tag)
+    tenant = 'tenant'
+    get_log_analytics_events(url=url, body=body, headers=headers, md5_hash='', query=la_query, tag=tag, tenant=tenant)
     mock_get.assert_called_with(url, params=body, headers=headers, timeout=10)
     if rows is None or (len(rows) > 0 and time_position is None):
         mock_logging.assert_called_once()
@@ -240,7 +241,7 @@ def test_get_log_analytics_events_error_responses(mock_get):
     la_query = 'test_query'
     response_mock = MagicMock(status_code=400)
     mock_get.return_value = response_mock
-    get_log_analytics_events(url=None, body=None, headers=None, md5_hash=None, query=la_query, tag='')
+    get_log_analytics_events(url=None, body=None, headers=None, md5_hash=None, query=la_query, tag='', tenant='tenant')
     response_mock.raise_for_status.assert_called_once()
 
 

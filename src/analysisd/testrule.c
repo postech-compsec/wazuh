@@ -402,8 +402,14 @@ int main(int argc, char **argv)
                 rulesfiles = Config.includes;
                 while (rulesfiles && *rulesfiles) {
                     mdebug1("Reading rules file: '%s'", *rulesfiles);
-                    if (Rules_OP_ReadRules(*rulesfiles, &os_analysisd_rulelist, &os_analysisd_cdblists,
-                                           &os_analysisd_last_events, &os_analysisd_decoder_store, list_msg) < 0) {
+                    if (Rules_OP_ReadRules(*rulesfiles,
+                                           &os_analysisd_rulelist,
+                                           &os_analysisd_cdblists,
+                                           &os_analysisd_last_events,
+                                           &os_analysisd_decoder_store,
+                                           list_msg,
+                                           false) < 0)
+                    {
                         error_exit = 1;
                     }
                     node_log_msg = OSList_GetFirstNode(list_msg);
@@ -547,7 +553,7 @@ void OS_ReadMSG(char *ut_str)
         exit(1);
     }
 
-    __crt_ftell = 1;
+    set_global_alert_second_id(0);
 
     /* Get current time before starting */
     c_time = time(NULL);
@@ -709,7 +715,7 @@ void OS_ReadMSG(char *ut_str)
                     if (alert_only) {
                         OS_Log(lf, stdout);
                         fflush(stdout);
-                        __crt_ftell++;
+                        set_global_alert_second_id(get_global_alert_second_id() + 1);
                     } else {
                         print_out("**Alert to be generated.\n\n");
                     }

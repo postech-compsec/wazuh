@@ -39,6 +39,7 @@
 #define FIELD_DSTGEOIP   0x8000
 #define FIELD_LOCATION   0x10000
 #define N_FIELDS         17
+#define ALL_FIELDS       ((1U << N_FIELDS) - 1) /* All merged fields 0x1FFFF */
 
 #define FIELD_DYNAMICS   0x20000
 #define FIELD_AGENT      0x40000
@@ -391,10 +392,12 @@ void Rules_OP_CreateRules(void);
  * @param l_node reference to the first list of the cdb lists
  * @param last_event_list reference to first node to the previous events list
  * @param log_msg List to save log messages.
+ * @param is_ar_link_enabled determine if the rule should be linked to the active response
  * @return 0 on success, otherwise -1
  */
 int Rules_OP_ReadRules(const char *rulefile, RuleNode **r_node, ListNode **l_node,
-                       EventList **last_event_list, OSStore **decoder_list, OSList* log_msg);
+                       EventList **last_event_list, OSStore **decoder_list, OSList* log_msg,
+                       bool is_ar_link_enabled);
 
 int AddHash_Rule(RuleNode *node);
 

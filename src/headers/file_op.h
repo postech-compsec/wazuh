@@ -18,6 +18,7 @@
 #include <stdbool.h>
 #include <sys/stat.h>
 #include <cJSON.h>
+#include <dirent.h>
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -173,6 +174,15 @@ int check_path_type(const char *dir) __attribute__((nonnull));
  * @return 0 if it is a link, -1 otherwise.
  */
 int IsLink(const char * file) __attribute__((nonnull));
+
+/**
+ * Check if a program is available in the system PATH.
+ *
+ * @param program The name of the program to check.
+ * @return true if the program is available, false otherwise.
+ */
+bool is_program_available(const char *program);
+
 #endif
 
 
@@ -349,11 +359,32 @@ int cldir_ex(const char *name);
 
 
 /**
- * @brief Delete directory content with exception list.
+ * @brief Delete directory content while preserving specified paths
  *
- * @param name Path of the folder.
- * @param ignore Array of files to be ignored. This array must be NULL terminated.
- * @return 0 on success. On error, -1 is returned, and errno is set appropriately.
+ * Recursively removes all files and subdirectories within the specified directory,
+ * except for paths listed in the ignore array. The function supports both simple
+ * filenames and paths with subdirectories.
+ *
+ * The ignore list can contain:
+ * - Simple filenames (e.g., "file.txt") to preserve files in the root directory
+ * - Relative paths (e.g., "subfolder/file.txt") to preserve files in subdirectories
+ *
+ * Directories that contain preserved files are automatically kept. Empty directories
+ * are removed after processing their contents.
+ *
+ * @param name Path of the directory to clean
+ * @param ignore NULL-terminated array of relative paths to preserve (can be NULL to delete everything)
+ * @return 0 on success, -1 on error (errno is set appropriately)
+ *
+ * Example:
+ * @code
+ * const char *preserve[] = {"keep.txt", "subfolder/important.conf", NULL};
+ * cldir_ex_ignore("/var/ossec/etc/shared", preserve);
+ * // Preserves: /var/ossec/etc/shared/keep.txt
+ * //            /var/ossec/etc/shared/subfolder/important.conf
+ * //            /var/ossec/etc/shared/subfolder/ (directory kept because it has preserved file)
+ * // Deletes:   Everything else
+ * @endcode
  */
 int cldir_ex_ignore(const char * name, const char ** ignore);
 
@@ -383,6 +414,70 @@ int w_ref_parent_folder(const char * path);
  * @return Array of filenames.
  */
 char ** wreaddir(const char * name);
+
+
+/**
+ * @brief Wrapper over access() that rejects UNC or mapped-drive paths.
+ *
+ * @param path  Null-terminated path to test.
+ * @param mode  Standard access() mode flags (R_OK, W_OK, …).
+ * @return 0 on success, −1 on failure (sets errno and GetLastError()).
+ */
+int waccess(const char *path, int mode);
+
+
+#ifdef WIN32
+/**
+ * @brief Wrapper over CreateFile that blocks network paths.
+ *
+ * @param lpFileName             UTF-8 file name.
+ * @param dwDesiredAccess        Desired access flags.
+ * @param dwShareMode            Share mode flags.
+ * @param lpSecurityAttributes   Optional security descriptor.
+ * @param dwCreationDisposition  Creation action.
+ * @param dwFlagsAndAttributes   File attributes / flags.
+ * @param hTemplateFile          Template file handle (may be NULL).
+ * @return A valid HANDLE or INVALID_HANDLE_VALUE on error.
+ */
+HANDLE wCreateFile(LPCSTR  lpFileName,
+    DWORD   dwDesiredAccess,
+    DWORD   dwShareMode,
+    LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+    DWORD   dwCreationDisposition,
+    DWORD   dwFlagsAndAttributes,
+    HANDLE  hTemplateFile);
+
+
+/**
+ * @brief Wrapper over _stat64() that blocks network paths.
+ *
+ * @param pathname Path to inspect.
+ * @param statbuf  Output structure to fill.
+ * @return 0 on success, −1 on error (sets errno).
+ */
+int w_stat64(const char * pathname,
+             struct _stat64 * statbuf);
+#endif
+
+
+/**
+ * @brief Wrapper over opendir() that refuses network directories.
+ *
+ * @param name Directory path.
+ * @return Pointer to DIR or NULL on error (sets errno).
+ */
+DIR * wopendir(const char *name);
+
+
+/**
+ * @brief Wrapper over w_stat() that blocks network paths.
+ *
+ * @param pathname Path to inspect.
+ * @param statbuf  Output structure to fill.
+ * @return 0 on success, −1 on error (sets errno).
+ */
+int w_stat(const char * pathname,
+           struct stat * statbuf);
 
 
 /**
@@ -540,6 +635,30 @@ FILE * w_fopen_r(const char *file, const char * mode, BY_HANDLE_FILE_INFORMATION
  * @return char** Vector with the expanded paths.
  */
 char **expand_win32_wildcards(const char *path);
+
+/**
+ * @brief Checks if a given path is located on network storage.
+ *
+ * This function blocks all network paths to prevent security vulnerabilities
+ * such as NetNTLMv2 credential exposure and NTLM relay attacks.
+ *
+ * Detected network path types:
+ * - Standard UNC paths: \\\\server\\share\\...
+ * - Extended-length UNC paths: \\\\?\\UNC\\server\\share\\...
+ * - Device paths: \\\\.\\device
+ * - Extended-length paths: \\\\?\\C:\\...
+ * - Mapped network drives: Z:\\folder\\file.txt
+ *
+ * Any path starting with \\\\ is considered a network path, as there are no
+ * legitimate local file paths in Windows that begin with this prefix.
+ *
+ * @param path A null-terminated string containing the file path to check.
+ * @return true if the path points to a network location, false otherwise.
+ *
+ * @note This function addresses CVE-2025-30201 and GHSA-5g2v-99vr-3hgw.
+ * @see https://github.com/wazuh/wazuh/pull/30060
+ */
+bool is_network_path(const char *path);
 
 #endif // Windows
 

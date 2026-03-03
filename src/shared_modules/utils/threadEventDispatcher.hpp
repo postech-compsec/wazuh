@@ -33,11 +33,12 @@ public:
     explicit TThreadEventDispatcher(Functor functor,
                                     const std::string& dbPath,
                                     const uint64_t bulkSize = 1,
-                                    const size_t maxQueueSize = UNLIMITED_QUEUE_SIZE)
+                                    const size_t maxQueueSize = UNLIMITED_QUEUE_SIZE,
+                                    bool useSharedBuffers = false)
         : m_functor {std::move(functor)}
         , m_maxQueueSize {maxQueueSize}
         , m_bulkSize {bulkSize}
-        , m_queue {std::make_unique<TSafeQueueType>(TQueueType(dbPath))}
+        , m_queue {std::make_unique<TSafeQueueType>(TQueueType(dbPath, useSharedBuffers))}
     {
         m_thread = std::thread {&TThreadEventDispatcher<T, U, Functor, TQueueType, TSafeQueueType>::dispatch, this};
     }
@@ -214,8 +215,15 @@ private:
             catch (const std::exception& ex)
             {
                 // Sleep for a second to avoid busy loop
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                std::cerr << "Dispatch handler error, " << ex.what() << "\n";
+                if (m_running)
+                {
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                    std::cerr << "Dispatch handler error, " << ex.what() << "\n";
+                }
+                else
+                {
+                    std::cout << "ThreadEventDispatcher dispatch end.\n";
+                }
             }
         }
     }
@@ -228,13 +236,13 @@ private:
         }
     }
 
+    // Keep this order to avoid warnings during compilation
     Functor m_functor;
+    const size_t m_maxQueueSize;
+    std::atomic<uint64_t> m_bulkSize;
     std::unique_ptr<TSafeQueueType> m_queue;
     std::thread m_thread;
     std::atomic_bool m_running = true;
-
-    const size_t m_maxQueueSize;
-    std::atomic<uint64_t> m_bulkSize;
 };
 
 template<typename Type, typename Functor>

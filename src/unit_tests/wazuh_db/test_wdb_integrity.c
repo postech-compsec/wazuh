@@ -1850,7 +1850,9 @@ void test_wdbi_report_removed_packages_success(void **state) {
     const char* agent_id = "001";
     wdb_component_t component = WDB_SYSCOLLECTOR_PACKAGES;
     sqlite3_stmt* stmt = NULL;
-    router_agent_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
     const char* expected_message = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deletePackage\","
                                    "\"data\":{\"name\":\"name\",\"version\":\"version\",\"architecture\":\"architecture\",\"format\":\"format\",\"location\":\"location\",\"item_id\":\"item_id\"}}";
 
@@ -1881,7 +1883,9 @@ void test_wdbi_report_removed_hotfixes_success(void **state) {
     const char* agent_id = "001";
     wdb_component_t component = WDB_SYSCOLLECTOR_HOTFIXES;
     sqlite3_stmt* stmt = NULL;
-    router_agent_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
     const char* expected_message = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteHotfix\","
                                    "\"data\":{\"hotfix\":\"hotfix\"}}";
 
@@ -1902,7 +1906,9 @@ void test_wdbi_report_removed_hotfixes_success_multiple_steps(void **state) {
     const char* agent_id = "001";
     wdb_component_t component = WDB_SYSCOLLECTOR_HOTFIXES;
     sqlite3_stmt* stmt = NULL;
-    router_agent_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
     const char* expected_message_1 = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteHotfix\","
                                      "\"data\":{\"hotfix\":\"hotfix1\"}}";
 
@@ -1921,9 +1927,358 @@ void test_wdbi_report_removed_hotfixes_success_multiple_steps(void **state) {
     will_return(__wrap_sqlite3_step, SQLITE_ROW);
 
     // Second hotfix
-
     expect_value(__wrap_sqlite3_column_text, iCol, 0);
     will_return(__wrap_sqlite3_column_text, "hotfix2");
+
+    expect_string(__wrap_router_provider_send, message, expected_message_2);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message_2));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_DONE);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_network_protocol_success(void **state)
+{
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_NETPROTO;
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    const char* expected_message = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteNetProto\","
+                                     "\"data\":{\"item_id\":\"networkProtocolItemId\"}}";
+
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "networkProtocolItemId");
+
+    expect_string(__wrap_router_provider_send, message, expected_message);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_DONE);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_network_protocol_success_multiple_steps(void **state)
+{
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_NETPROTO;
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    const char* expected_message_1 = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteNetProto\","
+                                     "\"data\":{\"item_id\":\"networkProtocolItemId1\"}}";
+
+    const char* expected_message_2 = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteNetProto\","
+                                     "\"data\":{\"item_id\":\"networkProtocolItemId2\"}}";
+    // First network protocol
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "networkProtocolItemId1");
+
+    expect_string(__wrap_router_provider_send, message, expected_message_1);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message_1));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_ROW);
+
+    // Second network protocol
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "networkProtocolItemId2");
+
+    expect_string(__wrap_router_provider_send, message, expected_message_2);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message_2));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_DONE);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_netifaces_success(void **state) {
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_NETINFO;
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "item_id");
+    will_return(__wrap_sqlite3_step, SQLITE_OK);
+    will_return(__wrap_sqlite3_step, SQLITE_OK);
+
+    const char* expected_message = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteNetIface\",\"data\":{\"item_id\":\"item_id\"}}";
+    expect_string(__wrap_router_provider_send, message, expected_message);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message));
+    will_return(__wrap_router_provider_send, 0);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_users_success(void **state) {
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_USERS;
+
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    const char* expected_message = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteUser\","
+                                     "\"data\":{\"user_name\":\"user1\"}}";
+
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "user1");
+
+    expect_string(__wrap_router_provider_send, message, expected_message);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_DONE);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_os_success(void **state) {
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_OSINFO;
+
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    const char* expected_message = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteOs\","
+                                   "\"data\":{\"os_name\":\"windows_server\"}}";
+
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "windows_server");
+
+    expect_string(__wrap_router_provider_send, message, expected_message);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_DONE);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_users_success_multiple_steps(void **state) {
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_USERS;
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    const char* expected_message_1 = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteUser\","
+                                     "\"data\":{\"user_name\":\"user1\"}}";
+
+    const char* expected_message_2 = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteUser\","
+                                     "\"data\":{\"user_name\":\"user2\"}}";
+    // First network protocol
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "user1");
+
+    expect_string(__wrap_router_provider_send, message, expected_message_1);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message_1));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_ROW);
+
+    // Second network protocol
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "user2");
+
+    expect_string(__wrap_router_provider_send, message, expected_message_2);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message_2));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_DONE);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_groups_success(void **state) {
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_GROUPS;
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    const char* expected_message = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteGroup\","
+                                     "\"data\":{\"group_name\":\"sudo\"}}";
+
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "sudo");
+
+    expect_string(__wrap_router_provider_send, message, expected_message);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_DONE);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_groups_success_multiple_steps(void **state) {
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_GROUPS;
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    const char* expected_message_1 = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteGroup\","
+                                     "\"data\":{\"group_name\":\"sudo\"}}";
+
+    const char* expected_message_2 = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteGroup\","
+                                     "\"data\":{\"group_name\":\"wheel\"}}";
+    // First group
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "sudo");
+
+    expect_string(__wrap_router_provider_send, message, expected_message_1);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message_1));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_ROW);
+
+    // Second group
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "wheel");
+
+    expect_string(__wrap_router_provider_send, message, expected_message_2);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message_2));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_DONE);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_browser_extensions_success(void **state) {
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_BROWSER_EXTENSIONS;
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    // Browser name: chrome, User id: 1000, Browser profile name: Default, Package name: Vimium
+    const char* expected_message = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteBrowserExtension\","
+                                     "\"data\":{\"item_id\":\"80acc604bea84a3cd727df6de2955b19eaff4968\"}}";
+
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "80acc604bea84a3cd727df6de2955b19eaff4968");
+
+    expect_string(__wrap_router_provider_send, message, expected_message);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_DONE);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_browser_extensions_success_multiple_steps(void **state) {
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_BROWSER_EXTENSIONS;
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    // Browser name: chrome, User id: 1000, Browser profile name: Default, Package name: Vimium
+    const char* expected_message_1 = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteBrowserExtension\","
+                                     "\"data\":{\"item_id\":\"80acc604bea84a3cd727df6de2955b19eaff4968\"}}";
+
+    // Browser name: chrome, User id: 1000, Browser profile name: Default, Package name: UBlock
+    const char* expected_message_2 = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteBrowserExtension\","
+                                     "\"data\":{\"item_id\":\"62c32520a916beacd0e628e6720c8c519c3e77b7\"}}";
+    // First group
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "80acc604bea84a3cd727df6de2955b19eaff4968");
+
+    expect_string(__wrap_router_provider_send, message, expected_message_1);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message_1));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_ROW);
+
+    // Second group
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "62c32520a916beacd0e628e6720c8c519c3e77b7");
+
+    expect_string(__wrap_router_provider_send, message, expected_message_2);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message_2));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_DONE);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_services_success(void **state) {
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_SERVICES;
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    const char* expected_message = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteService\","
+                                     "\"data\":{\"item_id\":\"item_id\"}}";
+
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "item_id");
+
+    expect_string(__wrap_router_provider_send, message, expected_message);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_DONE);
+
+    wdbi_report_removed(agent_id, component, stmt);
+}
+
+void test_wdbi_report_removed_services_success_multiple_steps(void **state) {
+    const char* agent_id = "001";
+    wdb_component_t component = WDB_SYSCOLLECTOR_SERVICES;
+    sqlite3_stmt* stmt = NULL;
+    router_inventory_events_handle = (ROUTER_PROVIDER_HANDLE)1;
+    // router_fim_events_handle = (ROUTER_PROVIDER_HANDLE)1; // DISABLED
+
+    const char* expected_message_1 = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteService\","
+                                     "\"data\":{\"item_id\":\"item_id1\"}}";
+
+    const char* expected_message_2 = "{\"agent_info\":{\"agent_id\":\"001\"},\"action\":\"deleteService\","
+                                     "\"data\":{\"item_id\":\"item_id2\"}}";
+    // First service
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "item_id1");
+
+    expect_string(__wrap_router_provider_send, message, expected_message_1);
+    expect_value(__wrap_router_provider_send, message_size, strlen(expected_message_1));
+    will_return(__wrap_router_provider_send, 0);
+
+    will_return(__wrap_sqlite3_step, 0);
+    will_return(__wrap_sqlite3_step, SQLITE_ROW);
+
+    // Second service
+    expect_value(__wrap_sqlite3_column_text, iCol, 0);
+    will_return(__wrap_sqlite3_column_text, "item_id2");
 
     expect_string(__wrap_router_provider_send, message, expected_message_2);
     expect_value(__wrap_router_provider_send, message_size, strlen(expected_message_2));
@@ -2044,6 +2399,18 @@ int main(void) {
         cmocka_unit_test(test_wdbi_report_removed_packages_success),
         cmocka_unit_test(test_wdbi_report_removed_hotfixes_success),
         cmocka_unit_test(test_wdbi_report_removed_hotfixes_success_multiple_steps),
+        cmocka_unit_test(test_wdbi_report_removed_network_protocol_success),
+        cmocka_unit_test(test_wdbi_report_removed_network_protocol_success_multiple_steps),
+        cmocka_unit_test(test_wdbi_report_removed_netifaces_success),
+        cmocka_unit_test(test_wdbi_report_removed_users_success),
+        cmocka_unit_test(test_wdbi_report_removed_users_success_multiple_steps),
+        cmocka_unit_test(test_wdbi_report_removed_groups_success),
+        cmocka_unit_test(test_wdbi_report_removed_groups_success_multiple_steps),
+        cmocka_unit_test(test_wdbi_report_removed_browser_extensions_success),
+        cmocka_unit_test(test_wdbi_report_removed_browser_extensions_success_multiple_steps),
+        cmocka_unit_test(test_wdbi_report_removed_services_success),
+        cmocka_unit_test(test_wdbi_report_removed_services_success_multiple_steps),
+        cmocka_unit_test(test_wdbi_report_removed_os_success)
     };
     return cmocka_run_group_tests(tests, NULL, NULL);
 }

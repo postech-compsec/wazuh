@@ -452,12 +452,12 @@ void LogCollectorStart()
             w_mutex_init(&current->mutex, &win_el_mutex_attr);
 #endif
         } else {
-            /* On Windows we need to forward the seek for wildcard files */
-#ifdef WIN32
             if (current->file) {
                 minfo(READING_FILE, current->file);
             }
 
+        /* On Windows we need to forward the seek for wildcard files */
+#ifdef WIN32
             if (current->fp) {
                 if (current->future == 0) {
                     w_set_to_last_line_read(current);
@@ -691,7 +691,7 @@ void LogCollectorStart()
 #else
                     HANDLE h1;
 
-                    h1 = CreateFile(current->file, GENERIC_READ,
+                    h1 = wCreateFile(current->file, GENERIC_READ,
                                     FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
                                     NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
                     if (h1 == INVALID_HANDLE_VALUE) {
@@ -815,7 +815,7 @@ void LogCollectorStart()
                         int file_exists = 1;
                         HANDLE h1;
 
-                        h1 = CreateFile(current->file, GENERIC_READ,
+                        h1 = wCreateFile(current->file, GENERIC_READ,
                                         FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
                                         NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
                         if (h1 == INVALID_HANDLE_VALUE) {
@@ -877,7 +877,7 @@ void LogCollectorStart()
                     if (j >= 0) {
 #ifndef WIN32
                         struct stat stat_fd;
-                        if (stat(current->file, &stat_fd) == -1 && ENOENT == errno) {
+                        if (w_stat(current->file, &stat_fd) == -1 && ENOENT == errno) {
 #else
                         if (!PathFileExists(current->file)) {
 #endif
@@ -1131,10 +1131,6 @@ void close_file(logreader * lf) {
     fgetpos(lf->fp, &lf->position);
     fclose(lf->fp);
     lf->fp = NULL;
-
-#ifdef WIN32
-    lf->h = NULL;
-#endif
 }
 
 #ifdef WIN32
@@ -1336,8 +1332,8 @@ int check_pattern_expand(int do_seek) {
                 }
 
                 struct stat statbuf;
-                if (lstat(g.gl_pathv[glob_offset], &statbuf) < 0) {
-                    merror("Error on lstat '%s' due to [(%d)-(%s)]", g.gl_pathv[glob_offset], errno, strerror(errno));
+                if (stat(g.gl_pathv[glob_offset], &statbuf) < 0) {
+                    merror("Error on stat '%s' due to [(%d)-(%s)]", g.gl_pathv[glob_offset], errno, strerror(errno));
                     glob_offset++;
                     continue;
                 }
@@ -1361,7 +1357,7 @@ int check_pattern_expand(int do_seek) {
                     int added = 0;
 
                     if(!ex_file) {
-                        mdebug1(NEW_GLOB_FILE, globs[j].gpath, g.gl_pathv[glob_offset]);
+                        minfo(NEW_GLOB_FILE, globs[j].gpath, g.gl_pathv[glob_offset]);
 
                         os_realloc(globs[j].gfiles, (i +2)*sizeof(logreader), globs[j].gfiles);
 
@@ -1542,7 +1538,7 @@ int check_pattern_expand(int do_seek) {
                                 exists. Deleted files can still appear due to caching */
                             HANDLE h1;
 
-                            h1 = CreateFile(full_path, GENERIC_READ,
+                            h1 = wCreateFile(full_path, GENERIC_READ,
                                             FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
                                             NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 
@@ -1946,9 +1942,9 @@ void * w_output_thread(void * args){
             if (result != 0) {
                 if (result != 1) {
 #ifdef CLIENT
-                    merror("Unable to send message to '%s' (wazuh-agentd might be down). Attempting to reconnect.", DEFAULTQUEUE);
+                    mdebug1("Unable to send message to '%s' (wazuh-agentd might be down). Attempting to reconnect.", DEFAULTQUEUE);
 #else
-                    merror("Unable to send message to '%s' (wazuh-analysisd might be down). Attempting to reconnect.", DEFAULTQUEUE);
+                    mdebug1("Unable to send message to '%s' (wazuh-analysisd might be down). Attempting to reconnect.", DEFAULTQUEUE);
 #endif
                 }
                 // Retry to connect infinitely.
@@ -1960,7 +1956,7 @@ void * w_output_thread(void * args){
                     result != 0) {
                     // We reconnected but are still unable to send the message, notify it and go on.
                     if (result != 1) {
-                        merror("Unable to send message to '%s' after a successfull reconnection...", DEFAULTQUEUE);
+                        mdebug1("Unable to send message to '%s' after a successfull reconnection...", DEFAULTQUEUE);
                     }
                     result = 1;
                 }
@@ -1978,7 +1974,7 @@ void * w_output_thread(void * args){
                 result = SendMSGtoSCK(logr_queue, message->buffer, message->file,
                                       message->queue_mq, message->log_target);
                 if (result < 0) {
-                    merror(QUEUE_SEND);
+                    mdebug1(QUEUE_SEND);
 
                     sleep(sleep_time);
 
@@ -2046,8 +2042,6 @@ void * w_input_thread(__attribute__((unused)) void * t_id){
     unsigned long thread_id = (unsigned long) pthread_self();
 #endif
 #ifndef WIN32
-    int int_error = 0;
-    struct timeval fp_timeout;
     struct stat tmp_stat;
 #else
     BY_HANDLE_FILE_INFORMATION lpFileInformation;
@@ -2056,25 +2050,9 @@ void * w_input_thread(__attribute__((unused)) void * t_id){
 
     /* Daemon loop */
     while (1) {
-#ifndef WIN32
-        fp_timeout.tv_sec = loop_timeout;
-        fp_timeout.tv_usec = 0;
+        sleep(loop_timeout);
 
-        /* Wait for the select timeout */
-        if ((r = select(0, NULL, NULL, NULL, &fp_timeout)) < 0) {
-            merror(SELECT_ERROR, errno, strerror(errno));
-            int_error++;
-
-            if (int_error >= 5) {
-                merror_exit(SYSTEM_ERROR);
-            }
-            continue;
-        }
-#else
-
-        /* Windows doesn't like select that way */
-        sleep(loop_timeout + 2);
-
+#ifdef WIN32
         /* Check for messages in the event viewer */
 
         if (pthread_mutex_trylock(&win_el_mutex) == 0) {
@@ -2175,8 +2153,8 @@ void * w_input_thread(__attribute__((unused)) void * t_id){
 
 #ifdef WIN32
             if(current->age) {
-                if (current->h && (GetFileInformationByHandle(current->h, &lpFileInformation) == 0)) {
-                    merror("Unable to get file information by handle.");
+                if (current->fp == NULL || (get_fp_file_information(current->fp, &lpFileInformation) == 0)) {
+                    merror("Unable to get file information.");
                     w_mutex_unlock(&current->mutex);
                     rwlock_unlock(&files_update_rwlock);
                     continue;
@@ -2194,7 +2172,6 @@ void * w_input_thread(__attribute__((unused)) void * t_id){
                         mdebug1("Ignoring file '%s' due to modification time",current->file);
                         fclose(current->fp);
                         current->fp = NULL;
-                        current->h = NULL;
                         w_mutex_unlock(&current->mutex);
                         rwlock_unlock(&files_update_rwlock);
                         continue;
@@ -2454,7 +2431,7 @@ static void check_pattern_expand_excluded() {
                 *wildcard = '\0';
                 wildcard++;
 
-                if (dir = opendir(global_path), !dir) {
+                if (dir = wopendir(global_path), !dir) {
                     merror("Couldn't open directory '%s' due to: %s", global_path, win_strerror(WSAGetLastError()));
                     os_free(global_path);
                     continue;
@@ -2473,7 +2450,7 @@ static void check_pattern_expand_excluded() {
                     /* Skip file if it is a directory */
                     DIR *is_dir = NULL;
 
-                    if (is_dir = opendir(full_path), is_dir) {
+                    if (is_dir = wopendir(full_path), is_dir) {
                         mdebug2("File %s is a directory. Skipping it.", full_path);
                         closedir(is_dir);
                         continue;
@@ -2681,7 +2658,7 @@ STATIC void w_load_files_status(cJSON * global_json) {
 
         struct stat stat_fd;
 
-        if (stat(path_str, &stat_fd) == -1) {
+        if (w_stat(path_str, &stat_fd) == -1) {
             continue;
         }
 

@@ -3,6 +3,7 @@
 # This program is a free software; you can redistribute it and/or modify it under the terms of GPLv2
 
 import asyncio
+from functools import cache
 import hashlib
 import json
 import jwt
@@ -93,7 +94,7 @@ JWT_ALGORITHM = 'ES512'
 _private_key_path = os.path.join(SECURITY_PATH, 'private_key.pem')
 _public_key_path = os.path.join(SECURITY_PATH, 'public_key.pem')
 
-
+@cache
 def generate_keypair():
     """Generate key files to keep safe or load existing public and private keys.
 
@@ -198,7 +199,7 @@ def generate_token(user_id: str = None, data: dict = None, auth_context: dict = 
     return jwt.encode(payload, generate_keypair()[0], algorithm=JWT_ALGORITHM)
 
 
-@rbac_utils.token_cache(rbac_utils.tokens_cache)
+@rbac_utils.token_cache()
 def check_token(username: str, roles: tuple, token_nbf_time: int, run_as: bool) -> dict:
     """Check the validity of a token with the current time and the generation time of the token.
 

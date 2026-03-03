@@ -165,13 +165,13 @@ function build_package() {
     else
         WAZUH_PATH="${CURRENT_PATH}/../.."
     fi
-    short_commit_hash="$(cd "${WAZUH_PATH}" && git rev-parse --short HEAD)"
+    short_commit_hash="$(cd "${WAZUH_PATH}" && git rev-parse --short=7 HEAD)"
 
     export CONFIG="${WAZUH_PATH}/etc/preloaded-vars.conf"
     WAZUH_PACKAGES_PATH="${WAZUH_PATH}/packages/macos"
     ENTITLEMENTS_PATH="${WAZUH_PACKAGES_PATH}/entitlements.plist"
 
-    VERSION=$(cat ${WAZUH_PATH}/src/VERSION | cut -d "-" -f1 | cut -c 2-)
+    VERSION="$(awk -F'"' '/"version"[ \t]*:/ {print $4}' $WAZUH_PATH/VERSION.json)"
 
     # Define output package name
     if [ $IS_STAGE == "no" ]; then
@@ -199,14 +199,14 @@ function build_package() {
     if munkipkg $CURRENT_PATH/wazuh-agent ; then
         echo "The wazuh agent package for macOS has been successfully built."
         mv $CURRENT_PATH/wazuh-agent/build/* $DESTINATION/
-        symbols_pkg_name="${pkg_name}_debug_symbols"
+        symbols_pkg_name="wazuh-agent-debug-symbols-${VERSION}-${REVISION}.${ARCH}-macos"
         cp -R "${WAZUH_PATH}/src/symbols"  "${DESTINATION}"
         zip -r "${DESTINATION}/${symbols_pkg_name}.zip" "${DESTINATION}/symbols"
         rm -rf "${DESTINATION}/symbols"
         sign_pkg
         if [[ "${CHECKSUM}" == "yes" ]]; then
             shasum -a512 "${DESTINATION}/${pkg_name}.pkg" > "${DESTINATION}/${pkg_name}.pkg.sha512"
-            shasum -a512 "${DESTINATION}/${symbols_pkg_name}.zip" > "${DESTINATION}/${symbols_pkg_name}.sha512"
+            shasum -a512 "${DESTINATION}/${symbols_pkg_name}.zip" > "${DESTINATION}/${symbols_pkg_name}.zip.sha512"
         fi
         clean_and_exit 0
     else
@@ -279,11 +279,52 @@ function install_deps() {
         fi
     fi
 
+    # Disable automatic cleanup to avoid Homebrew post-installation errors
+    export HOMEBREW_NO_INSTALL_CLEANUP=1
+    export HOMEBREW_NO_ENV_HINTS=1
+
+    # Clean Homebrew cache to avoid corrupted formula files
+    echo "Cleaning Homebrew cache..."
+    rm -rf "$(brew --cache)" 2>/dev/null || true
+
+    # Update Homebrew to ensure clean state
+    echo "Updating Homebrew..."
+    brew update 2>/dev/null || echo "Warning: brew update had issues, continuing..."
+
     echo "Installing build dependencies for $(uname -m) architecture."
+    set +e
     if [ "$(uname -m)" = "arm64" ]; then
-        brew install gcc binutils autoconf automake libtool cmake
+        brew install binutils autoconf automake libtool cmake
+        brew_exit_code=$?
     else
         brew install cmake
+        brew_exit_code=$?
+    fi
+    set -e
+
+    # Verify critical dependencies were installed regardless of brew exit code
+    if ! command -v cmake &> /dev/null; then
+        echo "Error: cmake was not installed correctly."
+        exit 1
+    fi
+
+    if [ $brew_exit_code -ne 0 ]; then
+        echo "Warning: brew install reported exit code $brew_exit_code, but dependencies appear to be installed."
+    fi
+
+    echo "Checking required gcc version (11)."
+    if brew list --versions gcc >/dev/null 2>&1; then
+        GCC_VER="$(brew list --versions gcc | awk '{print $2}')"
+        GCC_MAJOR="${GCC_VER%%.*}"
+        if [ "${GCC_MAJOR:-0}" -ge 11 ]; then
+            echo "Found gcc installed version ${GCC_VER} >= 11. Nothing to do."
+        else
+            echo "Found gcc installed version ${GCC_VER} < 11. Upgrading."
+            brew upgrade gcc
+        fi
+    else
+        echo "No gcc found. Installing."
+        brew install gcc
     fi
     exit 0
 }

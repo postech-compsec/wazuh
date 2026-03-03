@@ -27,7 +27,7 @@ extern _Config Config;
 int test_setup_global(void **state)
 {
     expect_string(__wrap__mdebug1, formatted_msg, "SyscollectorInit completed.");
-    Config.decoder_order_size = 32;
+    Config.decoder_order_size = 34;
     SyscollectorInit();
     return 0;
 }
@@ -489,6 +489,186 @@ int test_setup_os_valid_msg_modified(void **state)
     return 0;
 }
 
+int test_setup_users_valid_msg_modified(void **state)
+{
+    Eventinfo *lf;
+    os_calloc(1, sizeof(Eventinfo), lf);
+    os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+    Zero_Eventinfo(lf);
+    if (os_strdup("\
+        { \
+            \"data\":{ \
+                \"checksum\":\"da281181ada27e31ce8649ba38c0e2de9b242e40\", \
+                \"host_ip\":null, \
+                \"process_pid\":null, \
+                \"scan_time\":\"2025/06/04 20:16:55\", \
+                \"user_full_name\":\"daemon\", \
+                \"user_group_id\":1, \
+                \"user_group_id_signed\":1, \
+                \"user_home\":\"/usr/sbin\", \
+                \"user_id\":1, \
+                \"user_is_remote\":1, \
+                \"user_last_login\":null, \
+                \"user_name\":\"daemon\", \
+                \"user_password_expiration_date\":-1, \
+                \"user_password_hash_algorithm\":null, \
+                \"user_password_inactive_days\":-1, \
+                \"user_password_last_change\":1750696338.665, \
+                \"user_password_max_days_between_changes\":99999, \
+                \"user_password_min_days_between_changes\":0, \
+                \"user_password_status\":\"locked\", \
+                \"user_password_warning_days_before_expiration\":7, \
+                \"user_shell\":\"/usr/sbin/nologin\", \
+                \"user_uid_signed\":1 \
+            }, \
+            \"operation\":\"MODIFIED\", \
+            \"type\":\"dbsync_users\" \
+        }", lf->log), NULL == lf->log) {
+        return -1;
+    }
+    os_strdup("(>syscollector", lf->location);
+    os_strdup("001", lf->agent_id);
+
+    *state = lf;
+    return 0;
+}
+
+int test_setup_groups_valid_msg_modified(void **state)
+{
+    Eventinfo *lf;
+    os_calloc(1, sizeof(Eventinfo), lf);
+    os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+    Zero_Eventinfo(lf);
+    if (os_strdup("\
+        { \
+            \"data\":{ \
+                \"checksum\":\"0de011b2818a50c78529f56c00433857622bfdb8\", \
+                \"group_description\":\"Les membres du groupe Administrateurs disposent d'un accès complet et illimité à l'ordinateur et au domaine\", \
+                \"group_id\":544, \
+                \"group_id_signed\":544, \
+                \"group_is_hidden\":null, \
+                \"group_name\":\"Administrateurs\", \
+                \"group_users\":\"54358:Administrateur\", \
+                \"group_uuid\":\"S-1-5-32-544\", \
+                \"scan_time\":\"2025/06/11 14:59:57\" \
+            }, \
+            \"operation\":\"MODIFIED\", \
+            \"type\":\"dbsync_groups\" \
+        } \
+        }", lf->log), NULL == lf->log) {
+        return -1;
+    }
+    os_strdup("(>syscollector", lf->location);
+    os_strdup("001", lf->agent_id);
+
+    *state = lf;
+    return 0;
+}
+
+int test_setup_browser_extensions_valid_msg_modified(void **state)
+{
+    Eventinfo *lf;
+    os_calloc(1, sizeof(Eventinfo), lf);
+    os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+    Zero_Eventinfo(lf);
+    if (os_strdup("\
+        { \
+            \"data\":{ \
+                \"scan_time\":\"2025/06/11 14:59:57\", \
+                \"browser_name\":\"chrome\", \
+                \"user_id\":\"S-1-5-21-1234567890-987654321-1122334455-1001\", \
+                \"package_name\":\"uBlock Origin\", \
+                \"package_id\":\"cjpalhdlnbpafiamejdnhcphjbkeiagm\", \
+                \"package_version\":\"1.52.2\", \
+                \"package_description\":\"Finally, an efficient wide-spectrum content blocker. Easy on CPU and memory.\", \
+                \"package_vendor\":\"Raymond Hill\", \
+                \"package_build_version\":null, \
+                \"package_path\":\"C:\\\\Users\\\\john.doe\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\\Default\\\\Extensions\\\\cjpalhdlnbpafiamejdnhcphjbkeiagm\\\\1.52.2_0\", \
+                \"browser_profile_name\":\"Default\", \
+                \"browser_profile_path\":\"C:\\\\Users\\\\john.doe\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\\Default\", \
+                \"package_reference\":\"https://clients2.google.com/service/update2/crx\", \
+                \"package_permissions\":\"activeTab,storage,tabs,webNavigation\", \
+                \"package_type\":\"extension\", \
+                \"package_enabled\":1, \
+                \"package_visible\":1, \
+                \"package_autoupdate\":1, \
+                \"package_persistent\":0, \
+                \"package_from_webstore\":0, \
+                \"browser_profile_referenced\":1, \
+                \"package_installed\":\"1710489821000\", \
+                \"file_hash_sha256\":\"a1b2c3d4e5f6789012345678901234567890abcdef123456789012345678901234\", \
+                \"checksum\":\"606abaac7962daf9842c84f4a15f609575d86bff\" \
+            }, \
+            \"operation\":\"MODIFIED\", \
+            \"type\":\"dbsync_browser_extensions\" \
+        } \
+        }", lf->log), NULL == lf->log) {
+        return -1;
+    }
+    os_strdup("(>syscollector", lf->location);
+    os_strdup("001", lf->agent_id);
+
+    *state = lf;
+    return 0;
+}
+
+int test_setup_services_valid_msg_modified(void **state)
+{
+    Eventinfo *lf;
+    os_calloc(1, sizeof(Eventinfo), lf);
+    os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+    Zero_Eventinfo(lf);
+    if (lf->log = strdup(
+        "{"
+            "\"data\":{"
+                "\"scan_time\":\"2021/10/29 14:26:24\","
+                "\"service_id\":\"example_service\","
+                "\"service_name\":\"example.plist\","
+                "\"service_description\":\"desc\","
+                "\"service_type\":\"own_process\","
+                "\"service_state\":\"running\","
+                "\"service_sub_state\":\"running\","
+                "\"service_enabled\":\"true\","
+                "\"service_start_type\":\"auto\","
+                "\"service_restart\":\"always\","
+                "\"service_frequency\":\"300\","
+                "\"service_starts_on_mount\":\"1\","
+                "\"service_starts_on_path_modified\":\"/etc/example\","
+                "\"service_starts_on_not_empty_directory\":\"/tmp/example\","
+                "\"service_inetd_compatibility\":\"0\","
+                "\"process_pid\":\"100\","
+                "\"process_executable\":\"/usr/bin/example\","
+                "\"process_args\":\"--config /etc/example.conf\","
+                "\"process_user_name\":\"daemon\","
+                "\"process_group_name\":\"daemon\","
+                "\"process_working_directory\":\"/usr/bin\","
+                "\"process_root_directory\":\"/\","
+                "\"file_path\":\"/Library/LaunchDaemons/example.plist\","
+                "\"service_address\":\"127.0.0.1:8080\","
+                "\"log_file_path\":\"/var/log/example.log\","
+                "\"error_log_file_path\":\"/var/log/example_error.log\","
+                "\"service_exit_code\":\"0\","
+                "\"service_win32_exit_code\":\"0\","
+                "\"service_following\":\"main\","
+                "\"service_object_path\":\"/org/example/service\","
+                "\"service_target_ephemeral_id\":\"12345\","
+                "\"service_target_type\":\"socket\","
+                "\"service_target_address\":\"127.0.0.1:9090\","
+                "\"checksum\":\"abc\","
+                "\"item_id\":\"123456\""
+            "}," \
+            "\"operation\":\"MODIFIED\"," \
+            "\"type\":\"dbsync_services\"" \
+        "}"), lf->log == NULL) {
+        return -1;
+    }
+    os_strdup("(>syscollector", lf->location);
+    os_strdup("001", lf->agent_id);
+
+    *state = lf;
+    return 0;
+}
+
 int test_setup_hotfixes_valid_msg_inserted(void **state)
 {
     Eventinfo *lf;
@@ -551,7 +731,6 @@ int test_setup_packages_valid_msg_inserted(void **state)
     *state = lf;
     return 0;
 }
-
 
 int test_setup_processes_valid_msg_inserted(void **state)
 {
@@ -829,6 +1008,198 @@ int test_setup_os_valid_msg_inserted(void **state)
         }"),
         lf->log == NULL)
         return -1;
+    os_strdup("(>syscollector", lf->location);
+    os_strdup("001", lf->agent_id);
+
+    *state = lf;
+    return 0;
+}
+
+int test_setup_users_valid_msg_inserted(void **state)
+{
+    Eventinfo *lf;
+    os_calloc(1, sizeof(Eventinfo), lf);
+    os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+    Zero_Eventinfo(lf);
+    if (os_strdup("\
+        { \
+            \"data\":{ \
+                \"checksum\":\"da281181ada27e31ce8649ba38c0e2de9b242e40\", \
+                \"host_ip\":null, \
+                \"process_pid\":123, \
+                \"scan_time\":\"2025/06/04 20:16:55\", \
+                \"login_status\":1, \
+                \"login_tty\":\"pts/1\", \
+                \"login_type\":\"user\", \
+                \"user_auth_failed_count\":0, \
+                \"user_auth_failed_timestamp\":1750358060, \
+                \"user_created\":1750358060, \
+                \"user_last_login\":1750358060, \
+                \"user_full_name\":\"daemon\", \
+                \"user_group_id\":1, \
+                \"user_group_id_signed\":-1, \
+                \"user_groups\":\"staff,wheel\", \
+                \"user_home\":\"/home/user\", \
+                \"user_id\":1, \
+                \"user_is_hidden\":0, \
+                \"user_is_remote\":1, \
+                \"user_last_login\":null, \
+                \"user_name\":\"daemon\", \
+                \"user_roles\":\"sudo\", \
+                \"user_password_expiration_date\":1750358060, \
+                \"user_password_hash_algorithm\":null, \
+                \"user_password_inactive_days\":-1, \
+                \"user_password_last_change\":1750696338.665, \
+                \"user_password_max_days_between_changes\":99999, \
+                \"user_password_min_days_between_changes\":0, \
+                \"user_password_status\":\"locked\", \
+                \"user_password_warning_days_before_expiration\":7, \
+                \"user_shell\":\"/usr/bin/zsh\", \
+                \"user_type\":\"local\", \
+                \"user_uid_signed\":-1, \
+                \"user_uuid\":\"uuid\" \
+            }, \
+            \"operation\":\"INSERTED\", \
+            \"type\":\"dbsync_users\" \
+        }", lf->log), NULL == lf->log) {
+        return -1;
+    }
+    os_strdup("(>syscollector", lf->location);
+    os_strdup("001", lf->agent_id);
+
+    *state = lf;
+    return 0;
+}
+
+int test_setup_groups_valid_msg_inserted(void **state)
+{
+    Eventinfo *lf;
+    os_calloc(1, sizeof(Eventinfo), lf);
+    os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+    Zero_Eventinfo(lf);
+    if (os_strdup("\
+        { \
+            \"data\":{ \
+                \"checksum\":\"0de011b2818a50c78529f56c00433857622bfdb8\", \
+                \"group_description\":\"Les membres du groupe Administrateurs disposent d'un accès complet et illimité à l'ordinateur et au domaine\", \
+                \"group_id\":544, \
+                \"group_id_signed\":544, \
+                \"group_is_hidden\":null, \
+                \"group_name\":\"Administrateurs\", \
+                \"group_users\":\"54358:Administrateur\", \
+                \"group_uuid\":\"S-1-5-32-544\", \
+                \"scan_time\":\"2025/06/11 14:59:57\" \
+            }, \
+            \"operation\":\"INSERTED\", \
+            \"type\":\"dbsync_groups\" \
+        } \
+        }", lf->log), NULL == lf->log) {
+        return -1;
+    }
+    os_strdup("(>syscollector", lf->location);
+    os_strdup("001", lf->agent_id);
+
+    *state = lf;
+    return 0;
+}
+
+int test_setup_browser_extensions_valid_msg_inserted(void **state)
+{
+    Eventinfo *lf;
+    os_calloc(1, sizeof(Eventinfo), lf);
+    os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+    Zero_Eventinfo(lf);
+    if (os_strdup("\
+        { \
+            \"data\":{ \
+                \"scan_time\":\"2025/06/11 14:59:57\", \
+                \"browser_name\":\"chrome\", \
+                \"user_id\":\"S-1-5-21-1234567890-987654321-1122334455-1001\", \
+                \"package_name\":\"uBlock Origin\", \
+                \"package_id\":\"cjpalhdlnbpafiamejdnhcphjbkeiagm\", \
+                \"package_version\":\"1.52.2\", \
+                \"package_description\":\"Finally, an efficient wide-spectrum content blocker. Easy on CPU and memory.\", \
+                \"package_vendor\":\"Raymond Hill\", \
+                \"package_build_version\":null, \
+                \"package_path\":\"C:\\\\Users\\\\john.doe\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\\Default\\\\Extensions\\\\cjpalhdlnbpafiamejdnhcphjbkeiagm\\\\1.52.2_0\", \
+                \"browser_profile_name\":\"Default\", \
+                \"browser_profile_path\":\"C:\\\\Users\\\\john.doe\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\\Default\", \
+                \"package_reference\":\"https://clients2.google.com/service/update2/crx\", \
+                \"package_permissions\":\"activeTab,storage,tabs,webNavigation\", \
+                \"package_type\":\"extension\", \
+                \"package_enabled\":1, \
+                \"package_visible\":1, \
+                \"package_autoupdate\":1, \
+                \"package_persistent\":0, \
+                \"package_from_webstore\":0, \
+                \"browser_profile_referenced\":1, \
+                \"package_installed\":\"1710489821000\", \
+                \"file_hash_sha256\":\"a1b2c3d4e5f6789012345678901234567890abcdef123456789012345678901234\", \
+                \"checksum\":\"606abaac7962daf9842c84f4a15f609575d86bff\" \
+            }, \
+            \"operation\":\"INSERTED\", \
+            \"type\":\"dbsync_browser_extensions\" \
+        } \
+        }", lf->log), NULL == lf->log) {
+        return -1;
+    }
+    os_strdup("(>syscollector", lf->location);
+    os_strdup("001", lf->agent_id);
+
+    *state = lf;
+    return 0;
+}
+
+int test_setup_services_valid_msg_inserted(void **state)
+{
+    Eventinfo *lf;
+    os_calloc(1, sizeof(Eventinfo), lf);
+    os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+    Zero_Eventinfo(lf);
+    if (lf->log = strdup(
+        "{"
+            "\"data\":{"
+                "\"scan_time\":\"2021/10/29 14:26:24\","
+                "\"service_id\":\"example_service\","
+                "\"service_name\":\"example.plist\","
+                "\"service_description\":\"desc\","
+                "\"service_type\":\"own_process\","
+                "\"service_state\":\"running\","
+                "\"service_sub_state\":\"running\","
+                "\"service_enabled\":\"true\","
+                "\"service_start_type\":\"auto\","
+                "\"service_restart\":\"always\","
+                "\"service_frequency\":\"300\","
+                "\"service_starts_on_mount\":\"1\","
+                "\"service_starts_on_path_modified\":\"/etc/example\","
+                "\"service_starts_on_not_empty_directory\":\"/tmp/example\","
+                "\"service_inetd_compatibility\":\"0\","
+                "\"process_pid\":\"100\","
+                "\"process_executable\":\"/usr/bin/example\","
+                "\"process_args\":\"--config /etc/example.conf\","
+                "\"process_user_name\":\"daemon\","
+                "\"process_group_name\":\"daemon\","
+                "\"process_working_directory\":\"/usr/bin\","
+                "\"process_root_directory\":\"/\","
+                "\"file_path\":\"/Library/LaunchDaemons/example.plist\","
+                "\"service_address\":\"127.0.0.1:8080\","
+                "\"log_file_path\":\"/var/log/example.log\","
+                "\"error_log_file_path\":\"/var/log/example_error.log\","
+                "\"service_exit_code\":\"0\","
+                "\"service_win32_exit_code\":\"0\","
+                "\"service_following\":\"main\","
+                "\"service_object_path\":\"/org/example/service\","
+                "\"service_target_ephemeral_id\":\"12345\","
+                "\"service_target_type\":\"socket\","
+                "\"service_target_address\":\"127.0.0.1:9090\","
+                "\"checksum\":\"abc\","
+                "\"item_id\":\"123456\""
+            "}," \
+            "\"operation\":\"INSERTED\","
+            "\"type\":\"dbsync_services\"" \
+        "}"), lf->log == NULL) {
+        return -1;
+    }
     os_strdup("(>syscollector", lf->location);
     os_strdup("001", lf->agent_id);
 
@@ -1999,7 +2370,7 @@ void test_syscollector_dbsync_network_address_invalid_msg_modified(void **state)
     will_return(__wrap_wdbc_query_ex, 0);
     expect_string(__wrap__mdebug2, formatted_msg, "Field 'proto' cannot be obtained.");
     expect_string(__wrap__mdebug2, formatted_msg, "Error while mapping 'proto' field value.");
-    
+
     int ret = DecodeSyscollector(lf, &sock);
 
     assert_int_not_equal(ret, 0);
@@ -2098,6 +2469,181 @@ void test_syscollector_dbsync_os_valid_msg_modified(void **state)
 
     assert_int_not_equal(ret, 0);
 }
+
+void test_syscollector_dbsync_users_valid_msg_modified(void **state)
+{
+    Eventinfo *lf = *state;
+
+    const char *query = "agent 001 dbsync users MODIFIED "
+        "{"
+            "\"checksum\":\"da281181ada27e31ce8649ba38c0e2de9b242e40\","
+            "\"host_ip\":null,"
+            "\"process_pid\":null,"
+            "\"scan_time\":\"2025/06/04 20:16:55\","
+            "\"user_full_name\":\"daemon\","
+            "\"user_group_id\":1,"
+            "\"user_group_id_signed\":1,"
+            "\"user_home\":\"/usr/sbin\","
+            "\"user_id\":1,"
+            "\"user_is_remote\":1,"
+            "\"user_last_login\":null,"
+            "\"user_name\":\"daemon\","
+            "\"user_password_expiration_date\":-1,"
+            "\"user_password_hash_algorithm\":null,"
+            "\"user_password_inactive_days\":-1,"
+            "\"user_password_last_change\":1750696338.665,"
+            "\"user_password_max_days_between_changes\":99999,"
+            "\"user_password_min_days_between_changes\":0,"
+            "\"user_password_status\":\"locked\","
+            "\"user_password_warning_days_before_expiration\":7,"
+            "\"user_shell\":\"/usr/sbin/nologin\","
+            "\"user_uid_signed\":1"
+        "}";
+    const char *result = "ok ";
+    int sock = 1;
+
+    expect_any(__wrap_wdbc_query_ex, *sock);
+    expect_string(__wrap_wdbc_query_ex, query, query);
+    expect_any(__wrap_wdbc_query_ex, len);
+    will_return(__wrap_wdbc_query_ex, result);
+    will_return(__wrap_wdbc_query_ex, 0);
+
+    int ret = DecodeSyscollector(lf, &sock);
+
+    assert_int_not_equal(ret, 0);
+}
+
+void test_syscollector_dbsync_groups_valid_msg_modified(void **state)
+{
+    Eventinfo *lf = *state;
+
+    const char *query = "agent 001 dbsync groups MODIFIED "
+        "{"
+            "\"checksum\":\"0de011b2818a50c78529f56c00433857622bfdb8\","
+            "\"group_description\":\"Les membres du groupe Administrateurs disposent d'un accès complet et illimité à l'ordinateur et au domaine\","
+            "\"group_id\":544,"
+            "\"group_id_signed\":544,"
+            "\"group_is_hidden\":null,"
+            "\"group_name\":\"Administrateurs\","
+            "\"group_users\":\"54358:Administrateur\","
+            "\"group_uuid\":\"S-1-5-32-544\","
+            "\"scan_time\":\"2025/06/11 14:59:57\""
+        "}";
+    const char *result = "ok ";
+    int sock = 1;
+
+    expect_any(__wrap_wdbc_query_ex, *sock);
+    expect_string(__wrap_wdbc_query_ex, query, query);
+    expect_any(__wrap_wdbc_query_ex, len);
+    will_return(__wrap_wdbc_query_ex, result);
+    will_return(__wrap_wdbc_query_ex, 0);
+
+    int ret = DecodeSyscollector(lf, &sock);
+
+    assert_int_not_equal(ret, 0);
+}
+
+void test_syscollector_dbsync_browser_extensions_valid_msg_modified(void **state)
+{
+    Eventinfo *lf = *state;
+
+    const char *query = "agent 001 dbsync browser_extensions MODIFIED "
+        "{"
+            "\"scan_time\":\"2025/06/11 14:59:57\","
+            "\"browser_name\":\"chrome\","
+            "\"user_id\":\"S-1-5-21-1234567890-987654321-1122334455-1001\","
+            "\"package_name\":\"uBlock Origin\","
+            "\"package_id\":\"cjpalhdlnbpafiamejdnhcphjbkeiagm\","
+            "\"package_version\":\"1.52.2\","
+            "\"package_description\":\"Finally, an efficient wide-spectrum content blocker. Easy on CPU and memory.\","
+            "\"package_vendor\":\"Raymond Hill\","
+            "\"package_build_version\":null,"
+            "\"package_path\":\"C:\\\\Users\\\\john.doe\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\\Default\\\\Extensions\\\\cjpalhdlnbpafiamejdnhcphjbkeiagm\\\\1.52.2_0\","
+            "\"browser_profile_name\":\"Default\","
+            "\"browser_profile_path\":\"C:\\\\Users\\\\john.doe\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\\Default\","
+            "\"package_reference\":\"https://clients2.google.com/service/update2/crx\","
+            "\"package_permissions\":\"activeTab,storage,tabs,webNavigation\","
+            "\"package_type\":\"extension\","
+            "\"package_enabled\":1,"
+            "\"package_visible\":1,"
+            "\"package_autoupdate\":1,"
+            "\"package_persistent\":0,"
+            "\"package_from_webstore\":0,"
+            "\"browser_profile_referenced\":1,"
+            "\"package_installed\":\"1710489821000\","
+            "\"file_hash_sha256\":\"a1b2c3d4e5f6789012345678901234567890abcdef123456789012345678901234\","
+            "\"checksum\":\"606abaac7962daf9842c84f4a15f609575d86bff\""
+        "}";
+    const char *result = "ok ";
+    int sock = 1;
+
+    expect_any(__wrap_wdbc_query_ex, *sock);
+    expect_string(__wrap_wdbc_query_ex, query, query);
+    expect_any(__wrap_wdbc_query_ex, len);
+    will_return(__wrap_wdbc_query_ex, result);
+    will_return(__wrap_wdbc_query_ex, 0);
+
+    int ret = DecodeSyscollector(lf, &sock);
+
+    assert_int_not_equal(ret, 0);
+}
+
+void test_syscollector_dbsync_services_valid_msg_modified(void **state)
+{
+    Eventinfo *lf = *state;
+
+    const char *query = "agent 001 dbsync services MODIFIED "
+        "{"
+            "\"scan_time\":\"2021/10/29 14:26:24\","
+            "\"service_id\":\"example_service\","
+            "\"service_name\":\"example.plist\","
+            "\"service_description\":\"desc\","
+            "\"service_type\":\"own_process\","
+            "\"service_state\":\"running\","
+            "\"service_sub_state\":\"running\","
+            "\"service_enabled\":\"true\","
+            "\"service_start_type\":\"auto\","
+            "\"service_restart\":\"always\","
+            "\"service_frequency\":\"300\","
+            "\"service_starts_on_mount\":\"1\","
+            "\"service_starts_on_path_modified\":\"/etc/example\","
+            "\"service_starts_on_not_empty_directory\":\"/tmp/example\","
+            "\"service_inetd_compatibility\":\"0\","
+            "\"process_pid\":\"100\","
+            "\"process_executable\":\"/usr/bin/example\","
+            "\"process_args\":\"--config /etc/example.conf\","
+            "\"process_user_name\":\"daemon\","
+            "\"process_group_name\":\"daemon\","
+            "\"process_working_directory\":\"/usr/bin\","
+            "\"process_root_directory\":\"/\","
+            "\"file_path\":\"/Library/LaunchDaemons/example.plist\","
+            "\"service_address\":\"127.0.0.1:8080\","
+            "\"log_file_path\":\"/var/log/example.log\","
+            "\"error_log_file_path\":\"/var/log/example_error.log\","
+            "\"service_exit_code\":\"0\","
+            "\"service_win32_exit_code\":\"0\","
+            "\"service_following\":\"main\","
+            "\"service_object_path\":\"/org/example/service\","
+            "\"service_target_ephemeral_id\":\"12345\","
+            "\"service_target_type\":\"socket\","
+            "\"service_target_address\":\"127.0.0.1:9090\","
+            "\"checksum\":\"abc\","
+            "\"item_id\":\"123456\""
+        "}";
+    const char *result = "ok ";
+    int sock = 1;
+
+    expect_any(__wrap_wdbc_query_ex, *sock);
+    expect_string(__wrap_wdbc_query_ex, query, query);
+    expect_any(__wrap_wdbc_query_ex, len);
+    will_return(__wrap_wdbc_query_ex, result);
+    will_return(__wrap_wdbc_query_ex, 0);
+
+    int ret = DecodeSyscollector(lf, &sock);
+
+    assert_int_not_equal(ret, 0);
+}
+
 void test_syscollector_dbsync_hotfixes_valid_msg_inserted(void **state)
 {
     Eventinfo *lf = *state;
@@ -2547,6 +3093,192 @@ void test_syscollector_dbsync_os_valid_msg_no_result_payload(void **state)
     assert_int_not_equal(ret, 0);
 }
 
+void test_syscollector_dbsync_users_valid_msg_inserted(void **state)
+{
+    Eventinfo *lf = *state;
+
+    const char *query = "agent 001 dbsync users INSERTED "
+        "{"
+            "\"checksum\":\"da281181ada27e31ce8649ba38c0e2de9b242e40\","
+            "\"host_ip\":null,"
+            "\"process_pid\":123,"
+            "\"scan_time\":\"2025/06/04 20:16:55\","
+            "\"login_status\":1,"
+            "\"login_tty\":\"pts/1\","
+            "\"login_type\":\"user\","
+            "\"user_auth_failed_count\":0,"
+            "\"user_auth_failed_timestamp\":1750358060,"
+            "\"user_created\":1750358060,"
+            "\"user_last_login\":1750358060,"
+            "\"user_full_name\":\"daemon\","
+            "\"user_group_id\":1,"
+            "\"user_group_id_signed\":-1,"
+            "\"user_groups\":\"staff,wheel\","
+            "\"user_home\":\"/home/user\","
+            "\"user_id\":1,"
+            "\"user_is_hidden\":0,"
+            "\"user_is_remote\":1,"
+            "\"user_last_login\":null,"
+            "\"user_name\":\"daemon\","
+            "\"user_roles\":\"sudo\","
+            "\"user_password_expiration_date\":1750358060,"
+            "\"user_password_hash_algorithm\":null,"
+            "\"user_password_inactive_days\":-1,"
+            "\"user_password_last_change\":1750696338.665,"
+            "\"user_password_max_days_between_changes\":99999,"
+            "\"user_password_min_days_between_changes\":0,"
+            "\"user_password_status\":\"locked\","
+            "\"user_password_warning_days_before_expiration\":7,"
+            "\"user_shell\":\"/usr/bin/zsh\","
+            "\"user_type\":\"local\","
+            "\"user_uid_signed\":-1,"
+            "\"user_uuid\":\"uuid\""
+        "}";
+    const char *result = "ok ";
+    int sock = 1;
+
+    expect_any(__wrap_wdbc_query_ex, *sock);
+    expect_string(__wrap_wdbc_query_ex, query, query);
+    expect_any(__wrap_wdbc_query_ex, len);
+    will_return(__wrap_wdbc_query_ex, result);
+    will_return(__wrap_wdbc_query_ex, 0);
+
+    int ret = DecodeSyscollector(lf, &sock);
+
+    assert_int_not_equal(ret, 0);
+}
+
+void test_syscollector_dbsync_groups_valid_msg_inserted(void **state)
+{
+    Eventinfo *lf = *state;
+
+    const char *query = "agent 001 dbsync groups INSERTED "
+        "{"
+            "\"checksum\":\"0de011b2818a50c78529f56c00433857622bfdb8\","
+            "\"group_description\":\"Les membres du groupe Administrateurs disposent d'un accès complet et illimité à l'ordinateur et au domaine\","
+            "\"group_id\":544,"
+            "\"group_id_signed\":544,"
+            "\"group_is_hidden\":null,"
+            "\"group_name\":\"Administrateurs\","
+            "\"group_users\":\"54358:Administrateur\","
+            "\"group_uuid\":\"S-1-5-32-544\","
+            "\"scan_time\":\"2025/06/11 14:59:57\""
+        "}";
+    const char *result = "ok ";
+    int sock = 1;
+
+    expect_any(__wrap_wdbc_query_ex, *sock);
+    expect_string(__wrap_wdbc_query_ex, query, query);
+    expect_any(__wrap_wdbc_query_ex, len);
+    will_return(__wrap_wdbc_query_ex, result);
+    will_return(__wrap_wdbc_query_ex, 0);
+
+    int ret = DecodeSyscollector(lf, &sock);
+
+    assert_int_not_equal(ret, 0);
+}
+
+void test_syscollector_dbsync_browser_extensions_valid_msg_inserted(void **state)
+{
+    Eventinfo *lf = *state;
+
+    const char *query = "agent 001 dbsync browser_extensions INSERTED "
+        "{"
+            "\"scan_time\":\"2025/06/11 14:59:57\","
+            "\"browser_name\":\"chrome\","
+            "\"user_id\":\"S-1-5-21-1234567890-987654321-1122334455-1001\","
+            "\"package_name\":\"uBlock Origin\","
+            "\"package_id\":\"cjpalhdlnbpafiamejdnhcphjbkeiagm\","
+            "\"package_version\":\"1.52.2\","
+            "\"package_description\":\"Finally, an efficient wide-spectrum content blocker. Easy on CPU and memory.\","
+            "\"package_vendor\":\"Raymond Hill\","
+            "\"package_build_version\":null,"
+            "\"package_path\":\"C:\\\\Users\\\\john.doe\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\\Default\\\\Extensions\\\\cjpalhdlnbpafiamejdnhcphjbkeiagm\\\\1.52.2_0\","
+            "\"browser_profile_name\":\"Default\","
+            "\"browser_profile_path\":\"C:\\\\Users\\\\john.doe\\\\AppData\\\\Local\\\\Google\\\\Chrome\\\\User Data\\\\Default\","
+            "\"package_reference\":\"https://clients2.google.com/service/update2/crx\","
+            "\"package_permissions\":\"activeTab,storage,tabs,webNavigation\","
+            "\"package_type\":\"extension\","
+            "\"package_enabled\":1,"
+            "\"package_visible\":1,"
+            "\"package_autoupdate\":1,"
+            "\"package_persistent\":0,"
+            "\"package_from_webstore\":0,"
+            "\"browser_profile_referenced\":1,"
+            "\"package_installed\":\"1710489821000\","
+            "\"file_hash_sha256\":\"a1b2c3d4e5f6789012345678901234567890abcdef123456789012345678901234\","
+            "\"checksum\":\"606abaac7962daf9842c84f4a15f609575d86bff\""
+        "}";
+    const char *result = "ok ";
+    int sock = 1;
+
+    expect_any(__wrap_wdbc_query_ex, *sock);
+    expect_string(__wrap_wdbc_query_ex, query, query);
+    expect_any(__wrap_wdbc_query_ex, len);
+    will_return(__wrap_wdbc_query_ex, result);
+    will_return(__wrap_wdbc_query_ex, 0);
+
+    int ret = DecodeSyscollector(lf, &sock);
+
+    assert_int_not_equal(ret, 0);
+}
+
+void test_syscollector_dbsync_services_valid_msg_inserted(void **state)
+{
+    Eventinfo *lf = *state;
+
+    const char *query = "agent 001 dbsync services INSERTED "
+        "{"
+            "\"scan_time\":\"2021/10/29 14:26:24\","
+            "\"service_id\":\"example_service\","
+            "\"service_name\":\"example.plist\","
+            "\"service_description\":\"desc\","
+            "\"service_type\":\"own_process\","
+            "\"service_state\":\"running\","
+            "\"service_sub_state\":\"running\","
+            "\"service_enabled\":\"true\","
+            "\"service_start_type\":\"auto\","
+            "\"service_restart\":\"always\","
+            "\"service_frequency\":\"300\","
+            "\"service_starts_on_mount\":\"1\","
+            "\"service_starts_on_path_modified\":\"/etc/example\","
+            "\"service_starts_on_not_empty_directory\":\"/tmp/example\","
+            "\"service_inetd_compatibility\":\"0\","
+            "\"process_pid\":\"100\","
+            "\"process_executable\":\"/usr/bin/example\","
+            "\"process_args\":\"--config /etc/example.conf\","
+            "\"process_user_name\":\"daemon\","
+            "\"process_group_name\":\"daemon\","
+            "\"process_working_directory\":\"/usr/bin\","
+            "\"process_root_directory\":\"/\","
+            "\"file_path\":\"/Library/LaunchDaemons/example.plist\","
+            "\"service_address\":\"127.0.0.1:8080\","
+            "\"log_file_path\":\"/var/log/example.log\","
+            "\"error_log_file_path\":\"/var/log/example_error.log\","
+            "\"service_exit_code\":\"0\","
+            "\"service_win32_exit_code\":\"0\","
+            "\"service_following\":\"main\","
+            "\"service_object_path\":\"/org/example/service\","
+            "\"service_target_ephemeral_id\":\"12345\","
+            "\"service_target_type\":\"socket\","
+            "\"service_target_address\":\"127.0.0.1:9090\","
+            "\"checksum\":\"abc\","
+            "\"item_id\":\"123456\""
+        "}";
+    const char *result = "ok ";
+    int sock = 1;
+
+    expect_any(__wrap_wdbc_query_ex, *sock);
+    expect_string(__wrap_wdbc_query_ex, query, query);
+    expect_any(__wrap_wdbc_query_ex, len);
+    will_return(__wrap_wdbc_query_ex, result);
+    will_return(__wrap_wdbc_query_ex, 0);
+
+    int ret = DecodeSyscollector(lf, &sock);
+
+    assert_int_not_equal(ret, 0);
+}
+
 void test_syscollector_dbsync_valid_msg_no_operation_or_data_no_object(void **state)
 {
     Eventinfo *lf = *state;
@@ -2806,7 +3538,7 @@ void test_syscollector_hardware_invalid_query (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result);
     will_return(__wrap_wdbc_query_ex, -1);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send hardware information to Wazuh DB.");
 
     int ret = DecodeSyscollector(lf, &sock);
@@ -2825,7 +3557,7 @@ void test_syscollector_hardware_parse_result_not_ok (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send hardware information to Wazuh DB.");
 
     int ret = DecodeSyscollector(lf, &sock);
@@ -2881,7 +3613,7 @@ void test_syscollector_hotfix_invalid_query (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result);
     will_return(__wrap_wdbc_query_ex, -1);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send hotfixes information to Wazuh DB.");
 
     int ret = DecodeSyscollector(lf, &sock);
@@ -2898,7 +3630,7 @@ void test_syscollector_hotfix_without_ID (void **state)
 {
     Eventinfo *lf = *state;
 
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send hotfixes information to Wazuh DB.");
 
     int ret = DecodeSyscollector(lf, 0);
@@ -2917,7 +3649,7 @@ void test_syscollector_hotfix_parse_result_not_ok (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send hotfixes information to Wazuh DB.");
 
     int ret = DecodeSyscollector(lf, &sock);
@@ -2936,7 +3668,7 @@ void test_syscollector_netinfo_valid (void **state)
             "agent 001 netproto save 100|86|1|0000:0000:0000:0:0000:0000:0000:0002|"
                 "0000:0000:0000:0:0000:0000:0000:0003|10",
             "agent 001 netaddr save 100|86|1|0000:0000:0000:0:0000:0000:0000:0000|"
-                "0000::|0000:0000:0000:0:0000:0000:0000:0001", 
+                "0000::|0000:0000:0000:0:0000:0000:0000:0001",
             "agent 001 netaddr save 100|86|1|0000:0000:0000:0:0000:0000:0001:0000|"
                 "0001::|0000:0000:0000:0:0000:0000:0001:0001" };
 
@@ -3031,7 +3763,7 @@ void test_syscollector_netinfo_valid_network_end (void **state)
 
     int ret = DecodeSyscollector(lf, &sock);
     assert_int_not_equal(ret, 0);
- 
+
     // Invalid query
     expect_any(__wrap_wdbc_query_ex, *sock);
     expect_string(__wrap_wdbc_query_ex, query, query);
@@ -3261,7 +3993,7 @@ void test_syscollector_osinfo_invalid_inventory_empty (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result);
     will_return(__wrap_wdbc_query_ex, -1);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send osinfo message to Wazuh DB.");
 
     int ret = DecodeSyscollector(lf, &sock);
@@ -3273,7 +4005,7 @@ void test_syscollector_osinfo_invalid_inventory_empty (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result_not_ok);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send osinfo message to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3347,7 +4079,7 @@ void test_syscollector_package_program_empty (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result);
     will_return(__wrap_wdbc_query_ex, -1);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send packages information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3360,7 +4092,7 @@ void test_syscollector_package_program_empty (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result_not_ok);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send packages information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3371,7 +4103,7 @@ void test_syscollector_package_valid_without_ID (void **state)
 {
     Eventinfo *lf = *state;
 
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send packages information to Wazuh DB.");
 
     int ret = DecodeSyscollector(lf, NULL);
@@ -3403,7 +4135,7 @@ void test_syscollector_package_program_end (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result);
     will_return(__wrap_wdbc_query_ex, -1);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send packages information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3420,7 +4152,7 @@ void test_syscollector_package_program_end (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result_not_ok);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send packages information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3433,7 +4165,7 @@ void test_syscollector_package_program_end (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result_not_ok);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send packages information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3504,7 +4236,7 @@ void test_syscollector_port_empty (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result);
     will_return(__wrap_wdbc_query_ex, -1);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send ports information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3517,7 +4249,7 @@ void test_syscollector_port_empty (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result_not_ok);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send ports information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3528,7 +4260,7 @@ void test_syscollector_port_valid_without_ID (void **state)
 {
     Eventinfo *lf = *state;
 
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send ports information to Wazuh DB.");
 
     int ret = DecodeSyscollector(lf, NULL);
@@ -3560,7 +4292,7 @@ void test_syscollector_port_end (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result);
     will_return(__wrap_wdbc_query_ex, -1);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send ports information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3577,7 +4309,7 @@ void test_syscollector_port_end (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result_not_ok);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send ports information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3590,7 +4322,7 @@ void test_syscollector_port_end (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result_not_ok);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send ports information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3663,7 +4395,7 @@ void test_syscollector_process_empty (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result);
     will_return(__wrap_wdbc_query_ex, -1);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send processes information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3676,7 +4408,7 @@ void test_syscollector_process_empty (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result_not_ok);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send processes information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3687,7 +4419,7 @@ void test_syscollector_process_valid_without_ID (void **state)
 {
     Eventinfo *lf = *state;
 
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send processes information to Wazuh DB.");
 
     int ret = DecodeSyscollector(lf, NULL);
@@ -3719,7 +4451,7 @@ void test_syscollector_process_end (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result);
     will_return(__wrap_wdbc_query_ex, -1);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send processes information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3736,7 +4468,7 @@ void test_syscollector_process_end (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result_not_ok);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send processes information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3749,7 +4481,7 @@ void test_syscollector_process_end (void **state)
     expect_any(__wrap_wdbc_query_ex, len);
     will_return(__wrap_wdbc_query_ex, result_not_ok);
     will_return(__wrap_wdbc_query_ex, 0);
-    expect_string(__wrap__mdebug1, formatted_msg, 
+    expect_string(__wrap__mdebug1, formatted_msg,
             "Unable to send processes information to Wazuh DB.");
 
     ret = DecodeSyscollector(lf, &sock);
@@ -3782,6 +4514,10 @@ int main()
         cmocka_unit_test_setup_teardown(test_syscollector_dbsync_network_address_valid_msg_modified, test_setup_network_address_valid_msg_modified, test_cleanup),
         cmocka_unit_test_setup_teardown(test_syscollector_dbsync_hardware_valid_msg_modified, test_setup_hardware_valid_msg_modified, test_cleanup),
         cmocka_unit_test_setup_teardown(test_syscollector_dbsync_os_valid_msg_modified, test_setup_os_valid_msg_modified, test_cleanup),
+        cmocka_unit_test_setup_teardown(test_syscollector_dbsync_users_valid_msg_modified, test_setup_users_valid_msg_modified, test_cleanup),
+        cmocka_unit_test_setup_teardown(test_syscollector_dbsync_groups_valid_msg_modified, test_setup_groups_valid_msg_modified, test_cleanup),
+        cmocka_unit_test_setup_teardown(test_syscollector_dbsync_browser_extensions_valid_msg_modified, test_setup_browser_extensions_valid_msg_modified, test_cleanup),
+        cmocka_unit_test_setup_teardown(test_syscollector_dbsync_services_valid_msg_modified, test_setup_services_valid_msg_modified, test_cleanup),
         /* INSERTED delta tests*/
         cmocka_unit_test_setup_teardown(test_syscollector_dbsync_hotfixes_valid_msg_inserted, test_setup_hotfixes_valid_msg_inserted, test_cleanup),
         cmocka_unit_test_setup_teardown(test_syscollector_dbsync_packages_valid_msg_inserted, test_setup_packages_valid_msg_inserted, test_cleanup),
@@ -3797,6 +4533,10 @@ int main()
         cmocka_unit_test_setup_teardown(test_syscollector_dbsync_insert_multiple_null_valid_msg, test_setup_insert_multiple_null_field_valid_msg, test_cleanup),
         cmocka_unit_test_setup_teardown(test_syscollector_dbsync_deleted_multiple_null_valid_msg, test_setup_deleted_multiple_null_field_valid_msg, test_cleanup),
         cmocka_unit_test_setup_teardown(test_syscollector_dbsync_os_valid_msg_no_result_payload, test_setup_os_valid_msg_modified, test_cleanup),
+        cmocka_unit_test_setup_teardown(test_syscollector_dbsync_users_valid_msg_inserted, test_setup_users_valid_msg_inserted, test_cleanup),
+        cmocka_unit_test_setup_teardown(test_syscollector_dbsync_groups_valid_msg_inserted, test_setup_groups_valid_msg_inserted, test_cleanup),
+        cmocka_unit_test_setup_teardown(test_syscollector_dbsync_browser_extensions_valid_msg_inserted, test_setup_browser_extensions_valid_msg_inserted, test_cleanup),
+        cmocka_unit_test_setup_teardown(test_syscollector_dbsync_services_valid_msg_inserted, test_setup_services_valid_msg_inserted, test_cleanup),
         // Hardware tests
         cmocka_unit_test_setup_teardown(test_syscollector_hardware_valid, test_setup_hardware_valid_msg, test_cleanup),
         cmocka_unit_test_setup_teardown(test_syscollector_hardware_valid_inventory_empty, test_setup_hardware_valid_msg_inventory_empty, test_cleanup),

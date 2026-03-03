@@ -28,6 +28,9 @@
 #include <thread>
 #include <unistd.h>
 
+#ifdef INVALID_SOCKET
+#undef INVALID_SOCKET
+#endif
 constexpr auto INVALID_SOCKET {-1};
 constexpr auto SOCKET_ERROR {-1};
 using PacketFieldType = uint32_t;
@@ -232,8 +235,8 @@ public:
                             uint32_t& bufferSize,
                             const char* dataBody,
                             uint32_t sizeBody,
-                            const char* dataHeader = nullptr,
-                            uint32_t sizeHeader = 0)
+                            [[maybe_unused]] const char* dataHeader = nullptr,
+                            [[maybe_unused]] uint32_t sizeHeader = 0)
     {
         if (sizeof(Header) + sizeBody > BUFFER_MAX_SIZE)
         {
@@ -255,7 +258,7 @@ public:
      * @param buffer Buffer to obtain the header size from.
      * @return auto Header size.
      */
-    auto static getHeaderSize(const std::vector<char>& buffer)
+    auto static getHeaderSize([[maybe_unused]] const std::vector<char>& buffer)
     {
         return 0;
     }
@@ -266,7 +269,7 @@ public:
      * @param headerSize The size of the header.
      * @return auto Data offset.
      */
-    auto static getDataOffset(uint32_t headerSize)
+    auto static getDataOffset([[maybe_unused]] uint32_t headerSize)
     {
         return 0;
     }
@@ -312,8 +315,8 @@ public:
                             uint32_t& bufferSize,
                             const char* dataBody,
                             uint32_t sizeBody,
-                            const char* dataHeader = nullptr,
-                            uint32_t sizeHeader = 0)
+                            [[maybe_unused]] const char* dataHeader = nullptr,
+                            [[maybe_unused]] uint32_t sizeHeader = 0)
     {
         if (sizeBody > BUFFER_MAX_SIZE)
         {
@@ -331,7 +334,7 @@ public:
      * @param buffer Buffer to obtain the header size from.
      * @return auto Header size.
      */
-    auto static getHeaderSize(const std::vector<char>& buffer)
+    auto static getHeaderSize([[maybe_unused]] const std::vector<char>& buffer)
     {
         return 0;
     }
@@ -342,7 +345,7 @@ public:
      * @param headerSize The size of the header.
      * @return auto Data offset.
      */
-    auto static getDataOffset(uint32_t headerSize)
+    auto static getDataOffset([[maybe_unused]] uint32_t headerSize)
     {
         return 0;
     }
@@ -633,7 +636,8 @@ public:
         while (!m_unsentPacketList.empty())
         {
             auto& packet = m_unsentPacketList.front();
-            auto ret = T::send(m_sock, packet.data.get() + packet.offset, packet.size - packet.offset, MSG_NOSIGNAL);
+            auto ret =
+                T::send(m_sock, packet.m_data.get() + packet.m_offset, packet.m_size - packet.m_offset, MSG_NOSIGNAL);
             if (ret <= 0)
             {
                 if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -647,10 +651,10 @@ public:
             }
             else
             {
-                if (ret != packet.size)
+                if (ret != packet.m_size)
                 {
                     // In this case we need to send the rest of the data, when the next send is called.
-                    packet.offset += ret;
+                    packet.m_offset += ret;
                 }
                 else
                 {

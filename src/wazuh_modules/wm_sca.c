@@ -271,13 +271,13 @@ static int wm_sca_send_alert(wm_sca_t * data,cJSON *json_alert)
     mdebug2("Sending event: %s",msg);
 
     if (wm_sendmsg(data->msg_delay, queue_fd, msg,WM_SCA_STAMP, SCA_MQ) < 0) {
-        merror(QUEUE_ERROR, DEFAULTQUEUE, strerror(errno));
+        mdebug1(QUEUE_ERROR, DEFAULTQUEUE, strerror(errno));
 
         if ((data->queue = StartMQ(DEFAULTQUEUE, WRITE, INFINITE_OPENQ_ATTEMPTS)) < 0) {
             mwarn("Can't connect to queue.");
         } else {
             if(wm_sendmsg(data->msg_delay, data->queue, msg,WM_SCA_STAMP, SCA_MQ) < 0) {
-                merror(QUEUE_ERROR, DEFAULTQUEUE, strerror(errno));
+                mdebug1(QUEUE_ERROR, DEFAULTQUEUE, strerror(errno));
             }
         }
     }
@@ -628,9 +628,8 @@ static int wm_sca_check_policy(const cJSON * const policy, const cJSON * const c
             return 1;
         }
 
-        if (check_id->valueint <= 0) {
-            // Invalid ID
-            mwarn("Invalid check ID: %d", check_id->valueint);
+        if (!cJSON_IsNumber(check_id)) {
+            mwarn("Invalid check ID type: must be a number.");
             free(read_id);
             return 1;
         }
@@ -976,7 +975,7 @@ static int wm_sca_do_scan(cJSON * checks,
             snprintf(_check_id_str, sizeof(_check_id_str), "Requirements check");
         } else {
             const cJSON * const c_id = cJSON_GetObjectItem(check, "id");
-            if (!c_id || !c_id->valueint) {
+            if (!c_id || !cJSON_IsNumber(c_id)) {
                 merror("Skipping check. Check ID is invalid. Offending check number: %d", check_count);
                 ret_val = 1;
                 continue;
@@ -2059,7 +2058,7 @@ static int wm_sca_check_dir_existence(const char * const dir, char **reason)
     }
     #endif
 
-    DIR *dp = opendir(realpath_buffer);
+    DIR *dp = wopendir(realpath_buffer);
     const int open_dir_errno = errno;
     if (dp) {
         mdebug2("DIR_EXISTS(%s) -> RETURN_FOUND", dir);
@@ -2108,7 +2107,7 @@ static int wm_sca_check_dir(const char * const dir,
     }
     #endif
 
-    DIR *dp = opendir(realpath_buffer);
+    DIR *dp = wopendir(realpath_buffer);
     if (!dp) {
         const int open_dir_errno = errno;
         if (*reason == NULL) {
@@ -2638,7 +2637,7 @@ static cJSON *wm_sca_build_event(const cJSON * const check, const cJSON * const 
         goto error;
     }
 
-    if(!pm_id->valueint) {
+    if(!cJSON_IsNumber(pm_id)) {
         mdebug1("Field 'id' must be a number.");
         goto error;
     }
@@ -2865,15 +2864,15 @@ static int wm_sca_check_hash(OSHash * const cis_db_hash, const char * const resu
     cJSON *pm_id = cJSON_GetObjectItem(check, "id");
     int alert = 1;
 
-    if(!pm_id) {
+    if (!pm_id || !cJSON_IsNumber(pm_id)) {
         return 0;
     }
 
-    if(!pm_id->valueint) {
-        return 0;
+    if(pm_id->valuedouble == (double)pm_id->valueint) {
+        snprintf(id_hashed, sizeof(id_hashed), "%d", pm_id->valueint);
+    } else {
+        snprintf(id_hashed, sizeof(id_hashed), "%lf", pm_id->valuedouble);
     }
-
-    sprintf(id_hashed, "%d", pm_id->valueint);
 
     hashed_result = OSHash_Get(cis_db_hash, id_hashed);
 
@@ -3181,7 +3180,7 @@ static void * wm_sca_request_thread(wm_sca_t * data) {
     /* Create request socket */
     int cfga_queue;
     if ((cfga_queue = StartMQWithSpecificOwnerAndPerms(CFGAQUEUE, READ, 0, getuid(), wm_getGroupID(), 0660)) < 0) {
-        merror(QUEUE_ERROR, CFGAQUEUE, strerror(errno));
+        mdebug1(QUEUE_ERROR, CFGAQUEUE, strerror(errno));
         pthread_exit(NULL);
     }
 

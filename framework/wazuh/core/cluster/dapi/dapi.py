@@ -11,7 +11,7 @@ import operator
 import os
 import time
 from collections import defaultdict
-from concurrent.futures import process
+from concurrent.futures import process, ProcessPoolExecutor
 from copy import copy, deepcopy
 from functools import reduce, partial
 from operator import or_
@@ -30,12 +30,23 @@ from wazuh.core import common, exception
 from wazuh.core.cluster import local_client, common as c_common
 from wazuh.core.cluster.cluster import check_cluster_status
 from wazuh.core.exception import WazuhException, WazuhClusterError, WazuhError
+from wazuh.core.pyDaemonModule import spawn_process_pool_worker, API_AUTHENTICATION_PROCESS
 from wazuh.core.wazuh_socket import wazuh_sendsync
 
-pools = common.mp_pools.get()
 
 authentication_funcs = {'check_token', 'check_user_master', 'get_permissions', 'get_security_conf'}
-events_funcs = {"send_event_to_analysisd"}
+events_funcs = {'send_event_to_analysisd'}
+
+node_info = wazuh.core.cluster.cluster.get_node()
+pools = common.mp_pools.get()
+if node_info['type'] == 'master':
+    # Suppress exception when the user running Wazuh cannot access /dev/shm.
+    with contextlib.suppress(FileNotFoundError, PermissionError):
+        pools.update({'authentication_pool': ProcessPoolExecutor(
+            max_workers=aconf.api_conf['authentication_pool_size'],
+            initializer=partial(spawn_process_pool_worker, API_AUTHENTICATION_PROCESS)
+        )})
+
 
 class DistributedAPI:
     """Represents a distributed API request."""
@@ -91,7 +102,7 @@ class DistributedAPI:
         self.node = node if node is not None else local_client
         self.cluster_items = wazuh.core.cluster.utils.get_cluster_items() if node is None else node.cluster_items
         self.debug = debug
-        self.node_info = wazuh.core.cluster.cluster.get_node() if node is None else node.get_node()
+        self.node_info = node_info if node is None else node.get_node()
         self.request_type = request_type
         self.wait_for_complete = wait_for_complete
         self.from_cluster = from_cluster
@@ -231,13 +242,19 @@ class DistributedAPI:
     @staticmethod
     def run_local(f, f_kwargs, rbac_permissions, broadcasting, nodes, current_user, origin_module):
         """Run framework SDK function locally in another process."""
-        common.rbac.set(rbac_permissions)
-        common.broadcast.set(broadcasting)
-        common.cluster_nodes.set(nodes)
-        common.current_user.set(current_user)
-        common.origin_module.set(origin_module)
-        data = f(**f_kwargs)
-        common.reset_context_cache()
+        try:
+            common.rbac.set(rbac_permissions)
+            broadcast_token = common.broadcast.set(broadcasting)
+            common.cluster_nodes.set(nodes)
+            common.current_user.set(current_user)
+            common.origin_module.set(origin_module)
+            data = f(**f_kwargs)
+        except WazuhException as e:
+            raise e
+        finally:
+            common.broadcast.reset(broadcast_token)
+            common.reset_context_cache()
+
         return data
 
     async def execute_local_request(self) -> str:
@@ -295,7 +312,7 @@ class DistributedAPI:
             except process.BrokenProcessPool:
                 raise exception.WazuhInternalError(900)
 
-            self.debug_log(f"Time calculating request result: {time.time() - before:.3f}s")
+            self.debug_log(f"Time calculating request ({self.f.__name__}) result: {time.time() - before:.3f}s")
             return data
         except exception.WazuhInternalError as e:
             e.dapi_errors = self.get_error_info(e)
@@ -365,7 +382,10 @@ class DistributedAPI:
         try:
             common.rbac.set(self.rbac_permissions)
             node_wrapper = get_node_wrapper()
-            node = node_wrapper.affected_items[0]['node']
+            if node_wrapper is None:
+                node = 'unknown-node'
+            else:
+                node = node_wrapper.affected_items[0]['node']
         except exception.WazuhException as rbac_exception:
             if rbac_exception.code == 4000:
                 node = 'unknown-node'

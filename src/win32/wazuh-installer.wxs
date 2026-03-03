@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
-    <Product Id="*" Name="Wazuh Agent" Language="1033" Version="4.11.1" Manufacturer="Wazuh, Inc." UpgradeCode="F495AC57-7BDE-4C4B-92D8-DBE40A9AA5A0">
+    <Product Id="*" Name="Wazuh Agent" Language="1033" Version="4.14.3" Manufacturer="Wazuh, Inc." UpgradeCode="F495AC57-7BDE-4C4B-92D8-DBE40A9AA5A0">
         <Package Description="Wazuh helps you to gain security visibility into your infrastructure by monitoring hosts at an operating system and application level. It provides the following capabilities: log analysis, file integrity monitoring, intrusions detection and policy and compliance monitoring" Comments="wazuh-agent" InstallerVersion="200" Compressed="yes" />
         <Media Id="1" Cabinet="simple.cab" EmbedCab="yes" CompressionLevel="high" />
 
@@ -123,7 +123,7 @@
         <!-- Explicitely stopping and deleting the OSSEC service to install new Wazuh service -->
         <CustomAction Id="StopOssecService" Directory="APPLICATIONFOLDER" ExeCommand="NET STOP OssecSvc" Execute="deferred" Impersonate="no" Return="ignore" />
         <CustomAction Id="DeleteOssecService" Directory="APPLICATIONFOLDER" ExeCommand="SC DELETE OssecSvc" Execute="deferred" Impersonate="no" Return="ignore" />
-        <CustomAction Id="StartWazuhSvc" BinaryKey="InstallerScripts" VBScriptCall="StartWazuhSvc" Return="check" Execute="deferred" Impersonate="no"/>
+        <CustomAction Id="StartWazuhSvc" BinaryKey="InstallerScripts" VBScriptCall="StartWazuhSvc" Return="check" Execute="immediate" Impersonate="no"/>
 
         <!-- Close the Wazuh agent GUI -->
         <CustomAction Id="CloseGUI" BinaryKey="InstallerScripts" VBScriptCall="KillGUITask" Return="check" Execute="deferred" Impersonate="no"/>
@@ -185,7 +185,7 @@
             <Custom Action="SetWazuhPermissions" After="SetCustomActionDataForSetWazuhPermissions">(WIX_UPGRADE_DETECTED) OR (PATCH)</Custom>
 
             <!-- Start services if necessary -->
-            <Custom Action="StartWazuhSvc" After="InstallServices">((WIX_UPGRADE_DETECTED) OR (PATCH)) AND ((OSSECRUNNING = "Running") OR (WAZUHRUNNING = "Running"))</Custom>
+            <Custom Action="StartWazuhSvc" After="InstallFinalize">((WIX_UPGRADE_DETECTED) OR (PATCH)) AND ((OSSECRUNNING = "Running") OR (WAZUHRUNNING = "Running"))</Custom>
 
             <!-- Stop the service as soon as possible on uninstall, and only on uninstall, in order to unlock the files and folders that must be deleted. -->
 			<Custom Action="SetRemoveAllDataValue" Before="InstallFinalize">(NOT UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")</Custom>
@@ -302,11 +302,8 @@
                     <Component DiskId="1" Guid="21A074CB-3BFB-45D2-A0EC-D59293950DD9" Id="HELP_WIN.TXT">
                         <File Id="HELP_WIN.TXT" Name="help.txt" Source="help_win.txt" />
                     </Component>
-                    <Component Id="VERSION" DiskId="1" Guid="8DC3D417-5663-4E53-9D8F-2CFA08A2627C">
-                        <File Id="VERSION" Name="VERSION" Source="VERSION" />
-                    </Component>
-                    <Component Id="REVISION" DiskId="1" Guid="89440258-B50F-4926-8068-D1444E31F8E0">
-                        <File Id="REVISION" Name="REVISION" Source="REVISION" />
+                    <Component Id="VERSION.JSON" DiskId="1" Guid="296571f4-2498-4cf6-b286-b2c54430678e">
+                        <File Id="VERSION.JSON" Name="VERSION.json" Source="VERSION.json" />
                     </Component>
                     <Component Id="WPK_ROOT.PEM" DiskId="1" Guid="EABF8773-57B9-4CD8-A862-87B0E060DBF8">
                         <File Id="WPK_ROOT.PEM" Name="wpk_root.pem" Source="..\..\etc\wpk_root.pem" />
@@ -450,7 +447,11 @@
                             </Component>
                             <Component Id="SCA_WIN2022" DiskId="1" Guid="795CC5E6-C27A-47B5-945A-8026470F1B0D">
                                 <File Id="SCA_WIN2022" Name="cis_win2022.yml" Source="..\..\ruleset\sca\windows\cis_win2022.yml" />
-                                <Condition>BUILDVERSION &gt; 20000 AND MsiNTProductType &gt; 1</Condition>
+                                <Condition>BUILDVERSION = "20348" AND MsiNTProductType &gt; 1</Condition>
+                            </Component>
+                            <Component Id="SCA_WIN2025" DiskId="1" Guid="0C466900-EB75-46E1-97F3-14DB39E77412">
+                                <File Id="SCA_WIN2025" Name="cis_win2025.yml" Source="..\..\ruleset\sca\windows\cis_win2025.yml" />
+                                <Condition>BUILDVERSION = "26100" AND MsiNTProductType &gt; 1</Condition>
                             </Component>
                         </Directory>
                     </Directory>
@@ -672,6 +673,7 @@
             <ComponentRef Id="SCA_WIN2016" />
             <ComponentRef Id="SCA_WIN2019" />
             <ComponentRef Id="SCA_WIN2022" />
+            <ComponentRef Id="SCA_WIN2025" />
             <ComponentRef Id="CMP_BOOKMARKS" />
             <ComponentRef Id="CMP_LOGS" />
             <ComponentRef Id="CMP_WODLES" />
@@ -683,8 +685,7 @@
             <ComponentRef Id="REMOVE_OLD_NSIS" />
             <ComponentRef Id="REMOVE_OLD_AR" />
             <ComponentRef Id="HELP_WIN.TXT" />
-            <ComponentRef Id="VERSION" />
-            <ComponentRef Id="REVISION" />
+            <ComponentRef Id="VERSION.JSON" />
             <ComponentRef Id="WPK_ROOT.PEM" />
             <ComponentRef Id="WXP_CONF_SYSCHECK" />
             <ComponentRef Id="WXP_CONF_LOCALFILE" />
@@ -710,7 +711,7 @@
         <Binary Id="CustomImage" SourceFile="ui\bannrbmp.jpg" />
         <UI>
 	        <Dialog Id="CustomCheckDialog" Width="370" Height="270" Title="Wazuh Agent Setup">
-                <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44" 
+                <Control Id="BannerBitmap" Type="Bitmap" X="0" Y="0" Width="370" Height="44"
                     Text="CustomImage" />
 
                 <Control Id="Description" Type="Text" X="20" Y="60" Width="330" Height="60"

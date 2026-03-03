@@ -2,6 +2,7 @@
 # Created by Wazuh, Inc. <info@wazuh.com>.
 # This program is free software; you can redistribute it and/or modify it under the terms of GPLv2
 
+import contextlib
 import hashlib
 import operator
 from os import chmod, path, listdir
@@ -9,17 +10,19 @@ from typing import Union
 
 from wazuh.core import common, configuration
 from wazuh.core.InputValidator import InputValidator
-from wazuh.core.agent import WazuhDBQueryAgents, WazuhDBQueryGroupByAgents, WazuhDBQueryMultigroups, Agent, \
+from wazuh.core.agent import WazuhDBQueryAgents, WazuhDBQueryGroupByAgents, Agent, \
     WazuhDBQueryGroup, create_upgrade_tasks, get_agents_info, get_groups, get_rbac_filters, send_restart_command, \
     GROUP_FIELDS, GROUP_REQUIRED_FIELDS, GROUP_FILES_FIELDS, GROUP_FILES_REQUIRED_FIELDS
+from wazuh.core.wdb_http import get_wdb_http_client
 from wazuh.core.cluster.cluster import get_node
 from wazuh.core.cluster.utils import read_cluster_config
 from wazuh.core.exception import WazuhError, WazuhInternalError, WazuhException, WazuhResourceNotFound
 from wazuh.core.results import WazuhResult, AffectedItemsWazuhResult
 from wazuh.core.utils import chmod_r, chown_r, get_hash, mkdir_with_mode, md5, process_array, clear_temporary_caches, \
-    full_copy
+    full_copy, check_if_wazuh_agent_version, parse_wazuh_agent_version
 from wazuh.core.wazuh_queue import WazuhQueue
-from wazuh.rbac.decorators import expose_resources
+from wazuh.core.wdb_http import get_wdb_http_client
+from wazuh.rbac.decorators import expose_resources, async_list_handler
 
 cluster_enabled = not read_cluster_config(from_import=True)['disabled']
 node_id = get_node().get('node') if cluster_enabled else None
@@ -42,6 +45,10 @@ ERROR_CODES_UPGRADE_SOCKET_BAD_REQUEST = [1823]
 # Error codes generated from upgrade socket error codes that should be excluded in get upgrade results
 # 1813 -> No task in DB
 ERROR_CODES_UPGRADE_SOCKET_GET_UPGRADE_RESULT = [1813]
+
+STATUS = 'status'
+COUNT = 'count'
+GROUP_CONFIG_STATUS = 'group_config_status'
 
 
 @expose_resources(actions=["agent:read"], resources=["agent:id:{agent_list}"], post_proc_func=None)
@@ -93,6 +100,26 @@ def get_distinct_agents(agent_list: list = None, offset: int = 0, limit: int = c
 
 
 @expose_resources(actions=["agent:read"], resources=["agent:id:{agent_list}"], post_proc_func=None)
+async def get_agents_summary(agent_list: list[str] = None) -> WazuhResult:
+    """Count the number of agents by status, OS and group.
+
+    Parameters
+    ----------
+    agent_list : list[str]
+       Agents IDs list.
+
+    Returns
+    -------
+    WazuhResult
+        Result object.
+    """
+    async with get_wdb_http_client() as wdb_client:
+        agents_summary = await wdb_client.get_agents_summary(agent_list)
+
+    return WazuhResult({'data': agents_summary.to_dict()})
+
+
+@expose_resources(actions=["agent:read"], resources=["agent:id:{agent_list}"], post_proc_func=None)
 def get_agents_summary_status(agent_list: list[str] = None) -> WazuhResult:
     """Count the number of agents by connection and groups configuration synchronization statuses.
 
@@ -107,23 +134,37 @@ def get_agents_summary_status(agent_list: list[str] = None) -> WazuhResult:
         WazuhResult object.
     """
     connection = {'active': 0, 'disconnected': 0, 'never_connected': 0, 'pending': 0, 'total': 0}
-    sync_configuration = {'synced': 0, 'not synced': 0, 'total': 0}
+    sync_configuration = {'synced': 0, 'not_synced': 0, 'total': 0}
     if agent_list:
         rbac_filters = get_rbac_filters(system_resources=get_agents_info(), permitted_resources=agent_list)
+        total = 0
 
-        # We don't consider agent 000 in order to get the summary
-        with WazuhDBQueryAgents(limit=None, select=['status', 'group_config_status'], query="id!=000",
-                                **rbac_filters) as db_query:
-            data = db_query.run()
+        with WazuhDBQueryGroupByAgents(filter_fields=[STATUS], select=[STATUS], query='id!=000',
+                                       min_select_fields=set(), count=True, get_data=True, offset=0, 
+                                       limit=4, sort=None, search=None,
+                                       **rbac_filters) as db_query:
+            status_data = db_query.run()
 
-        items = data['items']
-        for agent in items:
-            connection[agent['status']] += 1
-            sync_configuration[agent['group_config_status']] += 1
+            for item in status_data['items']:
+                connection[item[STATUS]] = item[COUNT]
+                total += item[COUNT]
+        
+        with WazuhDBQueryGroupByAgents(filter_fields=[GROUP_CONFIG_STATUS], select=[GROUP_CONFIG_STATUS], 
+                                       query='id!=000', min_select_fields=set(), count=True, get_data=True,
+                                       offset=0, limit=2, sort=None, search=None,
+                                       **rbac_filters) as db_query:
+            sync_data = db_query.run()
 
-        connection['total'] = sync_configuration['total'] = len(items)
+            for item in sync_data['items']:
+                # Use 'not_synced' instead of 'not synced'
+                if item[GROUP_CONFIG_STATUS] == 'not synced':
+                    sync_configuration['not_synced'] = item[COUNT]
+                    continue
 
-    sync_configuration['not_synced'] = sync_configuration.pop('not synced')
+                sync_configuration[item[GROUP_CONFIG_STATUS]] = item[COUNT]
+
+        connection['total'] = sync_configuration['total'] = total
+
     return WazuhResult({'data': {'connection': connection, 'configuration': sync_configuration}})
 
 
@@ -199,8 +240,9 @@ def reconnect_agents(agent_list: Union[list, str] = None) -> AffectedItemsWazuhR
 
 
 @expose_resources(actions=["agent:restart"], resources=["agent:id:{agent_list}"],
-                  post_proc_kwargs={'exclude_codes': [1701, 1703, 1707]})
-def restart_agents(agent_list: list = None) -> AffectedItemsWazuhResult:
+                  post_proc_kwargs={'exclude_codes': [1701, 1703, 1707]},
+                  post_proc_func=async_list_handler)
+async def restart_agents(agent_list: list = None) -> AffectedItemsWazuhResult:
     """Restart a list of agents.
 
     Parameters
@@ -217,40 +259,42 @@ def restart_agents(agent_list: list = None) -> AffectedItemsWazuhResult:
                                       some_msg='Restart command was not sent to some agents',
                                       none_msg='Restart command was not sent to any agent'
                                       )
-
     agent_list = set(agent_list)
 
-    # Add agent with ID 000 to failed_items
-    try:
+    with contextlib.suppress(KeyError):
+        # Add agent with ID 000 to failed_items
         agent_list.remove('000')
         result.add_failed_item('000', WazuhError(1703))
-    except KeyError:
-        pass
-
+        
     if agent_list:
         system_agents = get_agents_info()
         rbac_filters = get_rbac_filters(system_resources=system_agents, permitted_resources=list(agent_list))
-        with WazuhDBQueryAgents(limit=None, select=["id", "status", "version"], **rbac_filters) as query_data:
-            agents_with_data = query_data.run()['items']
 
-        # Add non existent agents to failed_items
-        not_found_agents = agent_list - system_agents
-        [result.add_failed_item(id_=agent, error=WazuhResourceNotFound(1701)) for agent in not_found_agents]
+        async with get_wdb_http_client() as wdb_client: 
+            active_agents = await wdb_client.get_agents_restart_info(
+                rbac_filters['filters']['rbac_ids'],
+                rbac_filters['rbac_negate']
+            )
 
-        # Add non active agents to failed_items
-        non_active_agents = [agent for agent in agents_with_data if agent['status'] != 'active']
-        [result.add_failed_item(id_=agent['id'], error=WazuhError(1707))
-         for agent in non_active_agents]
+        # Convert list of dictionaries to dictionary
+        active_agents = {agent['id']: agent['version'] for agent in active_agents}
 
-        eligible_agents = [agent for agent in agents_with_data if agent not in non_active_agents] if non_active_agents \
-            else agents_with_data
         with WazuhQueue(common.AR_SOCKET) as wq:
-            for agent in eligible_agents:
+            for agent_id in agent_list:
+                # Add non existent and inactive agents to failed_items
+                if agent_id not in system_agents:
+                    result.add_failed_item(id_=agent_id, error=WazuhResourceNotFound(1701))
+                    continue
+
+                if agent_id not in active_agents:
+                    result.add_failed_item(id_=agent_id, error=WazuhError(1707))
+                    continue
+
                 try:
-                    send_restart_command(agent['id'], agent['version'], wq)
-                    result.affected_items.append(agent['id'])
+                    send_restart_command(agent_id, active_agents[agent_id], wq)
+                    result.affected_items.append(agent_id)
                 except WazuhException as e:
-                    result.add_failed_item(id_=agent['id'], error=e)
+                    result.add_failed_item(id_=agent_id, error=e)
 
         result.total_affected_items = len(result.affected_items)
         result.affected_items.sort(key=int)
@@ -259,8 +303,9 @@ def restart_agents(agent_list: list = None) -> AffectedItemsWazuhResult:
 
 
 @expose_resources(actions=['cluster:read'], resources=[f'node:id:{node_id}'],
-                  post_proc_kwargs={'exclude_codes': [1701, 1703, 1707], 'force': True})
-def restart_agents_by_node(agent_list: list = None) -> AffectedItemsWazuhResult:
+                  post_proc_kwargs={'exclude_codes': [1701, 1703, 1707], 'force': True},
+                  post_proc_func=async_list_handler)
+async def restart_agents_by_node(agent_list: list = None) -> AffectedItemsWazuhResult:
     """Restart all agents belonging to a node.
 
     Parameters
@@ -274,12 +319,13 @@ def restart_agents_by_node(agent_list: list = None) -> AffectedItemsWazuhResult:
         Affected items.
     """
     '000' in agent_list and agent_list.remove('000')
-    return restart_agents(agent_list=agent_list)
+    return await restart_agents(agent_list=agent_list)
 
 
 @expose_resources(actions=["agent:read"], resources=["agent:id:{agent_list}"],
-                  post_proc_kwargs={'exclude_codes': [1701, 1703, 1707], 'force': True})
-def restart_agents_by_group(agent_list: list = None) -> AffectedItemsWazuhResult:
+                  post_proc_kwargs={'exclude_codes': [1701, 1703, 1707], 'force': True},
+                  post_proc_func=async_list_handler)
+async def restart_agents_by_group(agent_list: list = None) -> AffectedItemsWazuhResult:
     """Restart all agents belonging to a group.
 
     Parameters
@@ -292,7 +338,7 @@ def restart_agents_by_group(agent_list: list = None) -> AffectedItemsWazuhResult
     AffectedItemsWazuhResult
         Affected items.
     """
-    return restart_agents(agent_list=agent_list)
+    return await restart_agents(agent_list=agent_list)
 
 
 @expose_resources(actions=["agent:read"], resources=["agent:id:{agent_list}"],
@@ -347,6 +393,14 @@ def get_agents(agent_list: list = None, offset: int = 0, limit: int = common.DAT
         with WazuhDBQueryAgents(offset=offset, limit=limit, sort=sort, search=search, select=select,
                                 query=q, **rbac_filters, distinct=distinct) as db_query:
             data = db_query.run()
+
+        if sort and 'version' in sort['fields']:
+            data['items'] = sorted(data['items'],
+                          key=lambda o: tuple(
+                              parse_wazuh_agent_version(o.get(a)) if a == 'version' and check_if_wazuh_agent_version(o.get(a))
+                              else (0, 0, 0) if o.get(a) is None and a == 'version'
+                              else o.get(a).lower() if type(o.get(a)) == str else o.get(a) for a in sort['fields']),
+                          reverse=False if sort['order'] == 'asc' else True)
 
         result.affected_items.extend(data['items'])
         result.total_affected_items = data['totalItems']
@@ -820,11 +874,13 @@ def delete_groups(group_list: list = None) -> AffectedItemsWazuhResult:
     return result
 
 
-@expose_resources(actions=["group:modify_assignments"], resources=['group:id:{replace_list}'], post_proc_func=None)
-@expose_resources(actions=["group:modify_assignments"], resources=['group:id:{group_list}'], post_proc_func=None)
+@expose_resources(actions=["group:modify_assignments"], resources=['group:id:{replace_list}'],
+                  post_proc_func=async_list_handler)
+@expose_resources(actions=["group:modify_assignments"], resources=['group:id:{group_list}'],
+                  post_proc_func=async_list_handler)
 @expose_resources(actions=["agent:modify_group"], resources=["agent:id:{agent_list}"],
-                  post_proc_kwargs={'exclude_codes': [1701, 1703, 1751, 1752]})
-def assign_agents_to_group(group_list: list = None, agent_list: list = None, replace: bool = False,
+                  post_proc_kwargs={'exclude_codes': [1701, 1703, 1751, 1752]}, post_proc_func=async_list_handler)
+async def assign_agents_to_group(group_list: list = None, agent_list: list = None, replace: bool = False,
                            replace_list: list = None) -> AffectedItemsWazuhResult:
     """Assign a list of agents to a group.
 
@@ -879,7 +935,7 @@ def assign_agents_to_group(group_list: list = None, agent_list: list = None, rep
 
     for agent_id in agent_list:
         try:
-            Agent.add_group_to_agent(group_id, agent_id, replace=replace, replace_list=replace_list)
+            await Agent.add_group_to_agent(group_id, agent_id, replace=replace, replace_list=replace_list)
             result.affected_items.append(agent_id)
         except WazuhException as e:
             result.add_failed_item(id_=agent_id, error=e)
@@ -890,9 +946,11 @@ def assign_agents_to_group(group_list: list = None, agent_list: list = None, rep
     return result
 
 
-@expose_resources(actions=["group:modify_assignments"], resources=['group:id:{group_list}'], post_proc_func=None)
-@expose_resources(actions=["agent:modify_group"], resources=['agent:id:{agent_list}'], post_proc_func=None)
-def remove_agent_from_group(group_list: list = None, agent_list: list = None) -> WazuhResult:
+@expose_resources(actions=["group:modify_assignments"], resources=['group:id:{group_list}'],
+                  post_proc_func=async_list_handler)
+@expose_resources(actions=["agent:modify_group"], resources=['agent:id:{agent_list}'],
+                  post_proc_func=async_list_handler)
+async def remove_agent_from_group(group_list: list = None, agent_list: list = None) -> WazuhResult:
     """Removes an agent assignation with a specified group.
 
     Parameters
@@ -927,13 +985,15 @@ def remove_agent_from_group(group_list: list = None, agent_list: list = None) ->
     if group_id not in get_groups():
         raise WazuhResourceNotFound(1710)
 
-    return WazuhResult({'message': Agent.unset_single_group_agent(agent_id=agent_id, group_id=group_id, force=True)})
+    message = await Agent.unset_single_group_agent(agent_id=agent_id, group_id=group_id, force=True)
+    return WazuhResult({'message': message})
 
 
-@expose_resources(actions=["agent:modify_group"], resources=["agent:id:{agent_list}"], post_proc_func=None)
+@expose_resources(actions=["agent:modify_group"], resources=["agent:id:{agent_list}"],
+                  post_proc_func=async_list_handler)
 @expose_resources(actions=["group:modify_assignments"], resources=["group:id:{group_list}"],
-                  post_proc_kwargs={'exclude_codes': [1710, 1734, 1745]})
-def remove_agent_from_groups(agent_list: list = None, group_list: list = None) -> AffectedItemsWazuhResult:
+                  post_proc_kwargs={'exclude_codes': [1710, 1734, 1745]}, post_proc_func=async_list_handler)
+async def remove_agent_from_groups(agent_list: list = None, group_list: list = None) -> AffectedItemsWazuhResult:
     """Removes an agent assignation with a list of groups.
 
     Parameters
@@ -979,7 +1039,7 @@ def remove_agent_from_groups(agent_list: list = None, group_list: list = None) -
         try:
             if group_id not in system_groups:
                 raise WazuhResourceNotFound(1710)
-            Agent.unset_single_group_agent(agent_id=agent_id, group_id=group_id, force=True)
+            await Agent.unset_single_group_agent(agent_id=agent_id, group_id=group_id, force=True)
             result.affected_items.append(group_id)
         except WazuhException as e:
             result.add_failed_item(id_=group_id, error=e)
@@ -989,10 +1049,11 @@ def remove_agent_from_groups(agent_list: list = None, group_list: list = None) -
     return result
 
 
-@expose_resources(actions=["group:modify_assignments"], resources=["group:id:{group_list}"], post_proc_func=None)
+@expose_resources(actions=["group:modify_assignments"], resources=["group:id:{group_list}"],
+                  post_proc_func=async_list_handler)
 @expose_resources(actions=["agent:modify_group"], resources=["agent:id:{agent_list}"],
-                  post_proc_kwargs={'exclude_codes': [1701, 1703, 1734]})
-def remove_agents_from_group(agent_list: list = None, group_list: list = None) -> AffectedItemsWazuhResult:
+                  post_proc_kwargs={'exclude_codes': [1701, 1703, 1734]}, post_proc_func=async_list_handler)
+async def remove_agents_from_group(agent_list: list = None, group_list: list = None) -> AffectedItemsWazuhResult:
     """Remove the assignations of a list of agents with a specified group.
 
     Parameters
@@ -1030,7 +1091,7 @@ def remove_agents_from_group(agent_list: list = None, group_list: list = None) -
                 raise WazuhError(1703)
             elif agent_id not in system_agents:
                 raise WazuhResourceNotFound(1701)
-            Agent.unset_single_group_agent(agent_id=agent_id, group_id=group_id, force=True)
+            await Agent.unset_single_group_agent(agent_id=agent_id, group_id=group_id, force=True)
             result.affected_items.append(agent_id)
         except WazuhException as e:
             result.add_failed_item(id_=agent_id, error=e)

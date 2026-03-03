@@ -124,7 +124,7 @@ def main(argv):
                         aws_tools.debug(
                             "+++ Warning: No regions were specified, trying to get events from supported regions", 1
                         )
-                        options.regions = services.inspector.SUPPORTED_REGIONS
+                        options.regions = services.inspector.INSPECTOR_V1_REGIONS + services.inspector.INSPECTOR_V2_REGIONS
                     else:
                         aws_tools.debug(
                             "+++ Warning: No regions were specified, trying to get events from all regions", 1
@@ -159,15 +159,10 @@ def main(argv):
                 service.get_alerts()
         elif options.subscriber:
             if options.subscriber.lower() == "security_lake":
-                if options.aws_profile:
-                    aws_tools.error(
-                        "The AWS Security Lake integration does not make use of the Profile authentication "
-                        f"method. Check the available ones for it in "
-                        f"{aws_tools.SECURITY_LAKE_IAM_ROLE_AUTHENTICATION_URL}")
-                    sys.exit(3)
                 aws_tools.arg_validate_security_lake_auth_params(options.external_id,
                                                                  options.queue,
-                                                                 options.iam_role_arn)
+                                                                 options.iam_role_arn,
+                                                                 options.aws_profile)
                 bucket_handler = subscribers.s3_log_handler.AWSSLSubscriberBucket
                 message_processor = subscribers.sqs_message_processor.AWSSSecLakeMessageProcessor
             elif options.subscriber.lower() == "buckets":

@@ -82,6 +82,8 @@ static void wdb_syscollector_processes_save2_fail(void) {
     will_return(__wrap_cJSON_GetObjectItem, NULL);
     will_return(__wrap_cJSON_GetStringValue, "1");
     will_return(__wrap_cJSON_GetObjectItem, NULL);
+    will_return(__wrap_cJSON_GetStringValue, "1");
+    will_return(__wrap_cJSON_GetObjectItem, NULL);
     will_return(__wrap_cJSON_GetStringValue, "name");
     will_return(__wrap_cJSON_GetObjectItem, NULL);
     will_return(__wrap_cJSON_GetStringValue, "state");
@@ -117,7 +119,7 @@ static void wdb_syscollector_processes_save2_fail(void) {
     expect_string(__wrap__mdebug1, formatted_msg, "at wdb_process_save(): cannot begin transaction");
 }
 
-static void  wdb_syscollector_processes_save2_success(cJSON *attribute) {
+static void  wdb_syscollector_processes_save2_fail_2(cJSON *attribute) {
     int i = 0;
 
     for (i = 0; i < 4; i++) {
@@ -141,6 +143,48 @@ static void  wdb_syscollector_processes_save2_success(cJSON *attribute) {
     will_return(__wrap_cJSON_GetObjectItem, NULL);
 
     will_return(__wrap_cJSON_GetStringValue, "scan_time");
+    will_return(__wrap_cJSON_GetStringValue, NULL);
+    will_return(__wrap_cJSON_GetStringValue, "name");
+    will_return(__wrap_cJSON_GetStringValue, "state");
+    will_return(__wrap_cJSON_GetStringValue, "cmd");
+    will_return(__wrap_cJSON_GetStringValue, "argvs");
+    will_return(__wrap_cJSON_GetStringValue, "euser");
+    will_return(__wrap_cJSON_GetStringValue, "ruser");
+    will_return(__wrap_cJSON_GetStringValue, "suser");
+    will_return(__wrap_cJSON_GetStringValue, "egroup");
+    will_return(__wrap_cJSON_GetStringValue, "rgroup");
+    will_return(__wrap_cJSON_GetStringValue, "sgroup");
+    will_return(__wrap_cJSON_GetStringValue, "fgroup");
+    will_return(__wrap_cJSON_GetStringValue, "checksum");
+
+    will_return(__wrap_wdb_begin2, 0);
+}
+
+static void  wdb_syscollector_processes_save2_success(cJSON *attribute) {
+    int i = 0;
+
+    for (i = 0; i < 5; i++) {
+        will_return(__wrap_cJSON_GetObjectItem, NULL);
+    }
+
+    for (i = 0; i < 3; i++) {
+        will_return(__wrap_cJSON_GetObjectItem, 1);
+        will_return(__wrap_cJSON_GetObjectItem, attribute);
+    }
+
+    for (i = 0; i < 9; i++) {
+        will_return(__wrap_cJSON_GetObjectItem, NULL);
+    }
+
+    for (i = 0; i < 13; i++) {
+        will_return(__wrap_cJSON_GetObjectItem, 1);
+        will_return(__wrap_cJSON_GetObjectItem, attribute);
+    }
+
+    will_return(__wrap_cJSON_GetObjectItem, NULL);
+
+    will_return(__wrap_cJSON_GetStringValue, "scan_time");
+    will_return(__wrap_cJSON_GetStringValue, "1");
     will_return(__wrap_cJSON_GetStringValue, "1");
     will_return(__wrap_cJSON_GetStringValue, "name");
     will_return(__wrap_cJSON_GetStringValue, "state");
@@ -713,9 +757,9 @@ static void wdb_syscollector_netinfo_save2_success(cJSON *attribute) {
     expect_value(__wrap_sqlite3_bind_text, pos, 6);
     expect_string(__wrap_sqlite3_bind_text, buffer, "state");
     will_return(__wrap_sqlite3_bind_text, 0);
-    expect_value(__wrap_sqlite3_bind_int, index, 7);
-    expect_value(__wrap_sqlite3_bind_int, value, 1);
-    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 7);
+    expect_value(__wrap_sqlite3_bind_int64, value, 1);
+    will_return(__wrap_sqlite3_bind_int64, 0);
     expect_value(__wrap_sqlite3_bind_text, pos, 8);
     expect_string(__wrap_sqlite3_bind_text, buffer, "mac");
     will_return(__wrap_sqlite3_bind_text, 0);
@@ -902,9 +946,9 @@ void test_wdb_netinfo_insert_default_fail(void **state) {
     expect_string(__wrap_sqlite3_bind_text, buffer, "state");
     will_return(__wrap_sqlite3_bind_text, 0);
 
-    expect_value(__wrap_sqlite3_bind_int, index, 7);
-    expect_value(__wrap_sqlite3_bind_int, value, 1);
-    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 7);
+    expect_value(__wrap_sqlite3_bind_int64, value, 1);
+    will_return(__wrap_sqlite3_bind_int64           , 0);
 
     expect_value(__wrap_sqlite3_bind_text, pos, 8);
     expect_string(__wrap_sqlite3_bind_text, buffer, "mac");
@@ -974,9 +1018,9 @@ void test_wdb_netinfo_insert_sql_constraint_fail(void **state) {
     expect_string(__wrap_sqlite3_bind_text, buffer, "state");
     will_return(__wrap_sqlite3_bind_text, 0);
 
-    expect_value(__wrap_sqlite3_bind_int, index, 7);
-    expect_value(__wrap_sqlite3_bind_int, value, 1);
-    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 7);
+    expect_value(__wrap_sqlite3_bind_int64, value, 1);
+    will_return(__wrap_sqlite3_bind_int64, 0);
 
     expect_value(__wrap_sqlite3_bind_text, pos, 8);
     expect_string(__wrap_sqlite3_bind_text, buffer, "mac");
@@ -1049,9 +1093,9 @@ void test_wdb_netinfo_insert_sql_constraint_success(void **state) {
     expect_string(__wrap_sqlite3_bind_text, buffer, "state");
     will_return(__wrap_sqlite3_bind_text, 0);
 
-    expect_value(__wrap_sqlite3_bind_int, index, 7);
-    expect_value(__wrap_sqlite3_bind_int, value, 1);
-    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 7);
+    expect_value(__wrap_sqlite3_bind_int64, value, 1);
+    will_return(__wrap_sqlite3_bind_int64, 0);
 
     expect_value(__wrap_sqlite3_bind_text, pos, 8);
     expect_string(__wrap_sqlite3_bind_text, buffer, "mac");
@@ -1122,9 +1166,9 @@ void test_wdb_netinfo_insert_sql_success(void **state) {
     expect_string(__wrap_sqlite3_bind_text, buffer, "state");
     will_return(__wrap_sqlite3_bind_text, 0);
 
-    expect_value(__wrap_sqlite3_bind_int, index, 7);
-    expect_value(__wrap_sqlite3_bind_int, value, 1);
-    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 7);
+    expect_value(__wrap_sqlite3_bind_int64, value, 1);
+    will_return(__wrap_sqlite3_bind_int64, 0);
 
     expect_value(__wrap_sqlite3_bind_text, pos, 8);
     expect_string(__wrap_sqlite3_bind_text, buffer, "mac");
@@ -3343,6 +3387,1804 @@ void test_wdb_process_delete_success(void **state) {
     assert_int_equal(output, 0);
 }
 
+/* Test wdb_users_save */
+void test_wdb_users_save_transaction_fail(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 0;
+    will_return(__wrap_wdb_begin2, -1);
+    expect_string(__wrap__mdebug1, formatted_msg, "at wdb_users_save(): cannot begin transaction");
+
+    const long long user_id = 1;
+    const long long user_uid_signed = -1;
+    const long long user_group_id = 1;
+    const long long user_group_id_signed = -1;
+    const double user_created = 1750696338.665;
+    const long long user_last_login = 1750696338;
+    const long long user_auth_failed_count = 1;
+    const double user_auth_failed_timestamp = 1750696338.665;
+    const double user_password_last_change = 1750696338.665;
+    const int user_password_expiration_date = 1750696338;
+    const int user_password_inactive_days = 0;
+    const int user_password_max_days_between_changes = 9999;
+    const int user_password_min_days_between_changes = 0;
+    const int user_password_warning_days_before_expiration = 10;
+    const long long process_pid = 1010;
+
+    user_record_t user_record = {
+        .scan_id = "scan_id", .scan_time = "scan_time", .user_name = "name", .user_full_name = "full_name",
+        .user_home = "home", .user_id = user_id, .user_uid_signed = user_uid_signed, .user_uuid = "uuid", .user_groups = "group1,group2",
+        .user_group_id = user_group_id, .user_group_id_signed = user_group_id_signed, .user_created = user_created,
+        .user_roles = "roles", .user_shell = "shell", .user_type = "type", .user_is_hidden = 1, .user_is_remote = 0,
+        .user_last_login = user_last_login, .user_auth_failed_count = user_auth_failed_count, .user_auth_failed_timestamp = user_auth_failed_timestamp,
+        .user_password_expiration_date = user_password_expiration_date, .user_password_hash_algorithm = "hash",
+        .user_password_inactive_days = user_password_inactive_days, .user_password_last_change = user_password_last_change,
+        .user_password_max_days_between_changes = user_password_max_days_between_changes, .user_password_min_days_between_changes = user_password_min_days_between_changes,
+        .user_password_status = "status", .user_password_warning_days_before_expiration = user_password_warning_days_before_expiration,
+        .process_pid = process_pid, .host_ip = "192.168.0.1,192.168.0.2", .login_status = 1, .login_type = "type", .login_tty = "tty",
+        .checksum = "checksum"
+    };
+
+    output = wdb_users_save(data, &user_record, false);
+    assert_int_equal(output, -1);
+}
+
+void test_wdb_users_save_insert_fail(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 1;
+
+    will_return(__wrap_wdb_stmt_cache, -1);
+    expect_string(__wrap__mdebug1, formatted_msg, "at wdb_users_insert(): cannot cache statement");
+
+    const long long user_id = 1;
+    const long long user_uid_signed = -1;
+    const long long user_group_id = 1;
+    const long long user_group_id_signed = -1;
+    const double user_created = 1750696338.665;
+    const long long user_last_login = 1750696338;
+    const long long user_auth_failed_count = 1;
+    const double user_auth_failed_timestamp = 1750696338.665;
+    const double user_password_last_change = 1750696338.665;
+    const int user_password_expiration_date = 1750696338;
+    const int user_password_inactive_days = 0;
+    const int user_password_max_days_between_changes = 9999;
+    const int user_password_min_days_between_changes = 0;
+    const int user_password_warning_days_before_expiration = 10;
+    const long long process_pid = 1010;
+
+    user_record_t user_record = {
+        .scan_id = "scan_id", .scan_time = "scan_time", .user_name = "name", .user_full_name = "full_name",
+        .user_home = "home", .user_id = user_id, .user_uid_signed = user_uid_signed, .user_uuid = "uuid", .user_groups = "group1,group2",
+        .user_group_id = user_group_id, .user_group_id_signed = user_group_id_signed, .user_created = user_created,
+        .user_roles = "roles", .user_shell = "shell", .user_type = "type", .user_is_hidden = 1, .user_is_remote = 0,
+        .user_last_login = user_last_login, .user_auth_failed_count = user_auth_failed_count, .user_auth_failed_timestamp = user_auth_failed_timestamp,
+        .user_password_expiration_date = user_password_expiration_date, .user_password_hash_algorithm = "hash",
+        .user_password_inactive_days = user_password_inactive_days, .user_password_last_change = user_password_last_change,
+        .user_password_max_days_between_changes = user_password_max_days_between_changes, .user_password_min_days_between_changes = user_password_min_days_between_changes,
+        .user_password_status = "status", .user_password_warning_days_before_expiration = user_password_warning_days_before_expiration,
+        .process_pid = process_pid, .host_ip = "192.168.0.1,192.168.0.2", .login_status = 1, .login_type = "type", .login_tty = "tty",
+        .checksum = "checksum"
+    };
+
+    output = wdb_users_save(data, &user_record, false);
+    assert_int_equal(output, -1);
+}
+
+void test_wdb_users_save_success(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 0;
+    will_return(__wrap_wdb_begin2, 0);
+
+    const long long user_id = 1;
+    const long long user_uid_signed = -1;
+    const long long user_group_id = 1;
+    const long long user_group_id_signed = -1;
+    const double user_created = 1750696338.665;
+    const long long user_last_login = 1750696338;
+    const long long user_auth_failed_count = 1;
+    const double user_auth_failed_timestamp = 1750696338.665;
+    const double user_password_last_change = 1750696338.665;
+    const int user_password_expiration_date = 1750696338;
+    const int user_password_inactive_days = 0;
+    const int user_password_max_days_between_changes = 9999;
+    const int user_password_min_days_between_changes = 0;
+    const int user_password_warning_days_before_expiration = 10;
+    const long long process_pid = 1010;
+
+    will_return(__wrap_wdb_stmt_cache, 0);
+
+    expect_value(__wrap_sqlite3_bind_text, pos, 1);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "scan_id");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 2);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "scan_time");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 3);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "name");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 4);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "full_name");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 5);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "home");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 6);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_id);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 7);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_uid_signed);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 8);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "uuid");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 9);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "group1,group2");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 10);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_group_id);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 11);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_group_id_signed);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_double, index, 12);
+    expect_value(__wrap_sqlite3_bind_double, value, user_created);
+    will_return(__wrap_sqlite3_bind_double, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 13);
+    expect_value(__wrap_sqlite3_bind_text, buffer, "roles");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 14);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "shell");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 15);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "type");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 16);
+    expect_value(__wrap_sqlite3_bind_int, value, 1);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 17);
+    expect_value(__wrap_sqlite3_bind_int, value, 0);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 18);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_last_login);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 19);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_auth_failed_count);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_double, index, 20);
+    expect_value(__wrap_sqlite3_bind_double, value, user_auth_failed_timestamp);
+    will_return(__wrap_sqlite3_bind_double, 0);
+    expect_value(__wrap_sqlite3_bind_double, index, 21);
+    expect_value(__wrap_sqlite3_bind_double, value, user_password_last_change);
+    will_return(__wrap_sqlite3_bind_double, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 22);
+    expect_value(__wrap_sqlite3_bind_int, value, user_password_expiration_date);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 23);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "hash");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 24);
+    expect_value(__wrap_sqlite3_bind_int, value, user_password_inactive_days);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 25);
+    expect_value(__wrap_sqlite3_bind_int, value, user_password_max_days_between_changes);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 26);
+    expect_value(__wrap_sqlite3_bind_int, value, user_password_min_days_between_changes);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 27);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "status");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 28);
+    expect_value(__wrap_sqlite3_bind_int, value, user_password_warning_days_before_expiration);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 29);
+    expect_value(__wrap_sqlite3_bind_int64, value, process_pid);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 30);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "192.168.0.1,192.168.0.2");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 31);
+    expect_value(__wrap_sqlite3_bind_int, value, 1);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 32);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "type");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 33);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "tty");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 34);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "checksum");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    will_return(__wrap_wdb_step, SQLITE_DONE);
+
+    user_record_t user_record = {
+        .scan_id = "scan_id", .scan_time = "scan_time", .user_name = "name", .user_full_name = "full_name",
+        .user_home = "home", .user_id = user_id, .user_uid_signed = user_uid_signed, .user_uuid = "uuid", .user_groups = "group1,group2",
+        .user_group_id = user_group_id, .user_group_id_signed = user_group_id_signed, .user_created = user_created,
+        .user_roles = "roles", .user_shell = "shell", .user_type = "type", .user_is_hidden = 1, .user_is_remote = 0,
+        .user_last_login = user_last_login, .user_auth_failed_count = user_auth_failed_count, .user_auth_failed_timestamp = user_auth_failed_timestamp,
+        .user_password_expiration_date = user_password_expiration_date, .user_password_hash_algorithm = "hash",
+        .user_password_inactive_days = user_password_inactive_days, .user_password_last_change = user_password_last_change,
+        .user_password_max_days_between_changes = user_password_max_days_between_changes, .user_password_min_days_between_changes = user_password_min_days_between_changes,
+        .user_password_status = "status", .user_password_warning_days_before_expiration = user_password_warning_days_before_expiration,
+        .process_pid = process_pid, .host_ip = "192.168.0.1,192.168.0.2", .login_status = 1, .login_type = "type", .login_tty = "tty",
+        .checksum = "checksum"
+    };
+
+    output = wdb_users_save(data, &user_record, false);
+    assert_int_equal(output, 0);
+}
+
+/* wdb_users_insert */
+void test_wdb_users_insert_sql_fail(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    const long long user_id = 1;
+    const long long user_uid_signed = -1;
+    const long long user_group_id = 1;
+    const long long user_group_id_signed = -1;
+    const double user_created = 1750696338.665;
+    const long long user_last_login = 1750696338;
+    const long long user_auth_failed_count = 1;
+    const double user_auth_failed_timestamp = 1750696338.665;
+    const double user_password_last_change = 1750696338.665;
+    const int user_password_expiration_date = 1750696338;
+    const int user_password_inactive_days = 0;
+    const int user_password_max_days_between_changes = 9999;
+    const int user_password_min_days_between_changes = 0;
+    const int user_password_warning_days_before_expiration = 10;
+    const long long process_pid = 1010;
+
+    will_return(__wrap_wdb_stmt_cache, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 1);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "scan_id");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 2);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "scan_time");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 3);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "name");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 4);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "full_name");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 5);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "home");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 6);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_id);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 7);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_uid_signed);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 8);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "uuid");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 9);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "group1,group2");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 10);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_group_id);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 11);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_group_id_signed);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_double, index, 12);
+    expect_value(__wrap_sqlite3_bind_double, value, user_created);
+    will_return(__wrap_sqlite3_bind_double, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 13);
+    expect_value(__wrap_sqlite3_bind_text, buffer, "roles");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 14);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "shell");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 15);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "type");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 16);
+    expect_value(__wrap_sqlite3_bind_int, value, 1);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 17);
+    expect_value(__wrap_sqlite3_bind_int, value, 0);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 18);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_last_login);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 19);
+    expect_value(__wrap_sqlite3_bind_int64, value, user_auth_failed_count);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_double, index, 20);
+    expect_value(__wrap_sqlite3_bind_double, value, user_auth_failed_timestamp);
+    will_return(__wrap_sqlite3_bind_double, 0);
+    expect_value(__wrap_sqlite3_bind_double, index, 21);
+    expect_value(__wrap_sqlite3_bind_double, value, user_password_last_change);
+    will_return(__wrap_sqlite3_bind_double, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 22);
+    expect_value(__wrap_sqlite3_bind_int, value, user_password_expiration_date);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 23);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "hash");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 24);
+    expect_value(__wrap_sqlite3_bind_int, value, user_password_inactive_days);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 25);
+    expect_value(__wrap_sqlite3_bind_int, value, user_password_max_days_between_changes);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 26);
+    expect_value(__wrap_sqlite3_bind_int, value, user_password_min_days_between_changes);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 27);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "status");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 28);
+    expect_value(__wrap_sqlite3_bind_int, value, user_password_warning_days_before_expiration);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 29);
+    expect_value(__wrap_sqlite3_bind_int64, value, process_pid);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 30);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "192.168.0.1,192.168.0.2");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 31);
+    expect_value(__wrap_sqlite3_bind_int, value, 1);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 32);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "type");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 33);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "tty");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 34);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "checksum");
+    will_return(__wrap_sqlite3_bind_text, 0);
+
+    will_return(__wrap_wdb_step, 1);
+    will_return(__wrap_sqlite3_errmsg, "ERROR");
+    expect_string(__wrap__merror, formatted_msg, "SQLite: ERROR");
+
+    user_record_t user_record = {
+        .scan_id = "scan_id", .scan_time = "scan_time", .user_name = "name", .user_full_name = "full_name",
+        .user_home = "home", .user_id = user_id, .user_uid_signed = user_uid_signed, .user_uuid = "uuid", .user_groups = "group1,group2",
+        .user_group_id = user_group_id, .user_group_id_signed = user_group_id_signed, .user_created = user_created,
+        .user_roles = "roles", .user_shell = "shell", .user_type = "type", .user_is_hidden = 1, .user_is_remote = 0,
+        .user_last_login = user_last_login, .user_auth_failed_count = user_auth_failed_count, .user_auth_failed_timestamp = user_auth_failed_timestamp,
+        .user_password_expiration_date = user_password_expiration_date, .user_password_hash_algorithm = "hash",
+        .user_password_inactive_days = user_password_inactive_days, .user_password_last_change = user_password_last_change,
+        .user_password_max_days_between_changes = user_password_max_days_between_changes, .user_password_min_days_between_changes = user_password_min_days_between_changes,
+        .user_password_status = "status", .user_password_warning_days_before_expiration = user_password_warning_days_before_expiration,
+        .process_pid = process_pid, .host_ip = "192.168.0.1,192.168.0.2", .login_status = 1, .login_type = "type", .login_tty = "tty",
+        .checksum = "checksum"
+    };
+
+    output = wdb_users_insert(data, &user_record, false);
+    assert_int_equal(output, -1);
+}
+
+/* Test wdb_groups_save */
+void test_wdb_groups_save_transaction_fail(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 0;
+    will_return(__wrap_wdb_begin2, -1);
+    expect_string(__wrap__mdebug1, formatted_msg, "at wdb_groups_save(): cannot begin transaction");
+
+    const long long group_id = 1;
+    const long long group_id_signed = -1;
+
+    output = wdb_groups_save(data, "scan_id", "scan_time", group_id, "name", "description", group_id_signed, "uuid", 1, "users", "checksum", false);
+    assert_int_equal(output, -1);
+}
+
+void test_wdb_groups_save_insert_fail(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 1;
+
+    will_return(__wrap_wdb_stmt_cache, -1);
+    expect_string(__wrap__mdebug1, formatted_msg, "at wdb_groups_insert(): cannot cache statement");
+
+    const long long group_id = 1;
+    const long long group_id_signed = -1;
+
+    output = wdb_groups_save(data, "scan_id", "scan_time", group_id, "name", "description", group_id_signed, "uuid", 1, "users", "checksum", false);
+    assert_int_equal(output, -1);
+}
+
+void test_wdb_groups_save_success(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 0;
+    will_return(__wrap_wdb_begin2, 0);
+
+    const long long group_id = 1;
+    const long long group_id_signed = -1;
+
+    will_return(__wrap_wdb_stmt_cache, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 1);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "scan_id");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 2);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "scan_time");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 3);
+    expect_value(__wrap_sqlite3_bind_int64, value, group_id);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 4);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "name");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 5);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "description");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 6);
+    expect_value(__wrap_sqlite3_bind_int64, value, group_id_signed);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 7);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "uuid");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 8);
+    expect_value(__wrap_sqlite3_bind_int, value, 1);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 9);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "users");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 10);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "checksum");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    will_return(__wrap_wdb_step, SQLITE_DONE);
+
+    output = wdb_groups_save(data, "scan_id", "scan_time", group_id, "name", "description", group_id_signed, "uuid", 1, "users", "checksum", false);
+    assert_int_equal(output, 0);
+}
+
+/* wdb_groups_insert */
+void test_wdb_groups_insert_sql_fail(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    const long long group_id = 1;
+    const long long group_id_signed = -1;
+
+    will_return(__wrap_wdb_stmt_cache, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 1);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "scan_id");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 2);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "scan_time");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 3);
+    expect_value(__wrap_sqlite3_bind_int64, value, group_id);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 4);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "name");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 5);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "description");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 6);
+    expect_value(__wrap_sqlite3_bind_int64, value, group_id_signed);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 7);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "uuid");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 8);
+    expect_value(__wrap_sqlite3_bind_int, value, 1);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 9);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "users");
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 10);
+    expect_string(__wrap_sqlite3_bind_text, buffer, "checksum");
+    will_return(__wrap_sqlite3_bind_text, 0);
+
+    will_return(__wrap_wdb_step, 1);
+    will_return(__wrap_sqlite3_errmsg, "ERROR");
+    expect_string(__wrap__merror, formatted_msg, "SQLite: ERROR");
+
+    output = wdb_groups_insert(data, "scan_id", "scan_time", group_id, "name", "description", group_id_signed, "uuid", 1, "users", "checksum", false);
+    assert_int_equal(output, -1);
+}
+
+/* wdb_browser_extensions_insert */
+void test_wdb_browser_extensions_insert_sql_fail(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * browser_name = "browser_name";
+    const char * user_id = "user_id";
+    const char * package_name = "package_name";
+    const char * package_id = "package_id";
+    const char * package_version = "package_version";
+    const char * package_description = "package_description";
+    const char * package_vendor = "package_vendor";
+    const char * package_build_version = "package_build_version";
+    const char * package_path = "package_path";
+    const char * browser_profile_name = "browser_profile_name";
+    const char * browser_profile_path = "browser_profile_path";
+    const char * package_reference = "package_reference";
+    const char * package_permissions = "package_permissions";
+    const char * package_type = "package_type";
+    const int package_enabled = 0;
+    const int package_visible = 1;
+    const int package_autoupdate = 1;
+    const int package_persistent = 0;
+    const int package_from_webstore = 1;
+    const int browser_profile_referenced = 0;
+    const char * package_installed = "package_installed";
+    const char * file_hash_sha256 = "file_hash_sha256";
+    const char * checksum = "checksum";
+    const char * item_id = "e789d3093a35a0d12106069eda581248a2999f74";
+
+    will_return(__wrap_wdb_stmt_cache, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 1);
+    expect_string(__wrap_sqlite3_bind_text, buffer, scan_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 2);
+    expect_string(__wrap_sqlite3_bind_text, buffer, scan_time);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 3);
+    expect_string(__wrap_sqlite3_bind_text, buffer, browser_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 4);
+    expect_string(__wrap_sqlite3_bind_text, buffer, user_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 5);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 6);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 7);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_version);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 8);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_description);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 9);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_vendor);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 10);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_build_version);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 11);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 12);
+    expect_string(__wrap_sqlite3_bind_text, buffer, browser_profile_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 13);
+    expect_string(__wrap_sqlite3_bind_text, buffer, browser_profile_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 14);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_reference);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 15);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_permissions);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 16);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_type);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 17);
+    expect_value(__wrap_sqlite3_bind_int, value, package_enabled);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 18);
+    expect_value(__wrap_sqlite3_bind_int, value, package_visible);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 19);
+    expect_value(__wrap_sqlite3_bind_int, value, package_autoupdate);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 20);
+    expect_value(__wrap_sqlite3_bind_int, value, package_persistent);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 21);
+    expect_value(__wrap_sqlite3_bind_int, value, package_from_webstore);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 22);
+    expect_value(__wrap_sqlite3_bind_int, value, browser_profile_referenced);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 23);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_installed);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 24);
+    expect_string(__wrap_sqlite3_bind_text, buffer, file_hash_sha256);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 25);
+    expect_string(__wrap_sqlite3_bind_text, buffer, checksum);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 26);
+    expect_string(__wrap_sqlite3_bind_text, buffer, item_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+
+    will_return(__wrap_wdb_step, 1);
+    will_return(__wrap_sqlite3_errmsg, "ERROR");
+    expect_string(__wrap__merror, formatted_msg, "SQLite: ERROR");
+
+    browser_extension_record_t browser_extension_record = {
+        .scan_id = scan_id, .scan_time = scan_time, .browser_name = browser_name, .user_id = user_id, .package_name = package_name,
+        .package_id = package_id, .package_version = package_version, .package_description = package_description, .package_vendor = package_vendor,
+        .package_build_version = package_build_version, .package_path = package_path, .browser_profile_name = browser_profile_name,
+        .browser_profile_path = browser_profile_path, .package_reference = package_reference, .package_permissions = package_permissions,
+        .package_type = package_type, .package_enabled = package_enabled, .package_visible = package_visible, .package_autoupdate = package_autoupdate,
+        .package_persistent = package_persistent, .package_from_webstore = package_from_webstore, .browser_profile_referenced = browser_profile_referenced,
+        .package_installed = package_installed, .file_hash_sha256 = file_hash_sha256, .checksum = checksum, .item_id = item_id
+    };
+
+    output = wdb_browser_extensions_insert(data, &browser_extension_record, true);
+    assert_int_equal(output, -1);
+}
+
+/* Test wdb_browser_extensions_save */
+void test_wdb_browser_extensions_save_transaction_fail(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * browser_name = "browser_name";
+    const char * user_id = "user_id";
+    const char * package_name = "package_name";
+    const char * package_id = "package_id";
+    const char * package_version = "package_version";
+    const char * package_description = "package_description";
+    const char * package_vendor = "package_vendor";
+    const char * package_build_version = "package_build_version";
+    const char * package_path = "package_path";
+    const char * browser_profile_name = "browser_profile_name";
+    const char * browser_profile_path = "browser_profile_path";
+    const char * package_reference = "package_reference";
+    const char * package_permissions = "package_permissions";
+    const char * package_type = "package_type";
+    const int package_enabled = 0;
+    const int package_visible = 1;
+    const int package_autoupdate = 1;
+    const int package_persistent = 0;
+    const int package_from_webstore = 1;
+    const int browser_profile_referenced = 0;
+    const char * package_installed = "package_installed";
+    const char * file_hash_sha256 = "file_hash_sha256";
+    const char * checksum = "checksum";
+    const char * item_id = "e789d3093a35a0d12106069eda581248a2999f74";
+
+    data->transaction = 0;
+    will_return(__wrap_wdb_begin2, -1);
+    expect_string(__wrap__mdebug1, formatted_msg, "at wdb_browser_extensions_save(): cannot begin transaction");
+
+    browser_extension_record_t browser_extension_record = {
+        .scan_id = scan_id, .scan_time = scan_time, .browser_name = browser_name, .user_id = user_id, .package_name = package_name,
+        .package_id = package_id, .package_version = package_version, .package_description = package_description, .package_vendor = package_vendor,
+        .package_build_version = package_build_version, .package_path = package_path, .browser_profile_name = browser_profile_name,
+        .browser_profile_path = browser_profile_path, .package_reference = package_reference, .package_permissions = package_permissions,
+        .package_type = package_type, .package_enabled = package_enabled, .package_visible = package_visible, .package_autoupdate = package_autoupdate,
+        .package_persistent = package_persistent, .package_from_webstore = package_from_webstore, .browser_profile_referenced = browser_profile_referenced,
+        .package_installed = package_installed, .file_hash_sha256 = file_hash_sha256, .checksum = checksum, .item_id = item_id
+    };
+
+    output = wdb_browser_extensions_save(data, &browser_extension_record, true);
+    assert_int_equal(output, -1);
+}
+
+void test_wdb_browser_extensions_save_insert_fail(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * browser_name = "browser_name";
+    const char * user_id = "user_id";
+    const char * package_name = "package_name";
+    const char * package_id = "package_id";
+    const char * package_version = "package_version";
+    const char * package_description = "package_description";
+    const char * package_vendor = "package_vendor";
+    const char * package_build_version = "package_build_version";
+    const char * package_path = "package_path";
+    const char * browser_profile_name = "browser_profile_name";
+    const char * browser_profile_path = "browser_profile_path";
+    const char * package_reference = "package_reference";
+    const char * package_permissions = "package_permissions";
+    const char * package_type = "package_type";
+    const int package_enabled = 0;
+    const int package_visible = 1;
+    const int package_autoupdate = 1;
+    const int package_persistent = 0;
+    const int package_from_webstore = 1;
+    const int browser_profile_referenced = 0;
+    const char * package_installed = "package_installed";
+    const char * file_hash_sha256 = "file_hash_sha256";
+    const char * checksum = "checksum";
+    const char * item_id = "e789d3093a35a0d12106069eda581248a2999f74";
+
+    data->transaction = 1;
+
+    will_return(__wrap_wdb_stmt_cache, -1);
+    expect_string(__wrap__mdebug1, formatted_msg, "at wdb_browser_extensions_insert(): cannot cache statement");
+
+    browser_extension_record_t browser_extension_record = {
+        .scan_id = scan_id, .scan_time = scan_time, .browser_name = browser_name, .user_id = user_id, .package_name = package_name,
+        .package_id = package_id, .package_version = package_version, .package_description = package_description, .package_vendor = package_vendor,
+        .package_build_version = package_build_version, .package_path = package_path, .browser_profile_name = browser_profile_name,
+        .browser_profile_path = browser_profile_path, .package_reference = package_reference, .package_permissions = package_permissions,
+        .package_type = package_type, .package_enabled = package_enabled, .package_visible = package_visible, .package_autoupdate = package_autoupdate,
+        .package_persistent = package_persistent, .package_from_webstore = package_from_webstore, .browser_profile_referenced = browser_profile_referenced,
+        .package_installed = package_installed, .file_hash_sha256 = file_hash_sha256, .checksum = checksum, .item_id = item_id
+    };
+
+    output = wdb_browser_extensions_save(data, &browser_extension_record, true);
+    assert_int_equal(output, -1);
+}
+
+void test_wdb_browser_extensions_save_success(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * browser_name = "browser_name";
+    const char * user_id = "user_id";
+    const char * package_name = "package_name";
+    const char * package_id = "package_id";
+    const char * package_version = "package_version";
+    const char * package_description = "package_description";
+    const char * package_vendor = "package_vendor";
+    const char * package_build_version = "package_build_version";
+    const char * package_path = "package_path";
+    const char * browser_profile_name = "browser_profile_name";
+    const char * browser_profile_path = "browser_profile_path";
+    const char * package_reference = "package_reference";
+    const char * package_permissions = "package_permissions";
+    const char * package_type = "package_type";
+    const int package_enabled = 0;
+    const int package_visible = 1;
+    const int package_autoupdate = 1;
+    const int package_persistent = 0;
+    const int package_from_webstore = 1;
+    const int browser_profile_referenced = 0;
+    const char * package_installed = "package_installed";
+    const char * file_hash_sha256 = "file_hash_sha256";
+    const char * checksum = "checksum";
+    const char * item_id = "e789d3093a35a0d12106069eda581248a2999f74";
+
+    data->transaction = 0;
+    will_return(__wrap_wdb_begin2, 0);
+
+    will_return(__wrap_wdb_stmt_cache, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 1);
+    expect_string(__wrap_sqlite3_bind_text, buffer, scan_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 2);
+    expect_string(__wrap_sqlite3_bind_text, buffer, scan_time);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 3);
+    expect_string(__wrap_sqlite3_bind_text, buffer, browser_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 4);
+    expect_string(__wrap_sqlite3_bind_text, buffer, user_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 5);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 6);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 7);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_version);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 8);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_description);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 9);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_vendor);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 10);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_build_version);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 11);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 12);
+    expect_string(__wrap_sqlite3_bind_text, buffer, browser_profile_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 13);
+    expect_string(__wrap_sqlite3_bind_text, buffer, browser_profile_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 14);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_reference);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 15);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_permissions);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 16);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_type);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 17);
+    expect_value(__wrap_sqlite3_bind_int, value, package_enabled);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 18);
+    expect_value(__wrap_sqlite3_bind_int, value, package_visible);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 19);
+    expect_value(__wrap_sqlite3_bind_int, value, package_autoupdate);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 20);
+    expect_value(__wrap_sqlite3_bind_int, value, package_persistent);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 21);
+    expect_value(__wrap_sqlite3_bind_int, value, package_from_webstore);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 22);
+    expect_value(__wrap_sqlite3_bind_int, value, browser_profile_referenced);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 23);
+    expect_string(__wrap_sqlite3_bind_text, buffer, package_installed);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 24);
+    expect_string(__wrap_sqlite3_bind_text, buffer, file_hash_sha256);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 25);
+    expect_string(__wrap_sqlite3_bind_text, buffer, checksum);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 26);
+    expect_string(__wrap_sqlite3_bind_text, buffer, item_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+
+    will_return(__wrap_wdb_step, SQLITE_DONE);
+
+    browser_extension_record_t browser_extension_record = {
+        .scan_id = scan_id, .scan_time = scan_time, .browser_name = browser_name, .user_id = user_id, .package_name = package_name,
+        .package_id = package_id, .package_version = package_version, .package_description = package_description, .package_vendor = package_vendor,
+        .package_build_version = package_build_version, .package_path = package_path, .browser_profile_name = browser_profile_name,
+        .browser_profile_path = browser_profile_path, .package_reference = package_reference, .package_permissions = package_permissions,
+        .package_type = package_type, .package_enabled = package_enabled, .package_visible = package_visible, .package_autoupdate = package_autoupdate,
+        .package_persistent = package_persistent, .package_from_webstore = package_from_webstore, .browser_profile_referenced = browser_profile_referenced,
+        .package_installed = package_installed, .file_hash_sha256 = file_hash_sha256, .checksum = checksum, .item_id = item_id
+    };
+
+    output = wdb_browser_extensions_save(data, &browser_extension_record, true);
+    assert_int_equal(output, 0);
+}
+
+/* Test wdb_services_save */
+static void test_wdb_services_save_transaction_fail(void **state) {
+    int ret = OS_INVALID;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 0;
+    will_return(__wrap_wdb_begin2, -1);
+    expect_string(__wrap__mdebug1, formatted_msg, "at wdb_services_save(): cannot begin transaction");
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * service_name = "service_name";
+    const char * service_id = "service_id";
+    const char * service_description = "service_description";
+    const char * service_type = "service_type";
+    const char * service_state = "service_state";
+    const char * service_sub_state = "service_sub_state";
+    const char * service_enabled = "service_enabled";
+    const char * service_start_type = "service_start_type";
+    const char * service_restart = "service_restart";
+    const long long service_frequency = 0;
+    const int service_starts_on_mount = 0;
+    const char * service_starts_on_path_modified = "service_starts_on_path_modified";
+    const char * service_starts_on_not_empty_directory = "service_starts_on_not_empty_directory";
+    const int service_inetd_compatibility = 0;
+    const long long process_pid = 0;
+    const char * process_executable = "process_executable";
+    const char * process_args = "process_args";
+    const char * process_user_name = "process_user_name";
+    const char * process_group_name = "process_group_name";
+    const char * process_working_directory = "process_working_directory";
+    const char * process_root_directory = "process_root_directory";
+    const char * file_path = "file_path";
+    const char * service_address = "service_address";
+    const char * log_file_path = "log_file_path";
+    const char * error_log_file_path = "error_log_file_path";
+    const int service_exit_code = 0;
+    const int service_win32_exit_code = 0;
+    const char * service_following = "service_following";
+    const char * service_object_path = "service_object_path";
+    const long long service_target_ephemeral_id = 0;
+    const char * service_target_type = "service_target_type";
+    const char * service_target_address = "service_target_address";
+    const char * checksum = "checksum";
+    const char * item_id = "item_id";
+
+    service_record_t service_record = {
+        .scan_id = scan_id,
+        .scan_time = scan_time,
+        .service_name = service_name,
+        .service_id = service_id,
+        .service_description = service_description,
+        .service_type = service_type,
+        .service_state = service_state,
+        .service_sub_state = service_sub_state,
+        .service_enabled = service_enabled,
+        .service_start_type = service_start_type,
+        .service_restart = service_restart,
+        .service_frequency = service_frequency,
+        .service_starts_on_mount = service_starts_on_mount,
+        .service_starts_on_path_modified = service_starts_on_path_modified,
+        .service_starts_on_not_empty_directory = service_starts_on_not_empty_directory,
+        .service_inetd_compatibility = service_inetd_compatibility,
+        .process_pid = process_pid,
+        .process_executable = process_executable,
+        .process_args = process_args,
+        .process_user_name = process_user_name,
+        .process_group_name = process_group_name,
+        .process_working_directory = process_working_directory,
+        .process_root_directory = process_root_directory,
+        .file_path = file_path,
+        .service_address = service_address,
+        .log_file_path = log_file_path,
+        .error_log_file_path = error_log_file_path,
+        .service_exit_code = service_exit_code,
+        .service_win32_exit_code = service_win32_exit_code,
+        .service_following = service_following,
+        .service_object_path = service_object_path,
+        .service_target_ephemeral_id = service_target_ephemeral_id,
+        .service_target_type = service_target_type,
+        .service_target_address = service_target_address,
+        .checksum = checksum,
+        .item_id = item_id
+    };
+
+    ret = wdb_services_save(data, &service_record, false);
+
+    assert_int_equal(ret, OS_INVALID);
+}
+
+static void test_wdb_services_save_insert_fail(void **state) {
+    int ret = OS_INVALID;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 1;
+
+    will_return(__wrap_wdb_stmt_cache, -1);
+    expect_string(__wrap__mdebug1, formatted_msg, "at wdb_services_insert(): cannot cache statement");
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * service_name = "service_name";
+    const char * service_id = "service_id";
+    const char * service_description = "service_description";
+    const char * service_type = "service_type";
+    const char * service_state = "service_state";
+    const char * service_sub_state = "service_sub_state";
+    const char * service_enabled = "service_enabled";
+    const char * service_start_type = "service_start_type";
+    const char * service_restart = "service_restart";
+    const long long service_frequency = 0;
+    const int service_starts_on_mount = 0;
+    const char * service_starts_on_path_modified = "service_starts_on_path_modified";
+    const char * service_starts_on_not_empty_directory = "service_starts_on_not_empty_directory";
+    const int service_inetd_compatibility = 0;
+    const long long process_pid = 0;
+    const char * process_executable = "process_executable";
+    const char * process_args = "process_args";
+    const char * process_user_name = "process_user_name";
+    const char * process_group_name = "process_group_name";
+    const char * process_working_directory = "process_working_directory";
+    const char * process_root_directory = "process_root_directory";
+    const char * file_path = "file_path";
+    const char * service_address = "service_address";
+    const char * log_file_path = "log_file_path";
+    const char * error_log_file_path = "error_log_file_path";
+    const int service_exit_code = 0;
+    const int service_win32_exit_code = 0;
+    const char * service_following = "service_following";
+    const char * service_object_path = "service_object_path";
+    const long long service_target_ephemeral_id = 0;
+    const char * service_target_type = "service_target_type";
+    const char * service_target_address = "service_target_address";
+    const char * checksum = "checksum";
+    const char * item_id = "item_id";
+
+    service_record_t service_record = {
+        .scan_id = scan_id,
+        .scan_time = scan_time,
+        .service_name = service_name,
+        .service_id = service_id,
+        .service_description = service_description,
+        .service_type = service_type,
+        .service_state = service_state,
+        .service_sub_state = service_sub_state,
+        .service_enabled = service_enabled,
+        .service_start_type = service_start_type,
+        .service_restart = service_restart,
+        .service_frequency = service_frequency,
+        .service_starts_on_mount = service_starts_on_mount,
+        .service_starts_on_path_modified = service_starts_on_path_modified,
+        .service_starts_on_not_empty_directory = service_starts_on_not_empty_directory,
+        .service_inetd_compatibility = service_inetd_compatibility,
+        .process_pid = process_pid,
+        .process_executable = process_executable,
+        .process_args = process_args,
+        .process_user_name = process_user_name,
+        .process_group_name = process_group_name,
+        .process_working_directory = process_working_directory,
+        .process_root_directory = process_root_directory,
+        .file_path = file_path,
+        .service_address = service_address,
+        .log_file_path = log_file_path,
+        .error_log_file_path = error_log_file_path,
+        .service_exit_code = service_exit_code,
+        .service_win32_exit_code = service_win32_exit_code,
+        .service_following = service_following,
+        .service_object_path = service_object_path,
+        .service_target_ephemeral_id = service_target_ephemeral_id,
+        .service_target_type = service_target_type,
+        .service_target_address = service_target_address,
+        .checksum = checksum,
+        .item_id = item_id
+    };
+
+    ret = wdb_services_save(data, &service_record, false);
+
+    assert_int_equal(ret, OS_INVALID);
+}
+
+static void test_wdb_services_save_success(void **state) {
+    int ret = OS_INVALID;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 1;
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * service_name = "service_name";
+    const char * service_id = "service_id";
+    const char * service_description = "service_description";
+    const char * service_type = "service_type";
+    const char * service_state = "service_state";
+    const char * service_sub_state = "service_sub_state";
+    const char * service_enabled = "service_enabled";
+    const char * service_start_type = "service_start_type";
+    const char * service_restart = "service_restart";
+    const long long service_frequency = 0;
+    const int service_starts_on_mount = 0;
+    const char * service_starts_on_path_modified = "service_starts_on_path_modified";
+    const char * service_starts_on_not_empty_directory = "service_starts_on_not_empty_directory";
+    const int service_inetd_compatibility = 0;
+    const long long process_pid = 0;
+    const char * process_executable = "process_executable";
+    const char * process_args = "process_args";
+    const char * process_user_name = "process_user_name";
+    const char * process_group_name = "process_group_name";
+    const char * process_working_directory = "process_working_directory";
+    const char * process_root_directory = "process_root_directory";
+    const char * file_path = "file_path";
+    const char * service_address = "service_address";
+    const char * log_file_path = "log_file_path";
+    const char * error_log_file_path = "error_log_file_path";
+    const int service_exit_code = 0;
+    const int service_win32_exit_code = 0;
+    const char * service_following = "service_following";
+    const char * service_object_path = "service_object_path";
+    const long long service_target_ephemeral_id = 0;
+    const char * service_target_type = "service_target_type";
+    const char * service_target_address = "service_target_address";
+    const char * checksum = "checksum";
+    const char * item_id = "item_id";
+
+    will_return(__wrap_wdb_stmt_cache, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 1);
+    expect_string(__wrap_sqlite3_bind_text, buffer, scan_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 2);
+    expect_string(__wrap_sqlite3_bind_text, buffer, scan_time);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 3);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 4);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 5);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_description);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 6);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_type);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 7);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_state);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 8);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_sub_state);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 9);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_enabled);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 10);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_start_type);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 11);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_restart);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 12);
+    expect_value(__wrap_sqlite3_bind_int64, value, service_frequency);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 13);
+    expect_value(__wrap_sqlite3_bind_int, value, service_starts_on_mount);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 14);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_starts_on_path_modified);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 15);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_starts_on_not_empty_directory);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 16);
+    expect_value(__wrap_sqlite3_bind_int, value, service_inetd_compatibility);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 17);
+    expect_value(__wrap_sqlite3_bind_int64, value, process_pid);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 18);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_executable);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 19);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_args);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 20);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_user_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 21);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_group_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 22);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_working_directory);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 23);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_root_directory);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 24);
+    expect_string(__wrap_sqlite3_bind_text, buffer, file_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 25);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_address);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 26);
+    expect_string(__wrap_sqlite3_bind_text, buffer, log_file_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 27);
+    expect_string(__wrap_sqlite3_bind_text, buffer, error_log_file_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 28);
+    expect_value(__wrap_sqlite3_bind_int, value, service_exit_code);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 29);
+    expect_value(__wrap_sqlite3_bind_int, value, service_win32_exit_code);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 30);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_following);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 31);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_object_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 32);
+    expect_value(__wrap_sqlite3_bind_int64, value, service_target_ephemeral_id);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 33);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_target_type);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 34);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_target_address);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 35);
+    expect_string(__wrap_sqlite3_bind_text, buffer, checksum);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 36);
+    expect_string(__wrap_sqlite3_bind_text, buffer, item_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+
+    will_return(__wrap_wdb_step, SQLITE_DONE);
+
+    service_record_t service_record = {
+        .scan_id = scan_id,
+        .scan_time = scan_time,
+        .service_name = service_name,
+        .service_id = service_id,
+        .service_description = service_description,
+        .service_type = service_type,
+        .service_state = service_state,
+        .service_sub_state = service_sub_state,
+        .service_enabled = service_enabled,
+        .service_start_type = service_start_type,
+        .service_restart = service_restart,
+        .service_frequency = service_frequency,
+        .service_starts_on_mount = service_starts_on_mount,
+        .service_starts_on_path_modified = service_starts_on_path_modified,
+        .service_starts_on_not_empty_directory = service_starts_on_not_empty_directory,
+        .service_inetd_compatibility = service_inetd_compatibility,
+        .process_pid = process_pid,
+        .process_executable = process_executable,
+        .process_args = process_args,
+        .process_user_name = process_user_name,
+        .process_group_name = process_group_name,
+        .process_working_directory = process_working_directory,
+        .process_root_directory = process_root_directory,
+        .file_path = file_path,
+        .service_address = service_address,
+        .log_file_path = log_file_path,
+        .error_log_file_path = error_log_file_path,
+        .service_exit_code = service_exit_code,
+        .service_win32_exit_code = service_win32_exit_code,
+        .service_following = service_following,
+        .service_object_path = service_object_path,
+        .service_target_ephemeral_id = service_target_ephemeral_id,
+        .service_target_type = service_target_type,
+        .service_target_address = service_target_address,
+        .checksum = checksum,
+        .item_id = item_id
+    };
+
+    ret = wdb_services_save(data, &service_record, false);
+
+    assert_int_equal(ret, OS_SUCCESS);
+}
+
+/* wdb_services_insert */
+static void test_wdb_services_insert_fail_null_service_id(void **state) {
+    int ret = OS_INVALID;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 1;
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * service_name = "service_name";
+    const char * service_id = NULL;
+    const char * service_description = "service_description";
+    const char * service_type = "service_type";
+    const char * service_state = "service_state";
+    const char * service_sub_state = "service_sub_state";
+    const char * service_enabled = "service_enabled";
+    const char * service_start_type = "service_start_type";
+    const char * service_restart = "service_restart";
+    const long long service_frequency = 0;
+    const int service_starts_on_mount = 0;
+    const char * service_starts_on_path_modified = "service_starts_on_path_modified";
+    const char * service_starts_on_not_empty_directory = "service_starts_on_not_empty_directory";
+    const int service_inetd_compatibility = 0;
+    const long long process_pid = 0;
+    const char * process_executable = "process_executable";
+    const char * process_args = "process_args";
+    const char * process_user_name = "process_user_name";
+    const char * process_group_name = "process_group_name";
+    const char * process_working_directory = "process_working_directory";
+    const char * process_root_directory = "process_root_directory";
+    const char * file_path = "file_path";
+    const char * service_address = "service_address";
+    const char * log_file_path = "log_file_path";
+    const char * error_log_file_path = "error_log_file_path";
+    const int service_exit_code = 0;
+    const int service_win32_exit_code = 0;
+    const char * service_following = "service_following";
+    const char * service_object_path = "service_object_path";
+    const long long service_target_ephemeral_id = 0;
+    const char * service_target_type = "service_target_type";
+    const char * service_target_address = "service_target_address";
+    const char * checksum = "checksum";
+    const char * item_id = "item_id";
+
+    service_record_t service_record = {
+        .scan_id = scan_id,
+        .scan_time = scan_time,
+        .service_name = service_name,
+        .service_id = service_id,
+        .service_description = service_description,
+        .service_type = service_type,
+        .service_state = service_state,
+        .service_sub_state = service_sub_state,
+        .service_enabled = service_enabled,
+        .service_start_type = service_start_type,
+        .service_restart = service_restart,
+        .service_frequency = service_frequency,
+        .service_starts_on_mount = service_starts_on_mount,
+        .service_starts_on_path_modified = service_starts_on_path_modified,
+        .service_starts_on_not_empty_directory = service_starts_on_not_empty_directory,
+        .service_inetd_compatibility = service_inetd_compatibility,
+        .process_pid = process_pid,
+        .process_executable = process_executable,
+        .process_args = process_args,
+        .process_user_name = process_user_name,
+        .process_group_name = process_group_name,
+        .process_working_directory = process_working_directory,
+        .process_root_directory = process_root_directory,
+        .file_path = file_path,
+        .service_address = service_address,
+        .log_file_path = log_file_path,
+        .error_log_file_path = error_log_file_path,
+        .service_exit_code = service_exit_code,
+        .service_win32_exit_code = service_win32_exit_code,
+        .service_following = service_following,
+        .service_object_path = service_object_path,
+        .service_target_ephemeral_id = service_target_ephemeral_id,
+        .service_target_type = service_target_type,
+        .service_target_address = service_target_address,
+        .checksum = checksum,
+        .item_id = item_id
+    };
+
+    // Test should fail in parameter validation before any database operations
+    ret = wdb_services_insert(data, &service_record, false);
+
+    assert_int_equal(ret, OS_INVALID);
+}
+
+static void test_wdb_services_insert_fail_null_file_path(void **state) {
+    int ret = OS_INVALID;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 1;
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * service_name = "service_name";
+    const char * service_id = "service_id";
+    const char * service_description = "service_description";
+    const char * service_type = "service_type";
+    const char * service_state = "service_state";
+    const char * service_sub_state = "service_sub_state";
+    const char * service_enabled = "service_enabled";
+    const char * service_start_type = "service_start_type";
+    const char * service_restart = "service_restart";
+    const long long service_frequency = 0;
+    const int service_starts_on_mount = 0;
+    const char * service_starts_on_path_modified = "service_starts_on_path_modified";
+    const char * service_starts_on_not_empty_directory = "service_starts_on_not_empty_directory";
+    const int service_inetd_compatibility = 0;
+    const long long process_pid = 0;
+    const char * process_executable = "process_executable";
+    const char * process_args = "process_args";
+    const char * process_user_name = "process_user_name";
+    const char * process_group_name = "process_group_name";
+    const char * process_working_directory = "process_working_directory";
+    const char * process_root_directory = "process_root_directory";
+    const char * file_path = NULL;
+    const char * service_address = "service_address";
+    const char * log_file_path = "log_file_path";
+    const char * error_log_file_path = "error_log_file_path";
+    const int service_exit_code = 0;
+    const int service_win32_exit_code = 0;
+    const char * service_following = "service_following";
+    const char * service_object_path = "service_object_path";
+    const long long service_target_ephemeral_id = 0;
+    const char * service_target_type = "service_target_type";
+    const char * service_target_address = "service_target_address";
+    const char * checksum = "checksum";
+    const char * item_id = "item_id";
+
+    service_record_t service_record = {
+        .scan_id = scan_id,
+        .scan_time = scan_time,
+        .service_name = service_name,
+        .service_id = service_id,
+        .service_description = service_description,
+        .service_type = service_type,
+        .service_state = service_state,
+        .service_sub_state = service_sub_state,
+        .service_enabled = service_enabled,
+        .service_start_type = service_start_type,
+        .service_restart = service_restart,
+        .service_frequency = service_frequency,
+        .service_starts_on_mount = service_starts_on_mount,
+        .service_starts_on_path_modified = service_starts_on_path_modified,
+        .service_starts_on_not_empty_directory = service_starts_on_not_empty_directory,
+        .service_inetd_compatibility = service_inetd_compatibility,
+        .process_pid = process_pid,
+        .process_executable = process_executable,
+        .process_args = process_args,
+        .process_user_name = process_user_name,
+        .process_group_name = process_group_name,
+        .process_working_directory = process_working_directory,
+        .process_root_directory = process_root_directory,
+        .file_path = file_path,
+        .service_address = service_address,
+        .log_file_path = log_file_path,
+        .error_log_file_path = error_log_file_path,
+        .service_exit_code = service_exit_code,
+        .service_win32_exit_code = service_win32_exit_code,
+        .service_following = service_following,
+        .service_object_path = service_object_path,
+        .service_target_ephemeral_id = service_target_ephemeral_id,
+        .service_target_type = service_target_type,
+        .service_target_address = service_target_address,
+        .checksum = checksum,
+        .item_id = item_id
+    };
+
+    // Test should fail in parameter validation before any database operations
+    ret = wdb_services_insert(data, &service_record, false);
+
+    assert_int_equal(ret, OS_INVALID);
+}
+
+static void test_wdb_services_insert_fail_empty_service_id(void **state) {
+    int ret = OS_INVALID;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 1;
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * service_name = "service_name";
+    const char * service_id = "";  // Empty string
+    const char * service_description = "service_description";
+    const char * service_type = "service_type";
+    const char * service_state = "service_state";
+    const char * service_sub_state = "service_sub_state";
+    const char * service_enabled = "service_enabled";
+    const char * service_start_type = "service_start_type";
+    const char * service_restart = "service_restart";
+    const long long service_frequency = 0;
+    const int service_starts_on_mount = 0;
+    const char * service_starts_on_path_modified = "service_starts_on_path_modified";
+    const char * service_starts_on_not_empty_directory = "service_starts_on_not_empty_directory";
+    const int service_inetd_compatibility = 0;
+    const long long process_pid = 0;
+    const char * process_executable = "process_executable";
+    const char * process_args = "process_args";
+    const char * process_user_name = "process_user_name";
+    const char * process_group_name = "process_group_name";
+    const char * process_working_directory = "process_working_directory";
+    const char * process_root_directory = "process_root_directory";
+    const char * file_path = "file_path";
+    const char * service_address = "service_address";
+    const char * log_file_path = "log_file_path";
+    const char * error_log_file_path = "error_log_file_path";
+    const int service_exit_code = 0;
+    const int service_win32_exit_code = 0;
+    const char * service_following = "service_following";
+    const char * service_object_path = "service_object_path";
+    const long long service_target_ephemeral_id = 0;
+    const char * service_target_type = "service_target_type";
+    const char * service_target_address = "service_target_address";
+    const char * checksum = "checksum";
+    const char * item_id = "item_id";
+
+    service_record_t service_record = {
+        .scan_id = scan_id,
+        .scan_time = scan_time,
+        .service_name = service_name,
+        .service_id = service_id,
+        .service_description = service_description,
+        .service_type = service_type,
+        .service_state = service_state,
+        .service_sub_state = service_sub_state,
+        .service_enabled = service_enabled,
+        .service_start_type = service_start_type,
+        .service_restart = service_restart,
+        .service_frequency = service_frequency,
+        .service_starts_on_mount = service_starts_on_mount,
+        .service_starts_on_path_modified = service_starts_on_path_modified,
+        .service_starts_on_not_empty_directory = service_starts_on_not_empty_directory,
+        .service_inetd_compatibility = service_inetd_compatibility,
+        .process_pid = process_pid,
+        .process_executable = process_executable,
+        .process_args = process_args,
+        .process_user_name = process_user_name,
+        .process_group_name = process_group_name,
+        .process_working_directory = process_working_directory,
+        .process_root_directory = process_root_directory,
+        .file_path = file_path,
+        .service_address = service_address,
+        .log_file_path = log_file_path,
+        .error_log_file_path = error_log_file_path,
+        .service_exit_code = service_exit_code,
+        .service_win32_exit_code = service_win32_exit_code,
+        .service_following = service_following,
+        .service_object_path = service_object_path,
+        .service_target_ephemeral_id = service_target_ephemeral_id,
+        .service_target_type = service_target_type,
+        .service_target_address = service_target_address,
+        .checksum = checksum,
+        .item_id = item_id
+    };
+
+    // Test should fail in parameter validation before any database operations
+    ret = wdb_services_insert(data, &service_record, false);
+
+    assert_int_equal(ret, OS_INVALID);
+}
+
+static void test_wdb_services_insert_fail_empty_file_path(void **state) {
+    int ret = OS_INVALID;
+    wdb_t *data = (wdb_t *)*state;
+
+    data->transaction = 1;
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * service_name = "service_name";
+    const char * service_id = "service_id";
+    const char * service_description = "service_description";
+    const char * service_type = "service_type";
+    const char * service_state = "service_state";
+    const char * service_sub_state = "service_sub_state";
+    const char * service_enabled = "service_enabled";
+    const char * service_start_type = "service_start_type";
+    const char * service_restart = "service_restart";
+    const long long service_frequency = 0;
+    const int service_starts_on_mount = 0;
+    const char * service_starts_on_path_modified = "service_starts_on_path_modified";
+    const char * service_starts_on_not_empty_directory = "service_starts_on_not_empty_directory";
+    const int service_inetd_compatibility = 0;
+    const long long process_pid = 0;
+    const char * process_executable = "process_executable";
+    const char * process_args = "process_args";
+    const char * process_user_name = "process_user_name";
+    const char * process_group_name = "process_group_name";
+    const char * process_working_directory = "process_working_directory";
+    const char * process_root_directory = "process_root_directory";
+    const char * file_path = "";  // Empty string
+    const char * service_address = "service_address";
+    const char * log_file_path = "log_file_path";
+    const char * error_log_file_path = "error_log_file_path";
+    const int service_exit_code = 0;
+    const int service_win32_exit_code = 0;
+    const char * service_following = "service_following";
+    const char * service_object_path = "service_object_path";
+    const long long service_target_ephemeral_id = 0;
+    const char * service_target_type = "service_target_type";
+    const char * service_target_address = "service_target_address";
+    const char * checksum = "checksum";
+    const char * item_id = "item_id";
+
+    service_record_t service_record = {
+        .scan_id = scan_id,
+        .scan_time = scan_time,
+        .service_name = service_name,
+        .service_id = service_id,
+        .service_description = service_description,
+        .service_type = service_type,
+        .service_state = service_state,
+        .service_sub_state = service_sub_state,
+        .service_enabled = service_enabled,
+        .service_start_type = service_start_type,
+        .service_restart = service_restart,
+        .service_frequency = service_frequency,
+        .service_starts_on_mount = service_starts_on_mount,
+        .service_starts_on_path_modified = service_starts_on_path_modified,
+        .service_starts_on_not_empty_directory = service_starts_on_not_empty_directory,
+        .service_inetd_compatibility = service_inetd_compatibility,
+        .process_pid = process_pid,
+        .process_executable = process_executable,
+        .process_args = process_args,
+        .process_user_name = process_user_name,
+        .process_group_name = process_group_name,
+        .process_working_directory = process_working_directory,
+        .process_root_directory = process_root_directory,
+        .file_path = file_path,
+        .service_address = service_address,
+        .log_file_path = log_file_path,
+        .error_log_file_path = error_log_file_path,
+        .service_exit_code = service_exit_code,
+        .service_win32_exit_code = service_win32_exit_code,
+        .service_following = service_following,
+        .service_object_path = service_object_path,
+        .service_target_ephemeral_id = service_target_ephemeral_id,
+        .service_target_type = service_target_type,
+        .service_target_address = service_target_address,
+        .checksum = checksum,
+        .item_id = item_id
+    };
+
+    // Test should fail in parameter validation before any database operations
+    ret = wdb_services_insert(data, &service_record, false);
+
+    assert_int_equal(ret, OS_INVALID);
+}
+
+static void test_wdb_services_insert_sql_fail(void **state) {
+    int ret = OS_INVALID;
+    wdb_t *data = (wdb_t *)*state;
+
+    const char * scan_id = "scan_id";
+    const char * scan_time = "scan_time";
+    const char * service_name = "service_name";
+    const char * service_id = "service_id";
+    const char * service_description = "service_description";
+    const char * service_type = "service_type";
+    const char * service_state = "service_state";
+    const char * service_sub_state = "service_sub_state";
+    const char * service_enabled = "service_enabled";
+    const char * service_start_type = "service_start_type";
+    const char * service_restart = "service_restart";
+    const long long service_frequency = 0;
+    const int service_starts_on_mount = 0;
+    const char * service_starts_on_path_modified = "service_starts_on_path_modified";
+    const char * service_starts_on_not_empty_directory = "service_starts_on_not_empty_directory";
+    const int service_inetd_compatibility = 0;
+    const long long process_pid = 0;
+    const char * process_executable = "process_executable";
+    const char * process_args = "process_args";
+    const char * process_user_name = "process_user_name";
+    const char * process_group_name = "process_group_name";
+    const char * process_working_directory = "process_working_directory";
+    const char * process_root_directory = "process_root_directory";
+    const char * file_path = "file_path";
+    const char * service_address = "service_address";
+    const char * log_file_path = "log_file_path";
+    const char * error_log_file_path = "error_log_file_path";
+    const int service_exit_code = 0;
+    const int service_win32_exit_code = 0;
+    const char * service_following = "service_following";
+    const char * service_object_path = "service_object_path";
+    const long long service_target_ephemeral_id = 0;
+    const char * service_target_type = "service_target_type";
+    const char * service_target_address = "service_target_address";
+    const char * checksum = "checksum";
+    const char * item_id = "item_id";
+
+    will_return(__wrap_wdb_stmt_cache, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 1);
+    expect_string(__wrap_sqlite3_bind_text, buffer, scan_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 2);
+    expect_string(__wrap_sqlite3_bind_text, buffer, scan_time);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 3);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 4);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 5);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_description);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 6);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_type);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 7);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_state);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 8);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_sub_state);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 9);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_enabled);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 10);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_start_type);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 11);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_restart);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 12);
+    expect_value(__wrap_sqlite3_bind_int64, value, service_frequency);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 13);
+    expect_value(__wrap_sqlite3_bind_int, value, service_starts_on_mount);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 14);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_starts_on_path_modified);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 15);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_starts_on_not_empty_directory);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 16);
+    expect_value(__wrap_sqlite3_bind_int, value, service_inetd_compatibility);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 17);
+    expect_value(__wrap_sqlite3_bind_int64, value, process_pid);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 18);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_executable);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 19);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_args);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 20);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_user_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 21);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_group_name);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 22);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_working_directory);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 23);
+    expect_string(__wrap_sqlite3_bind_text, buffer, process_root_directory);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 24);
+    expect_string(__wrap_sqlite3_bind_text, buffer, file_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 25);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_address);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 26);
+    expect_string(__wrap_sqlite3_bind_text, buffer, log_file_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 27);
+    expect_string(__wrap_sqlite3_bind_text, buffer, error_log_file_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 28);
+    expect_value(__wrap_sqlite3_bind_int, value, service_exit_code);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_int, index, 29);
+    expect_value(__wrap_sqlite3_bind_int, value, service_win32_exit_code);
+    will_return(__wrap_sqlite3_bind_int, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 30);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_following);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 31);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_object_path);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_int64, index, 32);
+    expect_value(__wrap_sqlite3_bind_int64, value, service_target_ephemeral_id);
+    will_return(__wrap_sqlite3_bind_int64, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 33);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_target_type);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 34);
+    expect_string(__wrap_sqlite3_bind_text, buffer, service_target_address);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 35);
+    expect_string(__wrap_sqlite3_bind_text, buffer, checksum);
+    will_return(__wrap_sqlite3_bind_text, 0);
+    expect_value(__wrap_sqlite3_bind_text, pos, 36);
+    expect_string(__wrap_sqlite3_bind_text, buffer, item_id);
+    will_return(__wrap_sqlite3_bind_text, 0);
+
+    will_return(__wrap_wdb_step, 1);
+    will_return(__wrap_sqlite3_errmsg, "ERROR");
+    expect_string(__wrap__merror, formatted_msg, "SQLite: ERROR");
+
+    service_record_t service_record = {
+        .scan_id = scan_id,
+        .scan_time = scan_time,
+        .service_name = service_name,
+        .service_id = service_id,
+        .service_description = service_description,
+        .service_type = service_type,
+        .service_state = service_state,
+        .service_sub_state = service_sub_state,
+        .service_enabled = service_enabled,
+        .service_start_type = service_start_type,
+        .service_restart = service_restart,
+        .service_frequency = service_frequency,
+        .service_starts_on_mount = service_starts_on_mount,
+        .service_starts_on_path_modified = service_starts_on_path_modified,
+        .service_starts_on_not_empty_directory = service_starts_on_not_empty_directory,
+        .service_inetd_compatibility = service_inetd_compatibility,
+        .process_pid = process_pid,
+        .process_executable = process_executable,
+        .process_args = process_args,
+        .process_user_name = process_user_name,
+        .process_group_name = process_group_name,
+        .process_working_directory = process_working_directory,
+        .process_root_directory = process_root_directory,
+        .file_path = file_path,
+        .service_address = service_address,
+        .log_file_path = log_file_path,
+        .error_log_file_path = error_log_file_path,
+        .service_exit_code = service_exit_code,
+        .service_win32_exit_code = service_win32_exit_code,
+        .service_following = service_following,
+        .service_object_path = service_object_path,
+        .service_target_ephemeral_id = service_target_ephemeral_id,
+        .service_target_type = service_target_type,
+        .service_target_address = service_target_address,
+        .checksum = checksum,
+        .item_id = item_id
+    };
+
+    ret = wdb_services_insert(data, &service_record, false);
+
+    assert_int_equal(ret, OS_INVALID);
+}
+
 /* Test wdb_syscollector_save2 */
 void test_wdb_syscollector_save2_parser_json_fail(void **state) {
     int output = 0;
@@ -3375,6 +5217,7 @@ void test_wdb_syscollector_save2_fail(void **state) {
     will_return(__wrap_cJSON_Parse, 1);
     will_return(__wrap_cJSON_GetObjectItem, 1);
     expect_function_call(__wrap_cJSON_Delete);
+    expect_string(__wrap__mdebug1, formatted_msg, "at wdb_syscollector_save2(): Invalid component.");
 
     output = wdb_syscollector_save2(data, 0, NULL);
     assert_int_equal(output, -1);
@@ -3393,6 +5236,25 @@ void test_wdb_syscollector_save2_processes_fail(void **state) {
 
     output = wdb_syscollector_save2(data, WDB_SYSCOLLECTOR_PROCESSES, NULL);
     assert_int_equal(output, -1);
+}
+
+void test_wdb_syscollector_save2_processes_fail_2(void **state) {
+    int output = 0;
+    wdb_t *data = (wdb_t *)*state;
+    cJSON attribute = {0};
+
+    attribute.valueint = 123;
+    attribute.valuedouble = 5294967296;
+
+    will_return(__wrap_cJSON_Parse, 1);
+    will_return(__wrap_cJSON_GetObjectItem, 1);
+
+    data->transaction = 0;
+    wdb_syscollector_processes_save2_fail_2(&attribute);
+    expect_function_call(__wrap_cJSON_Delete);
+
+    output = wdb_syscollector_save2(data, WDB_SYSCOLLECTOR_PROCESSES, NULL);
+    assert_int_equal(output, OS_INVALID);
 }
 
 void test_wdb_syscollector_save2_processes_success(void **state) {
@@ -3596,6 +5458,7 @@ void test_wdb_syscollector_save2_netinfo_success(void **state) {
     cJSON attribute = {0};
 
     attribute.valueint = 1;
+    attribute.valuedouble = 1;
     will_return(__wrap_cJSON_Parse, 1);
     will_return(__wrap_cJSON_GetObjectItem, 1);
 
@@ -3768,7 +5631,7 @@ typedef struct netinfo_object {
     char *adapter;
     char *type;
     char *_state;
-    int mtu;
+    int64_t mtu;
     char *mac;
     long tx_packets;
     long rx_packets;
@@ -4162,7 +6025,7 @@ void configure_wdb_netinfo_insert(netinfo_object test_netinfo, int sqlite_code) 
     configure_sqlite3_bind_text(4, test_netinfo.adapter);
     configure_sqlite3_bind_text(5, test_netinfo.type);
     configure_sqlite3_bind_text(6, test_netinfo._state);
-    configure_sqlite3_bind_int(7, test_netinfo.mtu, NOT_ALLOW_ZERO);
+    configure_sqlite3_bind_int64(7, test_netinfo.mtu, NOT_ALLOW_ZERO);
     configure_sqlite3_bind_text(8, test_netinfo.mac);
     configure_sqlite3_bind_int64(9, test_netinfo.tx_packets, ALLOW_ZERO);
     configure_sqlite3_bind_int64(10, test_netinfo.rx_packets, ALLOW_ZERO);
@@ -4469,7 +6332,6 @@ static void test_wdb_netinfo_insert_negative_values_error(void **state) {
     test_netinfo.rx_dropped = OS_INVALID;
 
     configure_wdb_netinfo_insert(test_netinfo, SQLITE_ERROR);
-
     will_return(__wrap_sqlite3_errmsg, "ERROR_MESSAGE");
     expect_string(__wrap__merror, formatted_msg, "SQLite: ERROR_MESSAGE");
 
@@ -5169,11 +7031,40 @@ int main() {
         cmocka_unit_test_setup_teardown(test_wdb_process_delete_cache_fail, test_setup, test_teardown),
         cmocka_unit_test_setup_teardown(test_wdb_process_delete_sql_fail, test_setup, test_teardown),
         cmocka_unit_test_setup_teardown(test_wdb_process_delete_success, test_setup, test_teardown),
+        /* Test wdb_users_insert */
+        cmocka_unit_test_setup_teardown(test_wdb_users_insert_sql_fail, test_setup, test_teardown),
+        /* Test wdb_users_save */
+        cmocka_unit_test_setup_teardown(test_wdb_users_save_transaction_fail, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_users_save_insert_fail, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_users_save_success, test_setup, test_teardown),
+        /* Test wdb_groups_insert */
+        cmocka_unit_test_setup_teardown(test_wdb_groups_insert_sql_fail, test_setup, test_teardown),
+        /* Test wdb_groups_save */
+        cmocka_unit_test_setup_teardown(test_wdb_groups_save_transaction_fail, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_groups_save_insert_fail, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_groups_save_success, test_setup, test_teardown),
+        /* Test wdb_browser_extensions_insert */
+        cmocka_unit_test_setup_teardown(test_wdb_browser_extensions_insert_sql_fail, test_setup, test_teardown),
+        /* Test wdb_browser_extensions_save */
+        cmocka_unit_test_setup_teardown(test_wdb_browser_extensions_save_transaction_fail, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_browser_extensions_save_insert_fail, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_browser_extensions_save_success, test_setup, test_teardown),
+        /* Test wdb_services_insert */
+        cmocka_unit_test_setup_teardown(test_wdb_services_insert_fail_null_service_id, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_services_insert_fail_null_file_path, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_services_insert_fail_empty_service_id, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_services_insert_fail_empty_file_path, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_services_insert_sql_fail, test_setup, test_teardown),
+        /* Test wdb_services_save */
+        cmocka_unit_test_setup_teardown(test_wdb_services_save_transaction_fail, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_services_save_insert_fail, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_services_save_success, test_setup, test_teardown),
         /* Test wdb_syscollector_save2 */
         cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_parser_json_fail, test_setup, test_teardown),
         cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_get_attributes_fail, test_setup, test_teardown),
         cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_fail, test_setup, test_teardown),
         cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_processes_fail, test_setup, test_teardown),
+        cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_processes_fail_2, test_setup, test_teardown),
         cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_processes_success, test_setup, test_teardown),
         cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_package_fail, test_setup, test_teardown),
         cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_package_success, test_setup, test_teardown),
@@ -5191,6 +7082,8 @@ int main() {
         cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_hwinfo_success, test_setup, test_teardown),
         cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_osinfo_fail, test_setup, test_teardown),
         cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_osinfo_success, test_setup, test_teardown),
+        //cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_browser_extensions_fail, test_setup, test_teardown),
+        //cmocka_unit_test_setup_teardown(test_wdb_syscollector_save2_browser_extensions_success, test_setup, test_teardown),
         // Test wdb_netinfo_save
         cmocka_unit_test_setup_teardown(test_wdb_netinfo_save_transaction_fail, setup_wdb, teardown_wdb),
         cmocka_unit_test_setup_teardown(test_wdb_netinfo_save_success, setup_wdb, teardown_wdb),

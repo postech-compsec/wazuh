@@ -100,7 +100,7 @@ class PKGWrapper final : public IPackageWrapper
             return m_priority;
         }
 
-        int size() const override
+        int64_t size() const override
         {
             return m_size;
         }
@@ -159,6 +159,11 @@ class PKGWrapper final : public IPackageWrapper
                         {
                             m_name = getValueFnc(line);
                         }
+                        else if (line == "<key>CFBundleExecutable</key>" &&
+                                 m_name.empty() && std::getline(data, line))
+                        {
+                            m_name = getValueFnc(line);
+                        }
                         else if (line == "<key>CFBundleShortVersionString</key>" &&
                                  std::getline(data, line))
                         {
@@ -192,6 +197,11 @@ class PKGWrapper final : public IPackageWrapper
                                 if (Utils::findRegexInString(m_description, vendor, bundleIdRegex, 1))
                                 {
                                     m_vendor = vendor;
+
+                                    if (m_vendor.size() > 0 && islower(m_vendor[0]))
+                                    {
+                                        m_vendor[0] = toupper(m_vendor[0]);
+                                    }
                                 }
                             }
                         }
@@ -280,6 +290,11 @@ class PKGWrapper final : public IPackageWrapper
                                 if (i == 1)
                                 {
                                     m_vendor = reverseDomainName[i];
+
+                                    if (m_vendor.size() > 0 && islower(m_vendor[0]))
+                                    {
+                                        m_vendor[0] = toupper(m_vendor[0]);
+                                    }
                                 }
                                 else if (i > 1)
                                 {
@@ -373,7 +388,7 @@ class PKGWrapper final : public IPackageWrapper
         std::string m_location;
         std::string m_multiarch;
         std::string m_priority;
-        int m_size;
+        int64_t m_size;
         std::string m_vendor;
         std::string m_installTime;
 };

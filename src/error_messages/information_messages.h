@@ -63,6 +63,9 @@
 #define FIM_AUDIT_CREATED_RULE_FILE         "(6045): Created audit rules file, due to audit immutable mode rules will be loaded in the next reboot."
 #define FIM_AUDIT_QUEUE_SIZE                "(6046): Internal audit queue size set to '%d'."
 
+#define FIM_EBPF_INIT                       "(6047): Initializing eBPF driver for FIM whodata."
+#define FIM_EBPF_HEALTHCHECK_SUCCESS        "(6048): Healthcheck for eBPF FIM whodata module success."
+
 /* wazuh-logtest information messages */
 #define LOGTEST_INITIALIZED                 "(7200): Logtest started"
 #define LOGTEST_DISABLED                    "(7201): Logtest disabled"
@@ -77,6 +80,7 @@
 #define LOGCOLLECTOR_ONLY_MACOS             "(9201): 'macos' log format is only supported on macOS."
 #define LOGCOLLECTOR_JOURNALD_ONLY_LINUX    "(9202): 'Journald' log format is only available on Linux."
 #define LOGCOLLECTOR_JOURNALD_MONITORING    "(9203): Monitoring journal entries."
+#define LOGCOLLECTOR_TIMESTAMP_REFRESHED    "(9204): 'Journald' timestamp was refreshed due to rotation."
 
 /* Agent info messages */
 #define AG_UNINSTALL_VALIDATION_START       "(9500): Starting user validation to uninstall the Wazuh agent package."

@@ -101,6 +101,10 @@ int wm_config() {
     if ((module = wm_download_read()))
         wm_add(module);
 
+    // Inventory harvester
+    if ((module = wm_inventory_harvester_read()))
+        wm_add(module);
+
 #endif
 
 #if defined (__linux__) || (__MACH__) || defined (sun) || defined(FreeBSD) || defined(OpenBSD)
@@ -412,7 +416,7 @@ int wm_sendmsg(int usec, int queue, const char *message, const char *locmsg, cha
 #endif
 
     if (SendMSG(queue, message, locmsg, loc) < 0) {
-        merror("At wm_sendmsg(): Unable to send message to queue: (%s)", strerror(errno));
+        mdebug1("Unable to send message to queue: (%s)", strerror(errno));
         return -1;
     }
 
@@ -431,7 +435,7 @@ int wm_sendmsg_ex(int usec, int queue, const char *message, const char *locmsg, 
 #endif
 
     if (SendMSGPredicated(queue, message, locmsg, loc, fn_prd) < 0) {
-        merror("At wm_sendmsg(): Unable to send message to queue: (%s)", strerror(errno));
+        mdebug1("Unable to send message to queue: (%s)", strerror(errno));
         return -1;
     }
 
@@ -469,9 +473,9 @@ int wm_relative_path(const char * path) {
 }
 
 /**
- Check the binary wich executes a commad has the specified hash.
+ Check the binary which executes a command has the specified hash.
  Returns:
-     1 if the binary matchs with the specified digest, 0 if not.
+     1 if the binary matches with the specified digest, 0 if not.
     -1 invalid parameters.
 */
 int wm_validate_command(const char *command, const char *digest, crypto_type ctype) {

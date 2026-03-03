@@ -110,7 +110,7 @@ int wm_sca_read(const OS_XML *xml,xml_node **nodes, wmodule *module)
     sprintf(ruleset_path, "%s/", SECURITY_CONFIGURATION_ASSESSMENT_DIR);
     #endif
 
-    DIR *ruleset_dir = opendir(ruleset_path);
+    DIR *ruleset_dir = wopendir(ruleset_path);
     const int open_dir_errno = errno;
     if (ruleset_dir) {
         struct dirent *dir_entry;
@@ -268,6 +268,10 @@ int wm_sca_read(const OS_XML *xml,xml_node **nodes, wmodule *module)
                     const int path_length = GetFullPathName(relative_path, PATH_MAX, realpath_buffer, NULL);
                     if (!path_length) {
                         mwarn("File '%s' not found.", relative_path);
+                        continue;
+                    }
+                    if (is_network_path(realpath_buffer)) {
+                        mwarn(NETWORK_PATH_CONFIGURED, "policy", realpath_buffer);
                         continue;
                     }
                     #else

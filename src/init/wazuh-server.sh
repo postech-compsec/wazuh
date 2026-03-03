@@ -13,8 +13,8 @@ DIR=`dirname $PWD`;
 PLIST=${DIR}/bin/.process_list;
 
 # Installation info
-VERSION="v4.11.1"
-REVISION="41112"
+VERSION="v4.14.3"
+REVISION="rc3"
 TYPE="server"
 
 ###  Do not modify below here ###
@@ -44,7 +44,7 @@ LOCK_PID="${LOCK}/pid"
 # to 10 attempts (or 10 seconds) to execute.
 MAX_ITERATION="60"
 
-MAX_KILL_TRIES=600
+MAX_KILL_TRIES=30
 
 
 checkpid()
@@ -254,6 +254,34 @@ testconfig()
         fi
     done
 }
+# Check if the system uses systemd
+is_systemd() {
+    [ -d /run/systemd/system ]
+}
+
+# Add daemons to execd cgroup if systemd is used in legacy systems
+add_to_cgroup()
+{
+    EXECD_PID=$(head -n 1 ${DIR}/var/run/wazuh-execd-*.pid 2>/dev/null)
+    CGROUP_PATH="/sys/fs/cgroup/systemd/system.slice/wazuh-manager.service/cgroup.procs"
+
+    # Check if cgroup path exists
+    if [ ! -f "$CGROUP_PATH" ]; then
+        echo "Warning: cgroup path does not exist: $CGROUP_PATH" >&2
+    else
+        for pidfile in ${DIR}/var/run/wazuh-*-*.pid; do
+            [ -f "$pidfile" ] || continue
+            pid=$(cat "$pidfile" 2>/dev/null)
+            [ -z "$pid" ] && continue
+            [ "$pid" = "$EXECD_PID" ] && continue
+
+            # Try to write to cgroup, capture any errors
+            if ! echo "$pid" >> "$CGROUP_PATH" 2>/dev/null; then
+                echo "Warning: Failed to add PID $pid to cgroup ($(basename "$pidfile"))" >&2
+            fi
+        done
+    fi
+}
 
 # Start function
 start_service()
@@ -341,11 +369,27 @@ start_service()
             failed=false
             rm -f ${DIR}/var/run/${i}.failed
             touch ${DIR}/var/run/${i}.start
-            if [ $USE_JSON = true ]; then
-                ${DIR}/bin/${i} ${DEBUG_CLI} > /dev/null 2>&1;
+
+            if [ ! -z "$LEGACY_SYSTEMD_VERSION" ]; then
+                if command -v systemd-run >/dev/null 2>&1; then
+                    # safe to use systemd-run
+                    if [ $USE_JSON = true ]; then
+                        systemd-run --scope --slice=system.slice ${DIR}/bin/${i} ${DEBUG_CLI} > /dev/null 2>&1
+                    else
+                        systemd-run --scope --slice=system.slice ${DIR}/bin/${i} ${DEBUG_CLI}
+                    fi
+                else
+                    echo "ERROR: systemd is in use but systemd-run is not available" >&2
+                    exit 1
+                fi
             else
-                ${DIR}/bin/${i} ${DEBUG_CLI};
+                if [ $USE_JSON = true ]; then
+                    ${DIR}/bin/${i} ${DEBUG_CLI} > /dev/null 2>&1;
+                else
+                    ${DIR}/bin/${i} ${DEBUG_CLI};
+                fi
             fi
+
             if [ $? != 0 ]; then
                 failed=true
             else
@@ -395,6 +439,11 @@ start_service()
     # After we start we give 2 seconds for the daemons
     # to internally create their PID files.
     sleep 2;
+
+    # Add daemons to execd cgroup if systemd is used
+    if [ ! -z "$LEGACY_SYSTEMD_VERSION" ]; then
+        add_to_cgroup
+    fi
 
     if [ $USE_JSON = true ]; then
         echo -n ']}'
@@ -455,9 +504,7 @@ wait_pid() {
         then
             return 1
         else
-            # sleep doesn't work in AIX
-            # read doesn't work in FreeBSD
-            sleep 0.1 > /dev/null 2>&1 || read -t 0.1 > /dev/null 2>&1
+            sleep 1
             wp_counter=`expr $wp_counter + 1`
         fi
     done
@@ -468,6 +515,26 @@ wait_pid() {
 stop_service()
 {
     checkpid;
+
+    # First pass: send kill signal to all running daemons
+    for i in ${DAEMONS}; do
+        pstatus ${i};
+        if [ $? = 1 ]; then
+            if [ $USE_JSON != true ]
+            then
+                echo "Killing ${i}...";
+            fi
+            pid=`cat ${DIR}/var/run/${i}-*.pid`
+            kill $pid
+        else
+            if [ $USE_JSON != true ]
+            then
+                echo "${i} not running...";
+            fi
+        fi
+    done
+
+    # Second pass: wait for all processes that are still alive
     first=true
     if [ $USE_JSON = true ]; then
         echo -n '{"error":0,"data":['
@@ -482,32 +549,24 @@ stop_service()
         pstatus ${i};
 
         if [ $? = 1 ]; then
-            if [ $USE_JSON != true ]
-            then
-                echo "Killing ${i}...";
-            fi
-
             pid=`cat ${DIR}/var/run/${i}-*.pid`
-            kill $pid
 
             if wait_pid $pid
             then
                 if [ $USE_JSON = true ]; then
-                    echo -n '{"daemon":"'${i}'","status":"killed"}'
+                    echo -n '{"daemon":"'${i}'","status":"stopped"}'
                 fi
             else
                 if [ $USE_JSON = true ]; then
-                    echo -n '{"daemon":"'${i}'","status":"failed to kill"}'
+                    echo -n '{"daemon":"'${i}'","status":"killed"}'
                 else
                     echo "Process ${i} couldn't be terminated. It will be killed.";
-                    kill -9 $pid
                 fi
+                kill -9 $pid
             fi
         else
             if [ $USE_JSON = true ]; then
                 echo -n '{"daemon":"'${i}'","status":"stopped"}'
-            else
-                echo "${i} not running...";
             fi
         fi
         rm -f ${DIR}/var/run/${i}-*.pid
@@ -587,6 +646,12 @@ restart)
     ;;
 reload)
     DAEMONS=$(echo $DAEMONS | sed 's/wazuh-execd//')
+    if is_systemd; then
+        SYSTEMD_VERSION=$(systemctl --version | awk 'NR==1 {print $2}')
+        if [ "$SYSTEMD_VERSION" -le 237 ]; then
+            LEGACY_SYSTEMD_VERSION=1
+        fi
+    fi
     restart_service
     ;;
 status)

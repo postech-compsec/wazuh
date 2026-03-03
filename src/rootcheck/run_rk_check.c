@@ -11,6 +11,7 @@
 #include "shared.h"
 #include "rootcheck.h"
 #include "config/syscheck-config.h"
+#include "syscheck.h"
 
 static void log_realtime_status_rk(int next);
 
@@ -41,9 +42,9 @@ int notify_rk(int rk_type, const char *msg)
 #ifdef OSSECHIDS
     /* When running in context of OSSEC-HIDS, send problem to the rootcheck queue */
     if (SendMSG(rootcheck.queue, msg, ROOTCHECK, ROOTCHECK_MQ) < 0) {
-        mterror(ARGV0, QUEUE_SEND);
+        mtdebug1(ARGV0, QUEUE_SEND);
 
-        if ((rootcheck.queue = StartMQ(DEFAULTQUEUE, WRITE, INFINITE_OPENQ_ATTEMPTS)) < 0) {
+        if ((rootcheck.queue = StartMQPredicated(DEFAULTQUEUE, WRITE, INFINITE_OPENQ_ATTEMPTS, fim_shutdown_process_on)) < 0) {
             mterror_exit(ARGV0, QUEUE_FATAL, DEFAULTQUEUE);
         }
 
@@ -115,7 +116,7 @@ void run_rk_check()
         } else {
             fp = wfopen(rootcheck.rootkit_files, "r");
             if (!fp) {
-                mterror(ARGV0, "No rootcheck_files file: '%s'", rootcheck.rootkit_files);
+                mtwarn(ARGV0, "No rootcheck_files file: '%s'", rootcheck.rootkit_files);
             }
 
             else {
@@ -134,7 +135,7 @@ void run_rk_check()
         } else {
             fp = wfopen(rootcheck.rootkit_trojans, "r");
             if (!fp) {
-                mterror(ARGV0, "No rootcheck_trojans file: '%s'", rootcheck.rootkit_trojans);
+                mtwarn(ARGV0, "No rootcheck_trojans file: '%s'", rootcheck.rootkit_trojans);
             } else {
 #ifndef HPUX
                 check_rc_trojans(rootcheck.basedir, fp);
@@ -155,7 +156,7 @@ void run_rk_check()
         } else {
             fp = wfopen(rootcheck.winaudit, "r");
             if (!fp) {
-                mterror(ARGV0, "No winaudit file: '%s'", rootcheck.winaudit);
+                mtwarn(ARGV0, "No winaudit file: '%s'", rootcheck.winaudit);
             } else {
                 check_rc_winaudit(fp, plist);
                 fclose(fp);
@@ -170,7 +171,7 @@ void run_rk_check()
         } else {
             fp = wfopen(rootcheck.winmalware, "r");
             if (!fp) {
-                mterror(ARGV0, "No winmalware file: '%s'", rootcheck.winmalware);
+                mtwarn(ARGV0, "No winmalware file: '%s'", rootcheck.winmalware);
             } else {
                 check_rc_winmalware(fp, plist);
                 fclose(fp);
@@ -185,7 +186,7 @@ void run_rk_check()
         } else {
             fp = wfopen(rootcheck.winapps, "r");
             if (!fp) {
-                mterror(ARGV0, "No winapps file: '%s'", rootcheck.winapps);
+                mtwarn(ARGV0, "No winapps file: '%s'", rootcheck.winapps);
             } else {
                 check_rc_winapps(fp, plist);
                 fclose(fp);
@@ -210,7 +211,7 @@ void run_rk_check()
             while (rootcheck.unixaudit[i]) {
                 fp = wfopen(rootcheck.unixaudit[i], "r");
                 if (!fp) {
-                    mterror(ARGV0, "No unixaudit file: '%s'", rootcheck.unixaudit[i]);
+                    mtwarn(ARGV0, "No unixaudit file: '%s'", rootcheck.unixaudit[i]);
                 } else {
                     /* Run unix audit */
                     check_rc_unixaudit(fp, plist);

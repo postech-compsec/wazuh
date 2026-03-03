@@ -21,7 +21,7 @@
 
 #ifndef CLIENT
 #include "router.h"
-#include "utils/flatbuffers/include/syscollector_synchronization_schema.h"
+#include "utils/flatbuffers/include/rsync_schema.h"
 #include "utils/flatbuffers/include/syscollector_deltas_schema.h"
 #include "agent_messages_adapter.h"
 #endif // CLIENT
@@ -79,9 +79,9 @@ static void wm_sys_send_message(const void* data, const char queue_id) {
         const int eps = 1000000/syscollector_sync_max_eps;
         if (wm_sendmsg_ex(eps, queue_fd, data, WM_SYS_LOCATION, queue_id, &is_shutdown_process_started) < 0) {
     #ifdef CLIENT
-            mterror(WM_SYS_LOGTAG, "Unable to send message to '%s' (wazuh-agentd might be down). Attempting to reconnect.", DEFAULTQUEUE);
+            mtdebug1(WM_SYS_LOGTAG, "Unable to send message to '%s' (wazuh-agentd might be down). Attempting to reconnect.", DEFAULTQUEUE);
     #else
-            mterror(WM_SYS_LOGTAG, "Unable to send message to '%s' (wazuh-analysisd might be down). Attempting to reconnect.", DEFAULTQUEUE);
+            mtdebug1(WM_SYS_LOGTAG, "Unable to send message to '%s' (wazuh-analysisd might be down). Attempting to reconnect.", DEFAULTQUEUE);
     #endif
             // Since this method is beign called by multiple threads it's necessary this particular portion of code
             // to be mutually exclusive. When one thread is successfully reconnected, the other ones will make use of it.
@@ -120,7 +120,7 @@ static void wm_sys_send_dbsync_message(const void* data) {
     {
         char* msg_to_send = adapt_sync_message(data, "localhost", "000", "127.0.0.1", NULL);
         if (msg_to_send && router_provider_send_fb_func_ptr) {
-            router_provider_send_fb_func_ptr(rsync_handle, msg_to_send, syscollector_synchronization_SCHEMA);
+            router_provider_send_fb_func_ptr(rsync_handle, msg_to_send, rsync_SCHEMA);
         }
         cJSON_free(msg_to_send);
     }
@@ -146,6 +146,14 @@ DWORD WINAPI wm_sys_main(void *arg) {
 #else
 void* wm_sys_main(wm_sys_t *sys) {
 #endif
+
+    if (sys->flags.running) {
+        // Already running
+        return 0;
+    }
+
+    sys->flags.running = true;
+
     w_cond_init(&sys_stop_condition, NULL);
     w_mutex_init(&sys_stop_mutex, NULL);
     w_mutex_init(&sys_reconnect_mutex, NULL);
@@ -223,7 +231,7 @@ void* wm_sys_main(wm_sys_t *sys) {
                 mdebug2("Failed to create router handle for 'syscollector'.");
             }
 
-            if (rsync_handle = router_provider_create_func_ptr("rsync-syscollector", true), !rsync_handle) {
+            if (rsync_handle = router_provider_create_func_ptr("rsync", true), !rsync_handle) {
                 mdebug2("Failed to create router handle for 'rsync'.");
             }
         }
@@ -243,7 +251,11 @@ void* wm_sys_main(wm_sys_t *sys) {
                                sys->flags.portsinfo,
                                sys->flags.allports,
                                sys->flags.procinfo,
-                               sys->flags.hotfixinfo);
+                               sys->flags.hotfixinfo,
+                               sys->flags.groups,
+                               sys->flags.users,
+                               sys->flags.services,
+                               sys->flags.browser_extensions);
     } else {
         mterror(WM_SYS_LOGTAG, "Can't get syscollector_start_ptr.");
         pthread_exit(NULL);
@@ -270,10 +282,21 @@ void* wm_sys_main(wm_sys_t *sys) {
 }
 
 void wm_sys_destroy(wm_sys_t *data) {
+    w_cond_destroy(&sys_stop_condition);
+    w_mutex_destroy(&sys_stop_mutex);
+    w_mutex_destroy(&sys_reconnect_mutex);
+
     free(data);
 }
 
 void wm_sys_stop(__attribute__((unused))wm_sys_t *data) {
+    if (!data->flags.running) {
+        // Already stopped
+        return;
+    }
+
+    data->flags.running = false;
+
     mtinfo(WM_SYS_LOGTAG, "Stop received for Syscollector.");
     syscollector_sync_message_ptr = NULL;
     if (syscollector_stop_ptr){
@@ -285,10 +308,6 @@ void wm_sys_stop(__attribute__((unused))wm_sys_t *data) {
         w_cond_wait(&sys_stop_condition, &sys_stop_mutex);
     }
     w_mutex_unlock(&sys_stop_mutex);
-
-    w_cond_destroy(&sys_stop_condition);
-    w_mutex_destroy(&sys_stop_mutex);
-    w_mutex_destroy(&sys_reconnect_mutex);
 }
 
 cJSON *wm_sys_dump(const wm_sys_t *sys) {
@@ -306,6 +325,10 @@ cJSON *wm_sys_dump(const wm_sys_t *sys) {
     if (sys->flags.portsinfo) cJSON_AddStringToObject(wm_sys,"ports","yes"); else cJSON_AddStringToObject(wm_sys,"ports","no");
     if (sys->flags.allports) cJSON_AddStringToObject(wm_sys,"ports_all","yes"); else cJSON_AddStringToObject(wm_sys,"ports_all","no");
     if (sys->flags.procinfo) cJSON_AddStringToObject(wm_sys,"processes","yes"); else cJSON_AddStringToObject(wm_sys,"processes","no");
+    if (sys->flags.groups) cJSON_AddStringToObject(wm_sys,"groups","yes"); else cJSON_AddStringToObject(wm_sys,"groups","no");
+    if (sys->flags.users) cJSON_AddStringToObject(wm_sys,"users","yes"); else cJSON_AddStringToObject(wm_sys,"users","no");
+    if (sys->flags.services) cJSON_AddStringToObject(wm_sys,"services","yes"); else cJSON_AddStringToObject(wm_sys,"services","no");
+    if (sys->flags.browser_extensions) cJSON_AddStringToObject(wm_sys,"browser_extensions","yes"); else cJSON_AddStringToObject(wm_sys,"browser_extensions","no");
 #ifdef WIN32
     if (sys->flags.hotfixinfo) cJSON_AddStringToObject(wm_sys,"hotfixes","yes"); else cJSON_AddStringToObject(wm_sys,"hotfixes","no");
 #endif

@@ -98,7 +98,8 @@ void Rules_OP_CreateRules() {
 }
 
 int Rules_OP_ReadRules(const char *rulefile, RuleNode **r_node, ListNode **l_node,
-                       EventList **last_event_list, OSStore **decoder_list, OSList* log_msg)
+                       EventList **last_event_list, OSStore **decoder_list, OSList* log_msg,
+                       bool is_ar_link_enabled)
 {
     OS_XML xml;
     XML_NODE node = NULL;
@@ -570,7 +571,13 @@ int Rules_OP_ReadRules(const char *rulefile, RuleNode **r_node, ListNode **l_nod
 
                     } else if (strcasecmp(rule_tmp_params.rule_arr_opt[k]->element, xml_group) == 0) {
                         config_ruleinfo->group = loadmemory(config_ruleinfo->group, rule_tmp_params.rule_arr_opt[k]->content, log_msg);
-
+                        char * aux_config_rule_group = config_ruleinfo->group;
+                        /* Avoid new lines in group name */
+                        aux_config_rule_group = wstr_replace(aux_config_rule_group, "\n", "");
+                        if (aux_config_rule_group && strlen(aux_config_rule_group) < strlen(config_ruleinfo->group)) {
+                            memcpy(config_ruleinfo->group, aux_config_rule_group, strlen(aux_config_rule_group)+1);
+                        }
+                        os_free(aux_config_rule_group);
                     } else if (strcasecmp(rule_tmp_params.rule_arr_opt[k]->element, xml_comment) == 0) {
 
                         char * newline = strchr(rule_tmp_params.rule_arr_opt[k]->content, '\n');
@@ -1891,7 +1898,7 @@ int Rules_OP_ReadRules(const char *rulefile, RuleNode **r_node, ListNode **l_nod
             } /* end of elements block */
 
             /* Assign an active response to the rule if not logtest*/
-            if (os_analysisd_rulelist == *r_node) {
+            if (is_ar_link_enabled) {
                 Rule_AddAR(config_ruleinfo);
             }
 

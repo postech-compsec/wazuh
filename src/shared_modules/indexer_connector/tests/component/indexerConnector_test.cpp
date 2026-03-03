@@ -27,8 +27,7 @@
 
 namespace Log
 {
-    std::function<void(
-        const int, const std::string&, const std::string&, const int, const std::string&, const std::string&, va_list)>
+    std::function<void(const int, const char*, const char*, const int, const char*, const char*, va_list)>
         GLOBAL_LOG_FUNCTION;
 }; // namespace Log
 
@@ -97,6 +96,12 @@ void IndexerConnectorTest::SetUp()
     m_indexerServers.push_back(std::make_unique<FakeIndexer>(INDEXER_HOSTNAME, A_PORT, "green", INDEXER_NAME));
     m_indexerServers.push_back(std::make_unique<FakeIndexer>(INDEXER_HOSTNAME, B_PORT, "red", INDEXER_NAME));
     m_indexerServers.push_back(std::make_unique<FakeIndexer>(INDEXER_HOSTNAME, C_PORT, "red", INDEXER_NAME));
+
+    // Start fake indexers.
+    for (auto& server : m_indexerServers)
+    {
+        server->start();
+    }
 }
 
 void IndexerConnectorTest::TearDown()
@@ -167,7 +172,7 @@ TEST_F(IndexerConnectorTest, Connection)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 
     // Check init data.
@@ -193,7 +198,7 @@ TEST_F(IndexerConnectorTest, ConnectionWithUserAndPassword)
     indexerConfig["password"] = "password";
 
     // Create connector and wait until the connection is established.
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     EXPECT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 }
 
@@ -214,7 +219,7 @@ TEST_F(IndexerConnectorTest, ConnectionWithSslCredentials)
     indexerConfig["ssl"]["key"] = "/etc/filebeat/certs/filebeat-key.pem";
 
     // Create connector and wait until the connection is established.
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     EXPECT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 }
 
@@ -229,7 +234,7 @@ TEST_F(IndexerConnectorTest, ConnectionUnavailableServer)
     indexerConfig["hosts"] = nlohmann::json::array({B_ADDRESS});
 
     // Create connector and wait until the max time is reached.
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     EXPECT_THROW(waitUntil([this]() { return m_indexerServers[B_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS),
                  std::runtime_error);
 }
@@ -249,7 +254,7 @@ TEST_F(IndexerConnectorTest, ConnectionMultipleServers)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS, B_ADDRESS, C_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_NO_THROW(waitUntil([this]() { return m_indexerServers[C_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 }
 
@@ -264,7 +269,7 @@ TEST_F(IndexerConnectorTest, ConnectionInvalidServer)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({INEXISTANT_SERVER});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS),
                  std::runtime_error);
 }
@@ -276,7 +281,7 @@ TEST_F(IndexerConnectorTest, ConnectionInvalidServer)
 TEST_F(IndexerConnectorTest, ConnectionInitTemplateErrorFromServer)
 {
     // Callback function that checks if the callback was executed or not.
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto forceErrorCallback {[&callbackCalled](const std::string& data)
                                    {
                                        std::ignore = data;
@@ -289,7 +294,7 @@ TEST_F(IndexerConnectorTest, ConnectionInitTemplateErrorFromServer)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS),
                  std::runtime_error);
 }
@@ -301,7 +306,7 @@ TEST_F(IndexerConnectorTest, ConnectionInitTemplateErrorFromServer)
 TEST_F(IndexerConnectorTest, ConnectionInitIndexErrorFromServer)
 {
     // Callback function that checks if the callback was executed or not.
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto forceErrorCallback {[&callbackCalled](const std::string& data)
                                    {
                                        std::ignore = data;
@@ -314,7 +319,7 @@ TEST_F(IndexerConnectorTest, ConnectionInitIndexErrorFromServer)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS),
                  std::runtime_error);
 }
@@ -335,7 +340,7 @@ TEST_F(IndexerConnectorTest, Publish)
     // First line: JSON data with the metadata (indexer name, index ID)
     // Second line: Index data.
     constexpr auto INDEX_DATA {"content"};
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto checkPublishedData {[&expectedMetadata, &callbackCalled, &INDEX_DATA](const std::string& data)
                                    {
                                        const auto splitData {Utils::split(data, '\n')};
@@ -349,7 +354,7 @@ TEST_F(IndexerConnectorTest, Publish)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 
     // Publish content and wait until the publication finishes.
@@ -358,7 +363,7 @@ TEST_F(IndexerConnectorTest, Publish)
     publishData["operation"] = "INSERT";
     publishData["data"] = INDEX_DATA;
     ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
-    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS));
+    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS));
 }
 
 /**
@@ -378,7 +383,7 @@ TEST_F(IndexerConnectorTest, NoPublish)
     // First line: JSON data with the metadata (indexer name, index ID)
     // Second line: Index data.
     constexpr auto INDEX_DATA {"content"};
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto checkPublishedData {[&expectedMetadata, &callbackCalled, &INDEX_DATA](const std::string& data)
                                    {
                                        const auto splitData {Utils::split(data, '\n')};
@@ -394,6 +399,7 @@ TEST_F(IndexerConnectorTest, NoPublish)
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
     auto indexerConnector {
         std::make_shared<IndexerConnector>(indexerConfig,
+                                           true,
                                            static_cast<std::function<void(const int,
                                                                           const std::string&,
                                                                           const std::string&,
@@ -409,14 +415,14 @@ TEST_F(IndexerConnectorTest, NoPublish)
     publishData["operation"] = "INSERT";
     publishData["data"] = INDEX_DATA;
     ASSERT_NO_THROW(indexerConnector->publish(publishData.dump()));
-    EXPECT_ANY_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS));
+    EXPECT_ANY_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS));
     ASSERT_FALSE(callbackCalled);
 
     // Now we create the normal object and check the data is synced without pushing it again
 
     indexerConnector.reset();
     indexerConnector =
-        std::make_shared<IndexerConnector>(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT);
+        std::make_shared<IndexerConnector>(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT);
     ASSERT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 
     auto searchCallbackCalled {false};
@@ -425,12 +431,22 @@ TEST_F(IndexerConnectorTest, NoPublish)
         {
             EXPECT_NE(data.find(agentId), std::string::npos);
             searchCallbackCalled = true;
-            return R"({"hits": {"total" : {"value": 0}, "hits": []}})";
+            return R"({"_scroll_id":"abcdef","hits": {"total" : {"value": 0}, "hits": []}})";
+        });
+
+    auto deleteScrollCallbackCalled {false};
+    m_indexerServers[A_IDX]->setDeleteScrollCallback(
+        [&](const std::string& data) -> std::string
+        {
+            EXPECT_EQ(data.compare("abcdef"), 0);
+            deleteScrollCallbackCalled = true;
+            return R"({"_scroll_id":"abcdef","hits": {"total" : {"value": 0}, "hits": []}})";
         });
     indexerConnector->sync(agentId);
-    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS));
+    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS));
     ASSERT_TRUE(callbackCalled);
     ASSERT_TRUE(searchCallbackCalled);
+    ASSERT_TRUE(deleteScrollCallbackCalled);
 }
 
 /**
@@ -441,14 +457,12 @@ TEST_F(IndexerConnectorTest, NoPublish)
 TEST_F(IndexerConnectorTest, PublishDeleted)
 {
     nlohmann::json expectedMetadata;
-    expectedMetadata["delete"]["_index"] = INDEXER_NAME;
-    expectedMetadata["delete"]["_id"] = INDEX_ID_A;
 
     // Callback that checks the expected data to be published.
     // The format of the data published is divided in two lines:
     // First line: JSON data with the metadata (indexer name, index ID)
     // Second line: Index data. When the operation is DELETED, no data is present.
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto checkPublishedData {[&expectedMetadata, &callbackCalled](const std::string& data)
                                    {
                                        const auto splitData {Utils::split(data, '\n')};
@@ -461,15 +475,28 @@ TEST_F(IndexerConnectorTest, PublishDeleted)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 
     // Publish content and wait until the publication finishes.
     nlohmann::json publishData;
+    expectedMetadata["index"]["_index"] = INDEXER_NAME;
+    expectedMetadata["index"]["_id"] = INDEX_ID_A;
+    publishData["id"] = INDEX_ID_A;
+    publishData["operation"] = "INSERTED";
+    publishData["data"] = "content";
+    ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
+    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS));
+
+    callbackCalled = false;
+    publishData.erase("data");
+    expectedMetadata.clear();
+    expectedMetadata["delete"]["_index"] = INDEXER_NAME;
+    expectedMetadata["delete"]["_id"] = INDEX_ID_A;
     publishData["id"] = INDEX_ID_A;
     publishData["operation"] = "DELETED";
     ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
-    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS));
+    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS));
 }
 
 /**
@@ -488,7 +515,7 @@ TEST_F(IndexerConnectorTest, PublishDeletedByQuery)
     // The format of the data published is divided in two lines:
     // First line: JSON data with the metadata (indexer name, index ID)
     // Second line: Index data. When the operation is DELETED, no data is present.
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto checkPublishedData {[&expectedMetadata, &callbackCalled](const std::string& data)
                                    {
                                        ASSERT_EQ(nlohmann::json::parse(data), expectedMetadata);
@@ -500,7 +527,7 @@ TEST_F(IndexerConnectorTest, PublishDeletedByQuery)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 
     // Publish content and wait until the publication finishes.
@@ -508,7 +535,7 @@ TEST_F(IndexerConnectorTest, PublishDeletedByQuery)
     publishData["id"] = INDEX_ID_A;
     publishData["operation"] = "DELETED_BY_QUERY";
     ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
-    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS));
+    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS));
 }
 
 /**
@@ -518,7 +545,7 @@ TEST_F(IndexerConnectorTest, PublishDeletedByQuery)
 TEST_F(IndexerConnectorTest, PublishUnavailableServer)
 {
     // Callback function that checks if the callback was executed or not.
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto checkPublishedData {[&callbackCalled](const std::string& data)
                                    {
                                        std::ignore = data;
@@ -530,12 +557,12 @@ TEST_F(IndexerConnectorTest, PublishUnavailableServer)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({B_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
 
     // Trigger publication and expect that it is not made.
     const auto publishData = R"({"dummy":true})"_json;
     ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
-    ASSERT_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS),
+    ASSERT_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS),
                  std::runtime_error);
 }
 
@@ -546,7 +573,7 @@ TEST_F(IndexerConnectorTest, PublishUnavailableServer)
 TEST_F(IndexerConnectorTest, PublishInvalidNoOperation)
 {
     // Callback function that checks if the callback was executed or not.
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto checkCallbackCalled {[&callbackCalled](const std::string& data)
                                     {
                                         std::ignore = data;
@@ -558,14 +585,14 @@ TEST_F(IndexerConnectorTest, PublishInvalidNoOperation)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 
     // Trigger publication and expect that it is not made.
     nlohmann::json publishData;
     publishData["id"] = "111";
     ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
-    ASSERT_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS),
+    ASSERT_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS),
                  std::runtime_error);
     ASSERT_EQ(callbackCalled, false);
 }
@@ -577,7 +604,7 @@ TEST_F(IndexerConnectorTest, PublishInvalidNoOperation)
 TEST_F(IndexerConnectorTest, PublishInvalidNoID)
 {
     // Callback function that checks if the callback was executed or not.
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto checkCallbackCalled {[&callbackCalled](const std::string& data)
                                     {
                                         std::ignore = data;
@@ -589,14 +616,14 @@ TEST_F(IndexerConnectorTest, PublishInvalidNoID)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 
     // Trigger publication and expect that it is not made.
     nlohmann::json publishData;
     publishData["operation"] = "DELETED";
     ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
-    ASSERT_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS),
+    ASSERT_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS),
                  std::runtime_error);
     ASSERT_EQ(callbackCalled, false);
 }
@@ -608,7 +635,7 @@ TEST_F(IndexerConnectorTest, PublishInvalidNoID)
 TEST_F(IndexerConnectorTest, PublishNoInsertData)
 {
     // Callback function that checks if the callback was executed or not.
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto checkCallbackCalled {[&callbackCalled](const std::string& data)
                                     {
                                         std::ignore = data;
@@ -620,7 +647,7 @@ TEST_F(IndexerConnectorTest, PublishNoInsertData)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 
     // Trigger publication and expect that it is not made.
@@ -628,7 +655,7 @@ TEST_F(IndexerConnectorTest, PublishNoInsertData)
     publishData["id"] = INDEX_ID_A;
     publishData["operation"] = "INSERT";
     ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
-    ASSERT_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS),
+    ASSERT_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS),
                  std::runtime_error);
     ASSERT_EQ(callbackCalled, false);
 }
@@ -646,7 +673,7 @@ TEST_F(IndexerConnectorTest, PublishTwoIndexes)
     // The format of the data published is divided in two lines:
     // First line: JSON data with the metadata (indexer name, index ID).
     // Second line: Index data.
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto checkPublishedData {[&callbackCalled, &publishedData](const std::string& data)
                                    {
                                        const auto splitData {Utils::split(data, '\n')};
@@ -662,7 +689,7 @@ TEST_F(IndexerConnectorTest, PublishTwoIndexes)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 
     // Publish content to INDEX_ID_A and wait until is finished.
@@ -672,7 +699,7 @@ TEST_F(IndexerConnectorTest, PublishTwoIndexes)
     publishData["operation"] = "INSERT";
     publishData["data"] = INDEX_DATA_A;
     ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
-    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS));
+    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS));
 
     // Publish content to INDEX_ID_B and wait until is finished.
     const auto INDEX_DATA_B = R"({"contentB":true})"_json;
@@ -680,7 +707,7 @@ TEST_F(IndexerConnectorTest, PublishTwoIndexes)
     publishData["data"] = INDEX_DATA_B;
     ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
     callbackCalled = false;
-    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS));
+    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS));
 
     // Check expected data.
     nlohmann::json expectedDataA;
@@ -702,7 +729,7 @@ TEST_F(IndexerConnectorTest, PublishTwoIndexes)
 TEST_F(IndexerConnectorTest, PublishErrorFromServer)
 {
     // Callback function that checks if the callback was executed or not.
-    auto callbackCalled {false};
+    std::atomic<bool> callbackCalled {false};
     const auto forceErrorCallback {[&callbackCalled](const std::string& data)
                                    {
                                        std::ignore = data;
@@ -715,15 +742,23 @@ TEST_F(IndexerConnectorTest, PublishErrorFromServer)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = INDEXER_NAME;
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT)};
+    auto indexerConnector {IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT)};
     ASSERT_NO_THROW(waitUntil([this]() { return m_indexerServers[A_IDX]->initialized(); }, MAX_INDEXER_INIT_TIME_MS));
 
     // Trigger publication and expect that it is not made.
     nlohmann::json publishData;
     publishData["id"] = INDEX_ID_A;
+    publishData["operation"] = "INSERTED";
+    publishData["data"] = "content";
+    ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
+    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS));
+
+    callbackCalled = false;
+    publishData.erase("data");
+    publishData["id"] = INDEX_ID_A;
     publishData["operation"] = "DELETED";
     ASSERT_NO_THROW(indexerConnector.publish(publishData.dump()));
-    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled; }, MAX_INDEXER_PUBLISH_TIME_MS));
+    ASSERT_NO_THROW(waitUntil([&callbackCalled]() { return callbackCalled.load(); }, MAX_INDEXER_PUBLISH_TIME_MS));
 }
 
 /**
@@ -737,7 +772,7 @@ TEST_F(IndexerConnectorTest, TemplateFileNotFoundThrows)
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
 
     constexpr auto INVALID_TEMPLATE_FILE_PATH {"inexistant.json"};
-    EXPECT_THROW(IndexerConnector(indexerConfig, INVALID_TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT),
+    EXPECT_THROW(IndexerConnector(indexerConfig, INVALID_TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT),
                  std::runtime_error);
 }
 
@@ -752,7 +787,8 @@ TEST_F(IndexerConnectorTest, UpperCaseCharactersIndexName)
     nlohmann::json indexerConfig;
     indexerConfig["name"] = "UPPER_case_INDEX";
     indexerConfig["hosts"] = nlohmann::json::array({A_ADDRESS});
-    EXPECT_THROW(IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT), std::runtime_error);
+    EXPECT_THROW(IndexerConnector(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT),
+                 std::runtime_error);
 }
 
 TEST_F(IndexerConnectorTest, QueueCorruptionTest)
@@ -764,7 +800,7 @@ TEST_F(IndexerConnectorTest, QueueCorruptionTest)
     indexerConfig["password"] = "password";
 
     auto spIndexerConnector =
-        std::make_unique<IndexerConnector>(indexerConfig, TEMPLATE_FILE_PATH, "", nullptr, INDEXER_TIMEOUT);
+        std::make_unique<IndexerConnector>(indexerConfig, TEMPLATE_FILE_PATH, "", true, nullptr, INDEXER_TIMEOUT);
 
     spIndexerConnector.reset();
 
@@ -807,7 +843,7 @@ TEST_F(IndexerConnectorTest, QueueCorruptionTest)
 
     EXPECT_NO_THROW({
         spIndexerConnector = std::make_unique<IndexerConnector>(
-            indexerConfig, TEMPLATE_FILE_PATH, "", customLogFunction, INDEXER_TIMEOUT);
+            indexerConfig, TEMPLATE_FILE_PATH, "", true, customLogFunction, INDEXER_TIMEOUT);
     });
 
     EXPECT_TRUE(dbRepaired) << "The log that indicates the database was repaired wasn't found";

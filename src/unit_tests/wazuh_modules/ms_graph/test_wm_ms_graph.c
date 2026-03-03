@@ -1219,6 +1219,8 @@ void test_setup_complete(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_string", module_data->auth_config[0]->client_id);
@@ -1264,6 +1266,8 @@ void test_main_token(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_client", module_data->auth_config[0]->client_id);
@@ -1340,6 +1344,8 @@ void test_main_relationships(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -1459,6 +1465,8 @@ void test_dump(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -1478,6 +1486,8 @@ void test_dump(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_string", module_data->auth_config[0]->client_id);
@@ -1495,7 +1505,7 @@ void test_dump(void **state) {
     cJSON* dump = wm_ms_graph_dump(module_data);
     char* dump_text = cJSON_PrintUnformatted(dump);
 
-    assert_string_equal(dump_text, "{\"ms_graph\":{\"enabled\":\"yes\",\"only_future_events\":\"no\",\"curl_max_size\":1024,\"run_on_start\":\"yes\",\"version\":\"v1.0\",\"wday\":\"sunday\",\"api_auth\":{\"client_id\":\"example_string\",\"tenant_id\":\"example_string\",\"secret_value\":\"example_string\",\"api_type\":\"global\",\"name\":\"security\"},\"resources\":[{\"relationship\":\"alerts_v2\"}]}}");
+    assert_string_equal(dump_text, "{\"ms_graph\":{\"enabled\":\"yes\",\"only_future_events\":\"no\",\"curl_max_size\":1024,\"page_size\":100,\"time_delay\":10,\"run_on_start\":\"yes\",\"version\":\"v1.0\",\"wday\":\"sunday\",\"api_auth\":{\"client_id\":\"example_string\",\"tenant_id\":\"example_string\",\"secret_value\":\"example_string\",\"api_type\":\"global\",\"name\":\"security\"},\"resources\":[{\"relationship\":\"alerts_v2\"}]}}");
 
     cJSON_Delete(dump);
     os_free(dump_text);
@@ -1506,6 +1516,8 @@ void test_dump_gcc_configuration(void **state) {
     <enabled>no</enabled>
     <only_future_events>yes</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>no</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -1523,6 +1535,8 @@ void test_dump_gcc_configuration(void **state) {
     module_data->enabled = false;
     module_data->only_future_events = true;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = false;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_string", module_data->auth_config[0]->client_id);
@@ -1537,7 +1551,7 @@ void test_dump_gcc_configuration(void **state) {
     cJSON* dump = wm_ms_graph_dump(module_data);
     char* dump_text = cJSON_PrintUnformatted(dump);
 
-    assert_string_equal(dump_text, "{\"ms_graph\":{\"enabled\":\"no\",\"only_future_events\":\"yes\",\"curl_max_size\":1024,\"run_on_start\":\"no\",\"version\":\"v1.0\",\"wday\":\"sunday\",\"api_auth\":{\"client_id\":\"example_string\",\"tenant_id\":\"example_string\",\"secret_value\":\"example_string\",\"api_type\":\"gcc-high\"}}}");
+    assert_string_equal(dump_text, "{\"ms_graph\":{\"enabled\":\"no\",\"only_future_events\":\"yes\",\"curl_max_size\":1024,\"page_size\":100,\"time_delay\":10,\"run_on_start\":\"no\",\"version\":\"v1.0\",\"wday\":\"sunday\",\"api_auth\":{\"client_id\":\"example_string\",\"tenant_id\":\"example_string\",\"secret_value\":\"example_string\",\"api_type\":\"gcc-high\"}}}");
 
     cJSON_Delete(dump);
     os_free(dump_text);
@@ -1551,6 +1565,8 @@ void test_dump_dod_configuration(void **state) {
     <enabled>no</enabled>
     <only_future_events>yes</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>no</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -1568,6 +1584,8 @@ void test_dump_dod_configuration(void **state) {
     module_data->enabled = false;
     module_data->only_future_events = true;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = false;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_string", module_data->auth_config[0]->client_id);
@@ -1579,7 +1597,7 @@ void test_dump_dod_configuration(void **state) {
     cJSON* dump = wm_ms_graph_dump(module_data);
     char* dump_text = cJSON_PrintUnformatted(dump);
 
-    assert_string_equal(dump_text, "{\"ms_graph\":{\"enabled\":\"no\",\"only_future_events\":\"yes\",\"curl_max_size\":1024,\"run_on_start\":\"no\",\"version\":\"v1.0\",\"wday\":\"sunday\",\"api_auth\":{\"client_id\":\"example_string\",\"tenant_id\":\"example_string\",\"secret_value\":\"example_string\",\"api_type\":\"dod\"}}}");
+    assert_string_equal(dump_text, "{\"ms_graph\":{\"enabled\":\"no\",\"only_future_events\":\"yes\",\"curl_max_size\":1024,\"page_size\":100,\"time_delay\":10,\"run_on_start\":\"no\",\"version\":\"v1.0\",\"wday\":\"sunday\",\"api_auth\":{\"client_id\":\"example_string\",\"tenant_id\":\"example_string\",\"secret_value\":\"example_string\",\"api_type\":\"dod\"}}}");
 
     cJSON_Delete(dump);
     os_free(dump_text);
@@ -1590,6 +1608,8 @@ void test_wm_ms_graph_get_access_token_no_response(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -1609,6 +1629,8 @@ void test_wm_ms_graph_get_access_token_no_response(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_client", module_data->auth_config[0]->client_id);
@@ -1649,6 +1671,8 @@ void test_wm_ms_graph_get_access_token_unsuccessful_status_code(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -1668,6 +1692,8 @@ void test_wm_ms_graph_get_access_token_unsuccessful_status_code(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_client", module_data->auth_config[0]->client_id);
@@ -1714,6 +1740,8 @@ void test_wm_ms_graph_get_access_token_curl_max_size(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -1733,6 +1761,8 @@ void test_wm_ms_graph_get_access_token_curl_max_size(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_client", module_data->auth_config[0]->client_id);
@@ -1779,6 +1809,8 @@ void test_wm_ms_graph_get_access_token_parse_json_fail(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -1798,6 +1830,8 @@ void test_wm_ms_graph_get_access_token_parse_json_fail(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_client", module_data->auth_config[0]->client_id);
@@ -1844,6 +1878,8 @@ void test_wm_ms_graph_get_access_token_success(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -1863,6 +1899,8 @@ void test_wm_ms_graph_get_access_token_success(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_client", module_data->auth_config[0]->client_id);
@@ -1913,6 +1951,8 @@ void test_wm_ms_graph_get_access_token_no_access_token(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -1932,6 +1972,8 @@ void test_wm_ms_graph_get_access_token_no_access_token(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_client", module_data->auth_config[0]->client_id);
@@ -1977,6 +2019,8 @@ void test_wm_ms_graph_get_access_token_no_expire_time(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -1996,6 +2040,8 @@ void test_wm_ms_graph_get_access_token_no_expire_time(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     os_strdup("v1.0", module_data->version);
     os_strdup("example_client", module_data->auth_config[0]->client_id);
@@ -2041,6 +2087,8 @@ void test_wm_ms_graph_scan_relationships_single_initial_only_no(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -2060,6 +2108,8 @@ void test_wm_ms_graph_scan_relationships_single_initial_only_no(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -2114,6 +2164,8 @@ void test_wm_ms_graph_scan_relationships_single_initial_only_yes_fail_write(void
     <enabled>yes</enabled>
     <only_future_events>yes</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>100</page_size>
+    <time_delay>10</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -2133,6 +2185,8 @@ void test_wm_ms_graph_scan_relationships_single_initial_only_yes_fail_write(void
     module_data->enabled = true;
     module_data->only_future_events = true;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 100;
+    module_data->time_delay = 10;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -2179,6 +2233,8 @@ void test_wm_ms_graph_scan_relationships_single_initial_only_no_next_time_no_res
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>50</page_size>
+    <time_delay>5</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -2200,6 +2256,8 @@ void test_wm_ms_graph_scan_relationships_single_initial_only_no_next_time_no_res
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 50;
+    module_data->time_delay = 5;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -2209,6 +2267,7 @@ void test_wm_ms_graph_scan_relationships_single_initial_only_no_next_time_no_res
     os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
     os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL) + 100;
     os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
     os_strdup("security", module_data->resources[0].name);
     module_data->num_resources = 1;
@@ -2266,6 +2325,8 @@ void test_wm_ms_graph_scan_relationships_single_no_initial_no_timestamp(void **s
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>50</page_size>
+    <time_delay>5</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -2287,6 +2348,8 @@ void test_wm_ms_graph_scan_relationships_single_no_initial_no_timestamp(void **s
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 50;
+    module_data->time_delay = 5;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -2341,6 +2404,8 @@ void test_wm_ms_graph_scan_relationships_single_unsuccessful_status_code(void **
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>50</page_size>
+    <time_delay>5</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -2362,6 +2427,8 @@ void test_wm_ms_graph_scan_relationships_single_unsuccessful_status_code(void **
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 50;
+    module_data->time_delay = 5;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -2370,6 +2437,8 @@ void test_wm_ms_graph_scan_relationships_single_unsuccessful_status_code(void **
     os_strdup("example_secret", module_data->auth_config[0]->secret_value);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL) + 100;
     os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
     os_strdup("security", module_data->resources[0].name);
     module_data->num_resources = 1;
@@ -2433,6 +2502,8 @@ void test_wm_ms_graph_scan_relationships_single_reached_curl_size(void **state) 
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>50</page_size>
+    <time_delay>5</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -2454,6 +2525,8 @@ void test_wm_ms_graph_scan_relationships_single_reached_curl_size(void **state) 
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 50;
+    module_data->time_delay = 5;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -2462,6 +2535,8 @@ void test_wm_ms_graph_scan_relationships_single_reached_curl_size(void **state) 
     os_strdup("example_secret", module_data->auth_config[0]->secret_value);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL) + 100;
     os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
     os_strdup("security", module_data->resources[0].name);
     module_data->num_resources = 1;
@@ -2526,6 +2601,8 @@ void test_wm_ms_graph_scan_relationships_single_failed_parse(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>25</page_size>
+    <time_delay>2</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -2547,6 +2624,8 @@ void test_wm_ms_graph_scan_relationships_single_failed_parse(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 25;
+    module_data->time_delay = 2;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -2555,6 +2634,8 @@ void test_wm_ms_graph_scan_relationships_single_failed_parse(void **state) {
     os_strdup("example_secret", module_data->auth_config[0]->secret_value);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL) + 100;
     os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
     os_strdup("security", module_data->resources[0].name);
     module_data->num_resources = 1;
@@ -2597,7 +2678,7 @@ void test_wm_ms_graph_scan_relationships_single_failed_parse(void **state) {
     will_return(__wrap_strftime, 20);
 
     expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
-    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/security/alerts_v2?$top=50&$filter=createdDateTime+ge+2023-02-08T12:24:56Z+and+createdDateTime+lt+2023-02-08T12:25:56Z'");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/security/alerts_v2?$top=25&$filter=createdDateTime+ge+2023-02-08T12:24:56Z+and+createdDateTime+lt+2023-02-08T12:25:56Z'");
 
     expect_any(__wrap_wurl_http_request, method);
     expect_any(__wrap_wurl_http_request, header);
@@ -2619,6 +2700,8 @@ void test_wm_ms_graph_scan_relationships_single_no_logs(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>25</page_size>
+    <time_delay>2</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -2640,6 +2723,8 @@ void test_wm_ms_graph_scan_relationships_single_no_logs(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 25;
+    module_data->time_delay = 2;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -2648,6 +2733,8 @@ void test_wm_ms_graph_scan_relationships_single_no_logs(void **state) {
     os_strdup("example_secret", module_data->auth_config[0]->secret_value);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL) + 100;
     os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
     os_strdup("security", module_data->resources[0].name);
     module_data->num_resources = 1;
@@ -2690,7 +2777,7 @@ void test_wm_ms_graph_scan_relationships_single_no_logs(void **state) {
     will_return(__wrap_strftime, 20);
 
     expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
-    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/security/alerts_v2?$top=50&$filter=createdDateTime+ge+2023-02-08T12:24:56Z+and+createdDateTime+lt+2023-02-08T12:25:56Z'");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/security/alerts_v2?$top=25&$filter=createdDateTime+ge+2023-02-08T12:24:56Z+and+createdDateTime+lt+2023-02-08T12:25:56Z'");
 
     expect_any(__wrap_wurl_http_request, method);
     expect_any(__wrap_wurl_http_request, header);
@@ -2721,6 +2808,8 @@ void test_wm_ms_graph_scan_relationships_single_success_one_log(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>10</page_size>
+    <time_delay>1</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -2742,6 +2831,8 @@ void test_wm_ms_graph_scan_relationships_single_success_one_log(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 10;
+    module_data->time_delay = 1;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -2750,6 +2841,8 @@ void test_wm_ms_graph_scan_relationships_single_success_one_log(void **state) {
     os_strdup("example_secret", module_data->auth_config[0]->secret_value);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL) + 100;
     os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
     os_strdup("security", module_data->resources[0].name);
     module_data->num_resources = 1;
@@ -2793,7 +2886,7 @@ void test_wm_ms_graph_scan_relationships_single_success_one_log(void **state) {
     will_return(__wrap_strftime, 20);
 
     expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
-    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/security/alerts_v2?$top=50&$filter=createdDateTime+ge+2023-02-08T12:24:56Z+and+createdDateTime+lt+2023-02-08T12:25:56Z'");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/security/alerts_v2?$top=10&$filter=createdDateTime+ge+2023-02-08T12:24:56Z+and+createdDateTime+lt+2023-02-08T12:25:56Z'");
 
     expect_any(__wrap_wurl_http_request, method);
     expect_any(__wrap_wurl_http_request, header);
@@ -2833,6 +2926,8 @@ void test_wm_ms_graph_scan_relationships_single_success_two_logs(void **state) {
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>10</page_size>
+    <time_delay>1</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -2852,6 +2947,8 @@ void test_wm_ms_graph_scan_relationships_single_success_two_logs(void **state) {
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 10;
+    module_data->time_delay = 1;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -2860,6 +2957,8 @@ void test_wm_ms_graph_scan_relationships_single_success_two_logs(void **state) {
     os_strdup("example_secret", module_data->auth_config[0]->secret_value);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL) + 100;
     os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
     os_strdup("deviceManagement", module_data->resources[0].name);
     module_data->num_resources = 1;
@@ -2898,7 +2997,7 @@ void test_wm_ms_graph_scan_relationships_single_success_two_logs(void **state) {
 #endif
 
     expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
-    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/deviceManagement/detectedApps?$top=50'");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/deviceManagement/detectedApps?$top=10'");
 
     expect_any(__wrap_wurl_http_request, method);
     expect_any(__wrap_wurl_http_request, header);
@@ -2934,7 +3033,7 @@ void test_wm_ms_graph_scan_relationships_single_success_two_logs(void **state) {
     expect_string(__wrap__mterror, formatted_msg, "(1210): Queue 'queue/sockets/queue' not accessible: 'Error'");
 
     expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
-    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/deviceManagement/detectedApps/12345/managedDevices?$top=50&$select=id,deviceName'");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/deviceManagement/detectedApps/12345/managedDevices?$top=10&$select=id,deviceName'");
 
     expect_any(__wrap_wurl_http_request, method);
     expect_any(__wrap_wurl_http_request, header);
@@ -2983,6 +3082,8 @@ void test_wm_ms_graph_scan_relationships_single_success_two_pages(void **state) 
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>200</page_size>
+    <time_delay>20</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -3002,6 +3103,8 @@ void test_wm_ms_graph_scan_relationships_single_success_two_pages(void **state) 
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 200;
+    module_data->time_delay = 20;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -3010,6 +3113,8 @@ void test_wm_ms_graph_scan_relationships_single_success_two_pages(void **state) 
     os_strdup("example_secret", module_data->auth_config[0]->secret_value);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL) + 100;
     os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
     os_strdup("deviceManagement", module_data->resources[0].name);
     module_data->num_resources = 1;
@@ -3041,7 +3146,7 @@ void test_wm_ms_graph_scan_relationships_single_success_two_pages(void **state) 
     os_strdup("test2", response2->header);
 
     expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
-    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$top=50'");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/deviceManagement/managedDevices?$top=200'");
 
     expect_any(__wrap_wurl_http_request, method);
     expect_any(__wrap_wurl_http_request, header);
@@ -3133,6 +3238,8 @@ void test_wm_ms_graph_scan_relationships_single_success_two_resources(void **sta
     <enabled>yes</enabled>
     <only_future_events>no</only_future_events>
     <curl_max_size>1M</curl_max_size>
+    <page_size>200</page_size>
+    <time_delay>20</time_delay>
     <run_on_start>yes</run_on_start>
     <version>v1.0</version>
     <api_auth>
@@ -3142,8 +3249,8 @@ void test_wm_ms_graph_scan_relationships_single_success_two_resources(void **sta
       <api_type>global</api_type>
     </api_auth>
     <resource>
-      <name>security</name>
-      <relationship>alerts_v2</relationship>
+      <name>identityProtection</name>
+      <relationship>riskDetections</relationship>
     </resource>
     <resource>
       <name>deviceManagement</name>
@@ -3160,6 +3267,8 @@ void test_wm_ms_graph_scan_relationships_single_success_two_resources(void **sta
     module_data->enabled = true;
     module_data->only_future_events = false;
     module_data->curl_max_size = 1024L;
+    module_data->page_size = 200;
+    module_data->time_delay = 20;
     module_data->run_on_start = true;
     module_data->scan_config.interval = 60;
     os_strdup("v1.0", module_data->version);
@@ -3168,16 +3277,193 @@ void test_wm_ms_graph_scan_relationships_single_success_two_resources(void **sta
     os_strdup("example_secret", module_data->auth_config[0]->secret_value);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
     os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL) + 100;
     os_malloc(sizeof(wm_ms_graph_resource) * 2, module_data->resources);
-    os_strdup("security", module_data->resources[0].name);
+    os_strdup("identityProtection", module_data->resources[0].name);
     os_strdup("deviceManagement", module_data->resources[1].name);
     module_data->num_resources = 2;
     os_malloc(sizeof(char*) * 2, module_data->resources[0].relationships);
-    os_strdup("alerts_v2", module_data->resources[0].relationships[0]);
+    os_strdup("riskDetections", module_data->resources[0].relationships[0]);
     module_data->resources[0].num_relationships = 1;
     os_malloc(sizeof(char*) * 2, module_data->resources[1].relationships);
     os_strdup("auditEvents", module_data->resources[1].relationships[0]);
     module_data->resources[1].num_relationships = 1;
+    size_t max_size = OS_SIZE_8192;
+    bool initial = false;
+    curl_response* response;
+    wm_max_eps = 1;
+
+    os_calloc(1, sizeof(curl_response), response);
+    response->status_code = 200;
+    response->max_size_reached = false;
+    os_strdup("{\"value\":[{\"full_log\":\"log1\"}]}", response->body);
+    os_strdup("test", response->header);
+
+#ifdef TEST_WINAGENT
+    will_return_count(__wrap_os_random, 12345, 2);
+#else
+    will_return(__wrap_os_random, 12345);
+#endif
+
+    expect_string(__wrap_wm_state_io, tag, "ms-graph-example_tenant-identityProtection-riskDetections");
+    expect_value(__wrap_wm_state_io, op, WM_IO_READ);
+    expect_any(__wrap_wm_state_io, state);
+    expect_any(__wrap_wm_state_io, size);
+    will_return(__wrap_wm_state_io, 0);
+    will_return(__wrap_wm_state_io, (void *)&relationship_state_struc);
+
+#ifndef WIN32
+    will_return(__wrap_gmtime_r, 1);
+#endif
+    will_return(__wrap_strftime,"2023-02-08T12:24:56Z");
+    will_return(__wrap_strftime, 20);
+
+#ifndef WIN32
+    will_return(__wrap_gmtime_r, 1);
+#endif
+    will_return(__wrap_strftime,"2023-02-08T12:25:56Z");
+    will_return(__wrap_strftime, 20);
+
+    expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/identityProtection/riskDetections?$top=200&$filter=activityDateTime+ge+2023-02-08T12:24:56Z+and+activityDateTime+lt+2023-02-08T12:25:56Z'");
+
+    expect_any(__wrap_wurl_http_request, method);
+    expect_any(__wrap_wurl_http_request, header);
+    expect_any(__wrap_wurl_http_request, url);
+    expect_any(__wrap_wurl_http_request, payload);
+    expect_any(__wrap_wurl_http_request, max_size);
+    expect_value(__wrap_wurl_http_request, timeout, WM_MS_GRAPH_DEFAULT_TIMEOUT);
+    expect_any(__wrap_wurl_http_request, ssl_verify);
+    will_return(__wrap_wurl_http_request, response);
+
+    expect_string(__wrap__mtdebug2, tag, "wazuh-modulesd:ms-graph");
+    expect_string(__wrap__mtdebug2, formatted_msg, "Sending log: '{\"integration\":\"ms-graph\",\"ms-graph\":{\"full_log\":\"log1\",\"resource\":\"identityProtection\",\"relationship\":\"riskDetections\"}}'");
+
+    queue_fd = 0;
+    expect_value(__wrap_wm_sendmsg, usec, 1000000);
+    expect_value(__wrap_wm_sendmsg, queue, queue_fd);
+    expect_string(__wrap_wm_sendmsg, message, "{\"integration\":\"ms-graph\",\"ms-graph\":{\"full_log\":\"log1\",\"resource\":\"identityProtection\",\"relationship\":\"riskDetections\"}}");
+    expect_string(__wrap_wm_sendmsg, locmsg, "ms-graph");
+    expect_value(__wrap_wm_sendmsg, loc, LOCALFILE_MQ);
+    will_return(__wrap_wm_sendmsg, 1);
+
+    expect_string(__wrap_wm_state_io, tag, "ms-graph-example_tenant-identityProtection-riskDetections");
+    expect_value(__wrap_wm_state_io, op, WM_IO_WRITE);
+    expect_any(__wrap_wm_state_io, state);
+    expect_any(__wrap_wm_state_io, size);
+    will_return(__wrap_wm_state_io, 1);
+
+    expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Bookmark updated to '2023-02-08T12:25:56Z' for tenant 'example_tenant' resource 'identityProtection' and relationship 'riskDetections', waiting '60' seconds to run next scan.");
+
+    // resource auditlogs
+    os_calloc(1, sizeof(curl_response), response);
+    response->status_code = 200;
+    response->max_size_reached = false;
+    os_strdup("{\"value\":[{\"full_log\":\"log1_resource_2\"}]}", response->body);
+    os_strdup("test", response->header);
+
+    expect_string(__wrap_wm_state_io, tag, "ms-graph-example_tenant-deviceManagement-auditEvents");
+    expect_value(__wrap_wm_state_io, op, WM_IO_READ);
+    expect_any(__wrap_wm_state_io, state);
+    expect_any(__wrap_wm_state_io, size);
+    will_return(__wrap_wm_state_io, 0);
+    will_return(__wrap_wm_state_io, (void *)&relationship_state_struc_2);
+
+#ifndef WIN32
+    will_return(__wrap_gmtime_r, 1);
+#endif
+    will_return(__wrap_strftime,"2023-02-08T12:24:56Z");
+    will_return(__wrap_strftime, 20);
+
+#ifndef WIN32
+    will_return(__wrap_gmtime_r, 1);
+#endif
+    will_return(__wrap_strftime,"2023-02-08T12:25:56Z");
+    will_return(__wrap_strftime, 20);
+
+    expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/deviceManagement/auditEvents?$top=200&$filter=activityDateTime+ge+2023-02-08T12:24:56Z+and+activityDateTime+lt+2023-02-08T12:25:56Z'");
+
+    expect_any(__wrap_wurl_http_request, method);
+    expect_any(__wrap_wurl_http_request, header);
+    expect_any(__wrap_wurl_http_request, url);
+    expect_any(__wrap_wurl_http_request, payload);
+    expect_any(__wrap_wurl_http_request, max_size);
+    expect_value(__wrap_wurl_http_request, timeout, WM_MS_GRAPH_DEFAULT_TIMEOUT);
+    expect_any(__wrap_wurl_http_request, ssl_verify);
+    will_return(__wrap_wurl_http_request, response);
+
+    expect_string(__wrap__mtdebug2, tag, "wazuh-modulesd:ms-graph");
+    expect_string(__wrap__mtdebug2, formatted_msg, "Sending log: '{\"integration\":\"ms-graph\",\"ms-graph\":{\"full_log\":\"log1_resource_2\",\"resource\":\"deviceManagement\",\"relationship\":\"auditEvents\"}}'");
+
+    queue_fd = 0;
+    expect_value(__wrap_wm_sendmsg, usec, 1000000);
+    expect_value(__wrap_wm_sendmsg, queue, queue_fd);
+    expect_string(__wrap_wm_sendmsg, message, "{\"integration\":\"ms-graph\",\"ms-graph\":{\"full_log\":\"log1_resource_2\",\"resource\":\"deviceManagement\",\"relationship\":\"auditEvents\"}}");
+    expect_string(__wrap_wm_sendmsg, locmsg, "ms-graph");
+    expect_value(__wrap_wm_sendmsg, loc, LOCALFILE_MQ);
+    will_return(__wrap_wm_sendmsg, 1);
+
+    expect_string(__wrap_wm_state_io, tag, "ms-graph-example_tenant-deviceManagement-auditEvents");
+    expect_value(__wrap_wm_state_io, op, WM_IO_WRITE);
+    expect_any(__wrap_wm_state_io, state);
+    expect_any(__wrap_wm_state_io, size);
+    will_return(__wrap_wm_state_io, -1);
+
+    expect_string(__wrap__mterror, tag, "wazuh-modulesd:ms-graph");
+    expect_string(__wrap__mterror, formatted_msg, "Couldn't save running state.");
+
+    wm_ms_graph_scan_relationships(module_data, module_data->auth_config[0], initial);
+}
+
+void test_wm_ms_graph_scan_relationships_renew_token(void **state) {
+    /*
+    <enabled>yes</enabled>
+    <only_future_events>no</only_future_events>
+    <curl_max_size>1M</curl_max_size>
+    <page_size>10</page_size>
+    <time_delay>1</time_delay>
+    <run_on_start>yes</run_on_start>
+    <version>v1.0</version>
+    <api_auth>
+      <client_id>example_client</client_id>
+      <tenant_id>example_tenant</tenant_id>
+      <secret_value>example_secret</secret_value>
+      <api_type>global</api_type>
+    </api_auth>
+    <resource>
+      <name>security</name>
+      <relationship>alerts_v2</relationship>
+    </resource>
+    */
+    wm_ms_graph* module_data = (wm_ms_graph *)*state;
+    wm_ms_graph_state_t relationship_state_struc;
+    os_calloc(1, sizeof(wm_ms_graph_auth), module_data->auth_config);
+    os_calloc(1, sizeof(wm_ms_graph_auth), module_data->auth_config[0]);
+    relationship_state_struc.next_time = 10;
+    module_data->enabled = true;
+    module_data->only_future_events = false;
+    module_data->curl_max_size = 1024L;
+    module_data->page_size = 10;
+    module_data->time_delay = 1;
+    module_data->run_on_start = true;
+    module_data->scan_config.interval = 60;
+    os_strdup("v1.0", module_data->version);
+    os_strdup("example_client", module_data->auth_config[0]->client_id);
+    os_strdup("example_tenant", module_data->auth_config[0]->tenant_id);
+    os_strdup("example_secret", module_data->auth_config[0]->secret_value);
+    os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
+    os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL) + (WM_MS_GRAPH_DEFAULT_TIMEOUT - 30);
+    os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
+    os_strdup("security", module_data->resources[0].name);
+    module_data->num_resources = 1;
+    os_malloc(sizeof(char*), module_data->resources[0].relationships);
+    os_strdup("alerts_v2", module_data->resources[0].relationships[0]);
+    module_data->resources[0].num_relationships = 1;
     size_t max_size = OS_SIZE_8192;
     bool initial = false;
     curl_response* response;
@@ -3215,10 +3501,38 @@ void test_wm_ms_graph_scan_relationships_single_success_two_resources(void **sta
     will_return(__wrap_strftime, 20);
 
     expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
-    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/security/alerts_v2?$top=50&$filter=createdDateTime+ge+2023-02-08T12:24:56Z+and+createdDateTime+lt+2023-02-08T12:25:56Z'");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/security/alerts_v2?$top=10&$filter=createdDateTime+ge+2023-02-08T12:24:56Z+and+createdDateTime+lt+2023-02-08T12:25:56Z'");
 
+    // -----------wm_ms_graph_ensure_valid_token-----------------------
+    expect_string(__wrap__mtinfo, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "Access token expired or missing. Requesting new token.");
+
+    expect_string(__wrap__mtdebug1, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Access Token URL: 'https://login.microsoftonline.com/example_tenant/oauth2/v2.0/token'");
+
+    time_t new_token_expiration_time = time(NULL) + 3600;
+    curl_response* response_new_token;
+    os_calloc(1, sizeof(curl_response), response_new_token);
+    response_new_token->status_code = 200;
+    response_new_token->max_size_reached = false;
+    char response_new_token_body[256];
+    snprintf(response_new_token_body, sizeof(response_new_token_body),
+            "{\"access_token\":\"new_token\",\"expires_in\":%ld}", (long)new_token_expiration_time);
+
+    os_strdup(response_new_token_body, response_new_token->body);
     expect_any(__wrap_wurl_http_request, method);
     expect_any(__wrap_wurl_http_request, header);
+    expect_any(__wrap_wurl_http_request, url);
+    expect_any(__wrap_wurl_http_request, payload);
+    expect_any(__wrap_wurl_http_request, max_size);
+    expect_value(__wrap_wurl_http_request, timeout, WM_MS_GRAPH_DEFAULT_TIMEOUT);
+    expect_any(__wrap_wurl_http_request, ssl_verify);
+    will_return(__wrap_wurl_http_request, response_new_token);
+    // -----------END wm_ms_graph_ensure_valid_token-----------------------
+
+    expect_any(__wrap_wurl_http_request, method);
+    // Checking that the Authorization header uses the new token
+    expect_string(__wrap_wurl_http_request, header, "Authorization: Bearer new_token");
     expect_any(__wrap_wurl_http_request, url);
     expect_any(__wrap_wurl_http_request, payload);
     expect_any(__wrap_wurl_http_request, max_size);
@@ -3229,13 +3543,14 @@ void test_wm_ms_graph_scan_relationships_single_success_two_resources(void **sta
     expect_string(__wrap__mtdebug2, tag, "wazuh-modulesd:ms-graph");
     expect_string(__wrap__mtdebug2, formatted_msg, "Sending log: '{\"integration\":\"ms-graph\",\"ms-graph\":{\"full_log\":\"log1\",\"resource\":\"security\",\"relationship\":\"alerts_v2\"}}'");
 
+    int result = 1;
     queue_fd = 0;
     expect_value(__wrap_wm_sendmsg, usec, 1000000);
     expect_value(__wrap_wm_sendmsg, queue, queue_fd);
     expect_string(__wrap_wm_sendmsg, message, "{\"integration\":\"ms-graph\",\"ms-graph\":{\"full_log\":\"log1\",\"resource\":\"security\",\"relationship\":\"alerts_v2\"}}");
     expect_string(__wrap_wm_sendmsg, locmsg, "ms-graph");
     expect_value(__wrap_wm_sendmsg, loc, LOCALFILE_MQ);
-    will_return(__wrap_wm_sendmsg, 1);
+    will_return(__wrap_wm_sendmsg, result);
 
     expect_string(__wrap_wm_state_io, tag, "ms-graph-example_tenant-security-alerts_v2");
     expect_value(__wrap_wm_state_io, op, WM_IO_WRITE);
@@ -3246,19 +3561,70 @@ void test_wm_ms_graph_scan_relationships_single_success_two_resources(void **sta
     expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
     expect_string(__wrap__mtdebug1, formatted_msg, "Bookmark updated to '2023-02-08T12:25:56Z' for tenant 'example_tenant' resource 'security' and relationship 'alerts_v2', waiting '60' seconds to run next scan.");
 
-    // resource auditlogs
-    os_calloc(1, sizeof(curl_response), response);
-    response->status_code = 200;
-    response->max_size_reached = false;
-    os_strdup("{\"value\":[{\"full_log\":\"log1_resource_2\"}]}", response->body);
-    os_strdup("test", response->header);
+    wm_ms_graph_scan_relationships(module_data, module_data->auth_config[0], initial);
+}
 
-    expect_string(__wrap_wm_state_io, tag, "ms-graph-example_tenant-deviceManagement-auditEvents");
+void test_wm_ms_graph_scan_relationships_renew_token_failed(void **state) {
+    /*
+    <enabled>yes</enabled>
+    <only_future_events>no</only_future_events>
+    <curl_max_size>1M</curl_max_size>
+    <page_size>50</page_size>
+    <time_delay>5</time_delay>
+    <run_on_start>yes</run_on_start>
+    <version>v1.0</version>
+    <api_auth>
+      <client_id>example_client</client_id>
+      <tenant_id>example_tenant</tenant_id>
+      <secret_value>example_secret</secret_value>
+      <api_type>global</api_type>
+    </api_auth>
+    <resource>
+      <name>security</name>
+      <relationship>alerts_v2</relationship>
+    </resource>
+    */
+    wm_ms_graph* module_data = (wm_ms_graph *)*state;
+    wm_ms_graph_state_t relationship_state_struc;
+    os_calloc(1, sizeof(wm_ms_graph_auth), module_data->auth_config);
+    os_calloc(1, sizeof(wm_ms_graph_auth), module_data->auth_config[0]);
+    relationship_state_struc.next_time = 10;
+    module_data->enabled = true;
+    module_data->only_future_events = false;
+    module_data->curl_max_size = 1024L;
+    module_data->page_size = 50;
+    module_data->time_delay = 5;
+    module_data->run_on_start = true;
+    module_data->scan_config.interval = 60;
+    os_strdup("v1.0", module_data->version);
+    os_strdup("example_client", module_data->auth_config[0]->client_id);
+    os_strdup("example_tenant", module_data->auth_config[0]->tenant_id);
+    os_strdup("example_secret", module_data->auth_config[0]->secret_value);
+    os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
+    os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL);
+    os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
+    os_strdup("security", module_data->resources[0].name);
+    module_data->num_resources = 1;
+    os_malloc(sizeof(char*), module_data->resources[0].relationships);
+    os_strdup("alerts_v2", module_data->resources[0].relationships[0]);
+    module_data->resources[0].num_relationships = 1;
+    size_t max_size = OS_SIZE_8192;
+    bool initial = true;
+
+#ifdef TEST_WINAGENT
+    will_return_count(__wrap_os_random, 12345, 2);
+#else
+    will_return(__wrap_os_random, 12345);
+#endif
+
+    expect_string(__wrap_wm_state_io, tag, "ms-graph-example_tenant-security-alerts_v2");
     expect_value(__wrap_wm_state_io, op, WM_IO_READ);
     expect_any(__wrap_wm_state_io, state);
     expect_any(__wrap_wm_state_io, size);
     will_return(__wrap_wm_state_io, 0);
-    will_return(__wrap_wm_state_io, (void *)&relationship_state_struc_2);
+    will_return(__wrap_wm_state_io, (void *)&relationship_state_struc);
 
 #ifndef WIN32
     will_return(__wrap_gmtime_r, 1);
@@ -3273,7 +3639,289 @@ void test_wm_ms_graph_scan_relationships_single_success_two_resources(void **sta
     will_return(__wrap_strftime, 20);
 
     expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
-    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/deviceManagement/auditEvents?$top=50&$filter=activityDateTime+ge+2023-02-08T12:24:56Z+and+activityDateTime+lt+2023-02-08T12:25:56Z'");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/security/alerts_v2?$top=50&$filter=createdDateTime+ge+2023-02-08T12:24:56Z+and+createdDateTime+lt+2023-02-08T12:25:56Z'");
+
+    // -----------wm_ms_graph_ensure_valid_token-----------------------
+    expect_string(__wrap__mtinfo, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "Access token expired or missing. Requesting new token.");
+
+    curl_response* response;
+
+    os_calloc(1, sizeof(curl_response), response);
+    response->status_code = 200;
+    response->max_size_reached = false;
+    os_strdup("no json", response->body);
+    os_strdup("test", response->header);
+
+    expect_string(__wrap__mtdebug1, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Access Token URL: 'https://login.microsoftonline.com/example_tenant/oauth2/v2.0/token'");
+
+    expect_any(__wrap_wurl_http_request, method);
+    expect_any(__wrap_wurl_http_request, header);
+    expect_any(__wrap_wurl_http_request, url);
+    expect_any(__wrap_wurl_http_request, payload);
+    expect_any(__wrap_wurl_http_request, max_size);
+    expect_value(__wrap_wurl_http_request, timeout, WM_MS_GRAPH_DEFAULT_TIMEOUT);
+    expect_any(__wrap_wurl_http_request, ssl_verify);
+    will_return(__wrap_wurl_http_request, response);
+    expect_string(__wrap__mtwarn, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "Failed to parse access token JSON body.");
+
+    expect_string(__wrap__mtwarn, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "Failed to renew access token.");
+    // -----------END wm_ms_graph_ensure_valid_token-----------------------
+
+    expect_string(__wrap__mtwarn, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "Aborting scan of 'alerts_v2' for tenant 'example_tenant' due to access token error.");
+
+    wm_ms_graph_scan_relationships(module_data, module_data->auth_config[0], initial);
+}
+
+static void test_wm_ms_graph_scan_apps_devices_renew_token(void **state) {
+    /*
+    <enabled>yes</enabled>
+    <only_future_events>no</only_future_events>
+    <curl_max_size>1M</curl_max_size>
+    <page_size>10</page_size>
+    <time_delay>1</time_delay>
+    <run_on_start>yes</run_on_start>
+    <version>v1.0</version>
+    <api_auth>
+      <client_id>example_client</client_id>
+      <tenant_id>example_tenant</tenant_id>
+      <secret_value>example_secret</secret_value>
+      <api_type>global</api_type>
+    </api_auth>
+    <resource>
+      <name>deviceManagement</name>
+      <relationship>detectedApps</relationship>
+    </resource>
+    */
+    wm_ms_graph* module_data = (wm_ms_graph *)*state;
+    os_calloc(1, sizeof(wm_ms_graph_auth), module_data->auth_config);
+    os_calloc(1, sizeof(wm_ms_graph_auth), module_data->auth_config[0]);
+    module_data->enabled = true;
+    module_data->only_future_events = false;
+    module_data->curl_max_size = 1024L;
+    module_data->page_size = 10;
+    module_data->time_delay = 1;
+    module_data->run_on_start = true;
+    module_data->scan_config.interval = 60;
+    os_strdup("v1.0", module_data->version);
+    os_strdup("example_client", module_data->auth_config[0]->client_id);
+    os_strdup("example_tenant", module_data->auth_config[0]->tenant_id);
+    os_strdup("example_secret", module_data->auth_config[0]->secret_value);
+    os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
+    os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL);
+    os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
+    os_strdup("deviceManagement", module_data->resources[0].name);
+    module_data->num_resources = 1;
+    os_malloc(sizeof(char*), module_data->resources[0].relationships);
+    os_strdup("detectedApps", module_data->resources[0].relationships[0]);
+    module_data->resources[0].num_relationships = 1;
+    size_t max_size = OS_SIZE_8192;
+    bool initial = false;
+    curl_response* response;
+    wm_max_eps = 1;
+
+    os_calloc(1, sizeof(curl_response), response);
+    response->status_code = 200;
+    response->max_size_reached = false;
+    os_strdup("{\"value\":[{\"id\":\"3456\"}]}", response->body);
+    os_strdup("test", response->header);
+
+    expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/deviceManagement/detectedApps/12345/managedDevices?$top=10&$select=id,deviceName'");
+
+    // -----------wm_ms_graph_ensure_valid_token-----------------------
+    expect_string(__wrap__mtinfo, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "Access token expired or missing. Requesting new token.");
+
+    expect_string(__wrap__mtdebug1, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Access Token URL: 'https://login.microsoftonline.com/example_tenant/oauth2/v2.0/token'");
+
+    time_t new_token_expiration_time = time(NULL) + 3600;
+    curl_response* response_new_token;
+    os_calloc(1, sizeof(curl_response), response_new_token);
+    response_new_token->status_code = 200;
+    response_new_token->max_size_reached = false;
+    char response_new_token_body[256];
+    snprintf(response_new_token_body, sizeof(response_new_token_body),
+            "{\"access_token\":\"new_token\",\"expires_in\":%ld}", (long)new_token_expiration_time);
+
+    os_strdup(response_new_token_body, response_new_token->body);
+    expect_any(__wrap_wurl_http_request, method);
+    expect_any(__wrap_wurl_http_request, header);
+    expect_any(__wrap_wurl_http_request, url);
+    expect_any(__wrap_wurl_http_request, payload);
+    expect_any(__wrap_wurl_http_request, max_size);
+    expect_value(__wrap_wurl_http_request, timeout, WM_MS_GRAPH_DEFAULT_TIMEOUT);
+    expect_any(__wrap_wurl_http_request, ssl_verify);
+    will_return(__wrap_wurl_http_request, response_new_token);
+    // -----------END wm_ms_graph_ensure_valid_token-----------------------
+
+    expect_any(__wrap_wurl_http_request, method);
+    expect_string(__wrap_wurl_http_request, header, "Authorization: Bearer new_token");
+    expect_any(__wrap_wurl_http_request, url);
+    expect_any(__wrap_wurl_http_request, payload);
+    expect_any(__wrap_wurl_http_request, max_size);
+    expect_value(__wrap_wurl_http_request, timeout, WM_MS_GRAPH_DEFAULT_TIMEOUT);
+    expect_any(__wrap_wurl_http_request, ssl_verify);
+    will_return(__wrap_wurl_http_request, response);
+
+    // Prepare headers
+    char *headers[] = { NULL, NULL };
+    char auth_header[OS_SIZE_8192] = { '\0' };
+    snprintf(auth_header, OS_SIZE_8192 - 1, "Authorization: Bearer %s", module_data->auth_config[0]->access_token);
+    os_strdup(auth_header, headers[0]);
+    cJSON *app_id = cJSON_CreateString("12345");
+
+    cJSON *result = wm_ms_graph_scan_apps_devices(module_data, app_id, module_data->auth_config[0]->query_fqdn, headers, module_data->auth_config[0]);
+
+    assert_non_null(result);
+    assert_string_equal(headers[0], "Authorization: Bearer new_token");
+    cJSON_Delete(result);
+    cJSON_Delete(app_id);
+    os_free(headers[0]);
+}
+
+static void test_wm_ms_graph_scan_apps_devices_renew_token_failed(void **state) {
+    /*
+    <enabled>yes</enabled>
+    <only_future_events>no</only_future_events>
+    <curl_max_size>1M</curl_max_size>
+    <page_size>10</page_size>
+    <time_delay>1</time_delay>
+    <run_on_start>yes</run_on_start>
+    <version>v1.0</version>
+    <api_auth>
+      <client_id>example_client</client_id>
+      <tenant_id>example_tenant</tenant_id>
+      <secret_value>example_secret</secret_value>
+      <api_type>global</api_type>
+    </api_auth>
+    <resource>
+      <name>deviceManagement</name>
+      <relationship>detectedApps</relationship>
+    </resource>
+    */
+    wm_ms_graph* module_data = (wm_ms_graph *)*state;
+    os_calloc(1, sizeof(wm_ms_graph_auth), module_data->auth_config);
+    os_calloc(1, sizeof(wm_ms_graph_auth), module_data->auth_config[0]);
+    module_data->enabled = true;
+    module_data->only_future_events = false;
+    module_data->curl_max_size = 1024L;
+    module_data->page_size = 10;
+    module_data->time_delay = 1;
+    module_data->run_on_start = true;
+    module_data->scan_config.interval = 60;
+    os_strdup("v1.0", module_data->version);
+    os_strdup("example_client", module_data->auth_config[0]->client_id);
+    os_strdup("example_tenant", module_data->auth_config[0]->tenant_id);
+    os_strdup("example_secret", module_data->auth_config[0]->secret_value);
+    os_strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN, module_data->auth_config[0]->login_fqdn);
+    os_strdup(WM_MS_GRAPH_GLOBAL_API_QUERY_FQDN, module_data->auth_config[0]->query_fqdn);
+    os_strdup("token", module_data->auth_config[0]->access_token);
+    module_data->auth_config[0]->token_expiration_time = time(NULL);
+    os_malloc(sizeof(wm_ms_graph_resource), module_data->resources);
+    os_strdup("deviceManagement", module_data->resources[0].name);
+    module_data->num_resources = 1;
+    os_malloc(sizeof(char*), module_data->resources[0].relationships);
+    os_strdup("detectedApps", module_data->resources[0].relationships[0]);
+    module_data->resources[0].num_relationships = 1;
+    size_t max_size = OS_SIZE_8192;
+    bool initial = false;
+    wm_max_eps = 1;
+
+    expect_string(__wrap__mtdebug1, tag, "wazuh-modulesd:ms-graph");
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Log URL: 'https://graph.microsoft.com/v1.0/deviceManagement/detectedApps/12345/managedDevices?$top=10&$select=id,deviceName'");
+
+    // -----------wm_ms_graph_ensure_valid_token-----------------------
+    expect_string(__wrap__mtinfo, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "Access token expired or missing. Requesting new token.");
+
+    curl_response* response;
+
+    os_calloc(1, sizeof(curl_response), response);
+    response->status_code = 200;
+    response->max_size_reached = false;
+    os_strdup("no json", response->body);
+    os_strdup("test", response->header);
+
+    expect_string(__wrap__mtdebug1, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Access Token URL: 'https://login.microsoftonline.com/example_tenant/oauth2/v2.0/token'");
+
+    expect_any(__wrap_wurl_http_request, method);
+    expect_any(__wrap_wurl_http_request, header);
+    expect_any(__wrap_wurl_http_request, url);
+    expect_any(__wrap_wurl_http_request, payload);
+    expect_any(__wrap_wurl_http_request, max_size);
+    expect_value(__wrap_wurl_http_request, timeout, WM_MS_GRAPH_DEFAULT_TIMEOUT);
+    expect_any(__wrap_wurl_http_request, ssl_verify);
+    will_return(__wrap_wurl_http_request, response);
+    expect_string(__wrap__mtwarn, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "Failed to parse access token JSON body.");
+
+    expect_string(__wrap__mtwarn, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "Failed to renew access token.");
+    // -----------END wm_ms_graph_ensure_valid_token-----------------------
+
+    expect_string(__wrap__mtwarn, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "Aborting app-device scan due to access token error.");
+
+    // Prepare headers
+    char *headers[] = { NULL, NULL };
+    char auth_header[OS_SIZE_8192] = { '\0' };
+    snprintf(auth_header, OS_SIZE_8192 - 1, "Authorization: Bearer %s", module_data->auth_config[0]->access_token);
+    os_strdup(auth_header, headers[0]);
+    cJSON *app_id = cJSON_CreateString("12345");
+
+    cJSON *result = wm_ms_graph_scan_apps_devices(module_data, app_id, module_data->auth_config[0]->query_fqdn, headers, module_data->auth_config[0]);
+
+    assert_non_null(result);
+    assert_int_equal(cJSON_GetArraySize(result), 0);
+    cJSON_Delete(result);
+    cJSON_Delete(app_id);
+    os_free(headers[0]);
+}
+
+static void test_wm_ms_graph_ensure_valid_token_token_valid(void **state) {
+    wm_ms_graph_auth auth = {0};
+    auth.access_token = strdup("valid_token");
+    auth.token_expiration_time = time(NULL) + 3600;
+
+    bool token_changed = false;
+    assert_true(wm_ms_graph_ensure_valid_token(&auth, 1024, &token_changed));
+    assert_false(token_changed);
+    os_free(auth.access_token);
+}
+
+static void test_wm_ms_graph_ensure_valid_token_token_expired_and_renewed(void **state) {
+    wm_ms_graph_auth auth = {0};
+    auth.access_token = strdup("expired_token");
+    auth.token_expiration_time = time(NULL) - 10;
+    auth.login_fqdn = strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN);
+    auth.tenant_id = strdup("example_tenant");
+
+    time_t new_token_expiration_time = time(NULL) + 3600;
+
+    curl_response* response;
+    os_calloc(1, sizeof(curl_response), response);
+    response->status_code = 200;
+    response->max_size_reached = false;
+    char response_body[256];
+    snprintf(response_body, sizeof(response_body),
+            "{\"access_token\":\"new_token\",\"expires_in\":%ld}", (long)new_token_expiration_time);
+
+    os_strdup(response_body, response->body);
+
+    expect_string(__wrap__mtinfo, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "Access token expired or missing. Requesting new token.");
+
+    expect_string(__wrap__mtdebug1, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Access Token URL: 'https://login.microsoftonline.com/example_tenant/oauth2/v2.0/token'");
 
     expect_any(__wrap_wurl_http_request, method);
     expect_any(__wrap_wurl_http_request, header);
@@ -3284,27 +3932,92 @@ void test_wm_ms_graph_scan_relationships_single_success_two_resources(void **sta
     expect_any(__wrap_wurl_http_request, ssl_verify);
     will_return(__wrap_wurl_http_request, response);
 
-    expect_string(__wrap__mtdebug2, tag, "wazuh-modulesd:ms-graph");
-    expect_string(__wrap__mtdebug2, formatted_msg, "Sending log: '{\"integration\":\"ms-graph\",\"ms-graph\":{\"full_log\":\"log1_resource_2\",\"resource\":\"deviceManagement\",\"relationship\":\"auditEvents\"}}'");
+    bool token_changed = false;
+    assert_true(wm_ms_graph_ensure_valid_token(&auth, 1024, &token_changed));
+    assert_string_equal(auth.access_token, "new_token");
+    assert_true(token_changed);
+    os_free(auth.client_id);
+    os_free(auth.tenant_id);
+    os_free(auth.secret_value);
+    os_free(auth.access_token);
+    os_free(auth.login_fqdn);
+    os_free(auth.query_fqdn);
+}
 
-    queue_fd = 0;
-    expect_value(__wrap_wm_sendmsg, usec, 1000000);
-    expect_value(__wrap_wm_sendmsg, queue, queue_fd);
-    expect_string(__wrap_wm_sendmsg, message, "{\"integration\":\"ms-graph\",\"ms-graph\":{\"full_log\":\"log1_resource_2\",\"resource\":\"deviceManagement\",\"relationship\":\"auditEvents\"}}");
-    expect_string(__wrap_wm_sendmsg, locmsg, "ms-graph");
-    expect_value(__wrap_wm_sendmsg, loc, LOCALFILE_MQ);
-    will_return(__wrap_wm_sendmsg, 1);
+static void test_wm_ms_graph_ensure_valid_token_token_missing_and_renewed(void **state) {
+    wm_ms_graph_auth auth = {0};
+    auth.token_expiration_time = time(NULL) - 10;
+    auth.login_fqdn = strdup(WM_MS_GRAPH_GLOBAL_API_LOGIN_FQDN);
+    auth.tenant_id = strdup("example_tenant");
 
-    expect_string(__wrap_wm_state_io, tag, "ms-graph-example_tenant-deviceManagement-auditEvents");
-    expect_value(__wrap_wm_state_io, op, WM_IO_WRITE);
-    expect_any(__wrap_wm_state_io, state);
-    expect_any(__wrap_wm_state_io, size);
-    will_return(__wrap_wm_state_io, -1);
+    time_t new_token_expiration_time = time(NULL) + 3600;
 
-    expect_string(__wrap__mterror, tag, "wazuh-modulesd:ms-graph");
-    expect_string(__wrap__mterror, formatted_msg, "Couldn't save running state.");
+    curl_response* response;
+    os_calloc(1, sizeof(curl_response), response);
+    response->status_code = 200;
+    response->max_size_reached = false;
+    char response_body[256];
+    snprintf(response_body, sizeof(response_body),
+            "{\"access_token\":\"new_token\",\"expires_in\":%ld}", (long)new_token_expiration_time);
 
-    wm_ms_graph_scan_relationships(module_data, module_data->auth_config[0], initial);
+    os_strdup(response_body, response->body);
+
+    expect_string(__wrap__mtinfo, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "Access token expired or missing. Requesting new token.");
+
+    expect_string(__wrap__mtdebug1, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtdebug1, formatted_msg, "Microsoft Graph API Access Token URL: 'https://login.microsoftonline.com/example_tenant/oauth2/v2.0/token'");
+
+    expect_any(__wrap_wurl_http_request, method);
+    expect_any(__wrap_wurl_http_request, header);
+    expect_any(__wrap_wurl_http_request, url);
+    expect_any(__wrap_wurl_http_request, payload);
+    expect_any(__wrap_wurl_http_request, max_size);
+    expect_value(__wrap_wurl_http_request, timeout, WM_MS_GRAPH_DEFAULT_TIMEOUT);
+    expect_any(__wrap_wurl_http_request, ssl_verify);
+    will_return(__wrap_wurl_http_request, response);
+
+    bool token_changed = false;
+    assert_true(wm_ms_graph_ensure_valid_token(&auth, 1024, &token_changed));
+    assert_string_equal(auth.access_token, "new_token");
+    assert_true(token_changed);
+    os_free(auth.client_id);
+    os_free(auth.tenant_id);
+    os_free(auth.secret_value);
+    os_free(auth.access_token);
+    os_free(auth.login_fqdn);
+    os_free(auth.query_fqdn);
+}
+
+static void test_wm_ms_graph_ensure_valid_token_token_renewal_failed(void **state) {
+    wm_ms_graph_auth auth = {0};
+    auth.access_token = strdup("expired_token");
+    auth.token_expiration_time = 0;
+
+    expect_string(__wrap__mtinfo, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtinfo, formatted_msg, "Access token expired or missing. Requesting new token.");
+
+    curl_response* response;
+    os_calloc(1, sizeof(curl_response), response);
+    response->status_code = 400;
+
+    expect_any(__wrap_wurl_http_request, method);
+    expect_any(__wrap_wurl_http_request, header);
+    expect_any(__wrap_wurl_http_request, url);
+    expect_any(__wrap_wurl_http_request, payload);
+    expect_any(__wrap_wurl_http_request, max_size);
+    expect_value(__wrap_wurl_http_request, timeout, WM_MS_GRAPH_DEFAULT_TIMEOUT);
+    expect_any(__wrap_wurl_http_request, ssl_verify);
+    will_return(__wrap_wurl_http_request, response);
+
+    expect_string(__wrap__mtwarn, tag, WM_MS_GRAPH_LOGTAG);
+    expect_string(__wrap__mtwarn, formatted_msg, "Failed to renew access token.");
+
+    bool token_changed = false;
+    assert_false(wm_ms_graph_ensure_valid_token(&auth, 1024, &token_changed));
+    assert_string_equal(auth.access_token, "expired_token");
+    assert_false(token_changed);
+    os_free(auth.access_token);
 }
 
 int main(void) {
@@ -3373,7 +4086,14 @@ int main(void) {
         cmocka_unit_test_setup_teardown(test_wm_ms_graph_scan_relationships_single_success_one_log, setup_conf, teardown_conf),
         cmocka_unit_test_setup_teardown(test_wm_ms_graph_scan_relationships_single_success_two_logs, setup_conf, teardown_conf),
         cmocka_unit_test_setup_teardown(test_wm_ms_graph_scan_relationships_single_success_two_pages, setup_conf, teardown_conf),
-        cmocka_unit_test_setup_teardown(test_wm_ms_graph_scan_relationships_single_success_two_resources, setup_conf, teardown_conf)
+        cmocka_unit_test_setup_teardown(test_wm_ms_graph_scan_relationships_single_success_two_resources, setup_conf, teardown_conf),
+        cmocka_unit_test_setup_teardown(test_wm_ms_graph_scan_relationships_renew_token, setup_conf, teardown_conf),
+        cmocka_unit_test_setup_teardown(test_wm_ms_graph_scan_relationships_renew_token_failed, setup_conf, teardown_conf),
+        cmocka_unit_test_setup_teardown(test_wm_ms_graph_scan_apps_devices_renew_token, setup_conf, teardown_conf),
+        cmocka_unit_test_setup_teardown(test_wm_ms_graph_scan_apps_devices_renew_token_failed, setup_conf, teardown_conf),
+        cmocka_unit_test_setup_teardown(test_wm_ms_graph_ensure_valid_token_token_valid, setup_conf, teardown_conf),
+        cmocka_unit_test_setup_teardown(test_wm_ms_graph_ensure_valid_token_token_expired_and_renewed, setup_conf, teardown_conf),
+        cmocka_unit_test_setup_teardown(test_wm_ms_graph_ensure_valid_token_token_missing_and_renewed, setup_conf, teardown_conf)
     };
     int result = 0;
     result = cmocka_run_group_tests(tests_without_startup, NULL, NULL);

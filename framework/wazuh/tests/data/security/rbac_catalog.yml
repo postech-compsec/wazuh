@@ -101,6 +101,7 @@ get_rbac_actions:
           - GET /agents/no_group
           - GET /agents/outdated
           - GET /agents/stats/distinct
+          - GET /agents/summary
           - GET /agents/summary/os
           - GET /agents/summary/status
           - GET /groups/{group_id}/agents
@@ -295,6 +296,7 @@ get_rbac_actions:
           - GET /cluster/{node_id}/logs
           - GET /cluster/{node_id}/logs/summary
           - PUT /cluster/restart
+          - PUT /cluster/analysisd/reload
           - GET /cluster/configuration/validation
           - GET /cluster/{node_id}/configuration/{component}/{configuration}
       ciscat:read:
@@ -362,6 +364,7 @@ get_rbac_actions:
           effect: allow
         related_endpoints:
           - PUT /cluster/restart
+          - PUT /cluster/analysisd/reload
       lists:read:
         description: Read CDB lists files
         resources:
@@ -436,9 +439,11 @@ get_rbac_actions:
           - GET /manager/stats/remoted
           - GET /manager/logs
           - GET /manager/logs/summary
+          - PUT /manager/analysisd/reload
           - PUT /manager/restart
           - GET /manager/configuration/validation
           - GET /manager/configuration/{component}/{configuration}
+
       manager:update_config:
         description: Update current Wazuh manager configuration
         resources:
@@ -474,6 +479,7 @@ get_rbac_actions:
             - "*:*:*"
           effect: deny
         related_endpoints:
+          - PUT /manager/analysisd/reload
           - PUT /manager/restart
       mitre:read:
         description: Access information from MITRE database
@@ -701,6 +707,10 @@ get_rbac_actions:
           - GET /syscollector/{agent_id}/packages
           - GET /syscollector/{agent_id}/ports
           - GET /syscollector/{agent_id}/processes
+          - GET /syscollector/{agent_id}/users
+          - GET /syscollector/{agent_id}/groups
+          - GET /syscollector/{agent_id}/browser_extensions
+          - GET /syscollector/{agent_id}/services
       security:edit_run_as:
         description: Change the value of the allow_run_as flag for a user
         resources:

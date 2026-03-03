@@ -84,6 +84,17 @@ void SecurityConfigurationAssessmentInit()
     mdebug1("SecurityConfigurationAssessmentInit completed.");
 }
 
+void SecurityConfigurationAssessmentHotReload()
+{
+    if (sca_json_dec) {
+        sca_json_dec->id = getDecoderfromlist(SCA_MOD, &os_analysisd_decoder_store);
+        sca_json_dec->fts = 0;
+        mdebug1("SecurityConfigurationAssessmentHotReload completed.");
+    } else {
+        mdebug1("Security Configuration Assessment decoder not initialized.");
+    }
+}
+
 static void *RequestDBThread() {
 
     while(1) {
@@ -109,7 +120,7 @@ static void *RequestDBThread() {
                     if ((rc = OS_SendUnix(cfga_socket, dump_db_msg, 0)) < 0) {
                         /* Error on the socket */
                         if (rc == OS_SOCKTERR) {
-                            merror("socketerr (not available)");
+                            mdebug1("socketerr (not available)");
                             close(cfga_socket);
                         }
                         /* Unable to send. Socket busy */
@@ -127,7 +138,7 @@ static void *RequestDBThread() {
                     if ((rc = OS_SendUnix(cfgar_socket, msg, 0)) < 0) {
                         /* Error on the socket */
                         if (rc == OS_SOCKTERR) {
-                            merror("socketerr (not available).");
+                            mdebug1("socketerr (not available).");
                             close(cfgar_socket);
                         }
                         /* Unable to send. Socket busy */
@@ -830,20 +841,21 @@ static void HandleCheckEvent(Eventinfo *lf,int *socket,cJSON *event) {
                         char *value = NULL;
                         int free_value = 0;
 
-                        if(!comp->valuestring){
-                            if(comp->valueint) {
-                                os_calloc(OS_SIZE_1024, sizeof(char), value);
-                                sprintf(value, "%d", comp->valueint);
-                                free_value = 1;
-                            } else if(comp->valuedouble) {
-                                os_calloc(OS_SIZE_1024, sizeof(char), value);
-                                sprintf(value, "%lf", comp->valuedouble);
-                                free_value = 1;
-                            }
-                        } else {
+                        if(cJSON_IsString(comp) && (comp->valuestring != NULL)) {
                             value = comp->valuestring;
-                        }
+                        } else if (cJSON_IsNumber(comp)) {
+                            os_calloc(OS_SIZE_1024, sizeof(char), value);
 
+                            if(comp->valuedouble == (double)comp->valueint) {
+                                snprintf(value, OS_SIZE_1024, "%d", comp->valueint);
+                            } else {
+                                snprintf(value, OS_SIZE_1024, "%lf", comp->valuedouble);
+                            }
+
+                            free_value = 1;
+                        } else {
+                            value = NULL;
+                        }
                         SaveCompliance(lf,socket,id->valueint,key,value);
 
                         if(free_value) {
@@ -1306,13 +1318,13 @@ static int CheckEventJSON(cJSON *event, cJSON **scan_id, cJSON **id, cJSON **nam
     int retval = 1;
     cJSON *obj;
 
-    if( *scan_id = cJSON_GetObjectItem(event, "id"), !*scan_id) {
+    if (*scan_id = cJSON_GetObjectItem(event, "id"), !*scan_id) {
         merror("Malformed JSON: field 'id' not found.");
         return retval;
     }
 
     obj = *scan_id;
-    if( !obj->valueint ) {
+    if (!cJSON_IsNumber(obj)) {
         merror("Malformed JSON: field 'id' must be a number.");
         return retval;
     }
@@ -1345,14 +1357,14 @@ static int CheckEventJSON(cJSON *event, cJSON **scan_id, cJSON **id, cJSON **nam
 
     } else {
 
-        if( *id = cJSON_GetObjectItem(*check, "id"), !*id) {
+        if ((*id = cJSON_GetObjectItem(*check, "id")) == NULL) {
             merror("Malformed JSON: field 'id' not found.");
             return retval;
         }
 
         obj = *id;
-        if( !obj->valueint ) {
-            merror("Malformed JSON: field 'id' must be a string.");
+        if (!cJSON_IsNumber(obj)) {
+            merror("Malformed JSON: field 'id' must be a number.");
             return retval;
         }
 
@@ -1562,9 +1574,9 @@ static void FillCheckEventInfo(Eventinfo *lf, cJSON *scan_id, cJSON *id, cJSON *
         char value[OS_SIZE_128];
 
         if(scan_id->valueint >= 0){
-            sprintf(value, "%d", scan_id->valueint);
+            snprintf(value, sizeof(value), "%d", scan_id->valueint);
         } else if (scan_id->valuedouble) {
-             sprintf(value, "%lf", scan_id->valuedouble);
+            snprintf(value, sizeof(value), "%lf", scan_id->valuedouble);
         }
         fillData(lf, "sca.scan_id", value);
     }
@@ -1573,13 +1585,13 @@ static void FillCheckEventInfo(Eventinfo *lf, cJSON *scan_id, cJSON *id, cJSON *
         fillData(lf, "sca.policy", name->valuestring);
     }
 
-    if(id) {
+    if(id && cJSON_IsNumber(id)) {
         char value[OS_SIZE_128];
 
-        if(id->valueint){
-            sprintf(value, "%d", id->valueint);
-        } else if (id->valuedouble) {
-             sprintf(value, "%lf", id->valuedouble);
+        if(id->valuedouble == (double)id->valueint) {
+            snprintf(value, sizeof(value), "%d", id->valueint);
+        } else {
+            snprintf(value, sizeof(value), "%lf", id->valuedouble);
         }
 
         fillData(lf, "sca.check.id", value);
@@ -1610,18 +1622,21 @@ static void FillCheckEventInfo(Eventinfo *lf, cJSON *scan_id, cJSON *id, cJSON *
             char *value = NULL;
             int free_value = 0;
 
-            if(!comp->valuestring){
-                if(comp->valueint) {
-                    os_calloc(OS_SIZE_1024, sizeof(char), value);
-                    sprintf(value, "%d", comp->valueint);
-                    free_value = 1;
-                } else if(comp->valuedouble) {
-                    os_calloc(OS_SIZE_1024, sizeof(char), value);
-                    sprintf(value, "%lf", comp->valuedouble);
-                    free_value = 1;
-                }
-            } else {
+            if (cJSON_IsString(comp)) {
                 value = comp->valuestring;
+            } else if (cJSON_IsNumber(comp)) {
+                os_calloc(OS_SIZE_1024, sizeof(char), value);
+
+                if (comp->valuedouble == (double)(comp->valueint)) {
+                    snprintf(value, OS_SIZE_1024, "%d", comp->valueint);
+                } else {
+                    snprintf(value, OS_SIZE_1024, "%lf", comp->valuedouble);
+                }
+
+                free_value = 1;
+            } else {
+                mwarn("Unexpected type for compliance field: %s. Expected string or number.", comp->string);
+                value = NULL;
             }
 
             char compliance_key[OS_SIZE_1024];
@@ -1695,10 +1710,12 @@ static void FillScanInfo(Eventinfo *lf,cJSON *scan_id,cJSON *name,cJSON *descrip
     if(scan_id) {
         char value[OS_SIZE_128];
 
-        if(scan_id->valueint >= 0){
-            sprintf(value, "%d", scan_id->valueint);
-        } else if (scan_id->valuedouble) {
-            sprintf(value, "%lf", scan_id->valuedouble);
+        if(cJSON_IsNumber(scan_id)) {
+            if(scan_id->valuedouble == (double)scan_id->valueint) {
+                snprintf(value, sizeof(value), "%d", scan_id->valueint);
+            } else {
+                snprintf(value, sizeof(value), "%lf", scan_id->valuedouble);
+            }
         } else {
             mdebug1("Unexpected 'sca.scan_id' type: %d.", scan_id->type);
             return;
@@ -1723,9 +1740,9 @@ static void FillScanInfo(Eventinfo *lf,cJSON *scan_id,cJSON *name,cJSON *descrip
         char value[OS_SIZE_128];
 
         if(pass->valueint >= 0){
-            sprintf(value, "%d", pass->valueint);
+            snprintf(value, sizeof(value), "%d", pass->valueint);
         } else if (pass->valuedouble >= 0) {
-            sprintf(value, "%lf", pass->valuedouble);
+            snprintf(value, sizeof(value), "%lf", pass->valuedouble);
         } else {
             mdebug1("Unexpected 'sca.passed' type: %d", pass->type);
             return;
@@ -1738,9 +1755,9 @@ static void FillScanInfo(Eventinfo *lf,cJSON *scan_id,cJSON *name,cJSON *descrip
         char value[OS_SIZE_128];
 
         if(failed->valueint >= 0){
-            sprintf(value, "%d", failed->valueint);
+            snprintf(value, sizeof(value), "%d", failed->valueint);
         } else if (failed->valuedouble >= 0) {
-            sprintf(value, "%lf", failed->valuedouble);
+            snprintf(value, sizeof(value), "%lf", failed->valuedouble);
         } else {
             mdebug1("Unexpected 'sca.failed' type: %d", failed->type);
             return;
@@ -1753,9 +1770,9 @@ static void FillScanInfo(Eventinfo *lf,cJSON *scan_id,cJSON *name,cJSON *descrip
         char value[OS_SIZE_128];
 
         if(invalid->valueint >= 0){
-            sprintf(value, "%d", invalid->valueint);
+            snprintf(value, sizeof(value), "%d", invalid->valueint);
         } else if (invalid->valuedouble >= 0) {
-            sprintf(value, "%lf", invalid->valuedouble);
+            snprintf(value, sizeof(value), "%lf", invalid->valuedouble);
         } else {
             mdebug1("Unexpected 'sca.invalid' type: %d", invalid->type);
             return;
@@ -1768,9 +1785,9 @@ static void FillScanInfo(Eventinfo *lf,cJSON *scan_id,cJSON *name,cJSON *descrip
         char value[OS_SIZE_128];
 
         if(total_checks->valueint >= 0){
-            sprintf(value, "%d", total_checks->valueint);
+            snprintf(value, sizeof(value), "%d", total_checks->valueint);
         } else if (total_checks->valuedouble >= 0) {
-            sprintf(value, "%lf", total_checks->valuedouble);
+            snprintf(value, sizeof(value), "%lf", total_checks->valuedouble);
         } else {
             mdebug1("Unexpected 'sca.total_checks' type: %d", total_checks->type);
             return;
@@ -1783,9 +1800,9 @@ static void FillScanInfo(Eventinfo *lf,cJSON *scan_id,cJSON *name,cJSON *descrip
         char value[OS_SIZE_128];
 
         if(score->valueint >= 0){
-            sprintf(value, "%d", score->valueint);
+            snprintf(value, sizeof(value), "%d", score->valueint);
         } else if (score->valuedouble >= 0) {
-            sprintf(value, "%lf", score->valuedouble);
+            snprintf(value, sizeof(value), "%lf", score->valuedouble);
         } else {
             mdebug1("Unexpected 'sca.score' type: %d", score->type);
             return;

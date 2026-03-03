@@ -19,7 +19,7 @@
 #define FIM_WARN_DELETE                         "(6901): Could not delete from filesystem '%s'"
 #define FIM_WARN_DELETE_HASH_TABLE              "(6902): Could not delete from hash table '%s'"
 #define FIM_WARN_SYMLINKS_UNSUPPORTED           "(6903) Links are not supported: '%s'"
-#define FIM_WARN_STAT_BROKEN_LINK               "(6904): Error in stat() function: %s. This may be caused by a broken symbolic link (%s)."
+#define FIM_WARN_STAT_BROKEN_LINK               "(6904): Error in w_stat() function: %s. This may be caused by a broken symbolic link (%s)."
 #define FIM_WARN_ALLOW_PREFILTER                "(6905): Ignoring prefilter option '%s'. Enable <%s> to use it."
 #define FIM_WARN_REALTIME_OVERFLOW              "(6906): Real time process: no data. Probably buffer overflow."
 #define FIM_WARN_REALTIME_OPENFAIL              "(6907): '%s' does not exist. Monitoring discarded."
@@ -35,7 +35,7 @@
 #define FIM_WARN_WHODATA_EVENT_OVERFLOW         "(6917): Real-time Whodata events queue for Windows has more than %d elements."
 #define FIM_WARN_NFS_INOTIFY                    "(6918): '%s' NFS Directories do not support iNotify."
 #define FIM_INV_REG                             "(6919): Invalid syscheck registry entry: '%s' arch: '%s'."
-#define FIM_REG_OPEN                            "(6920): Unable to open registry key: '%s' arch: '%s'."
+#define FIM_REG_OPEN                            "(6920): Failed to open registry key: '%s' (arch: '%s'). Error code: %ld."
 #define FIM_WARN_FILE_REALTIME                  "(6921): Unable to configure real-time option for file: '%s'"
 #define FIM_PATH_NOT_OPEN                       "(6922): Cannot open '%s': %s"
 
@@ -74,6 +74,9 @@
 #define FIM_INVALID_FILE_NAME                   "(6955): Ignoring file '%s' due to unsupported name (non-UTF8)."
 #define FIM_FULL_AUDIT_QUEUE                    "(6956): Internal audit queue is full. Some events may be lost. Next scheduled scan will recover lost data."
 #define FIM_REALTIME_FILE_NOT_SUPPORTED         "(6957): Realtime mode only supports directories, not files. Switching to scheduled mode. File: '%s'"
+#define FIM_FULL_EBPF_KERNEL_QUEUE              "(6958): Internal ebpf queue for kernel events is full. Too many eBPF events from system files. Next scheduled scan will recover lost data."
+#define FIM_ERROR_EBPF_HEALTHCHECK              "(6959): The eBPF healthcheck has failed. Switching all whodata eBPF configuration to audit."
+#define FIM_WARN_INODE_WRONG_TYPE               "(6960): Inode field received with a wrong type, it must be a string."
 
 /* Monitord warning messages */
 #define ROTATE_LOG_LONG_PATH                    "(7500): The path of the rotated log is too long."
@@ -166,4 +169,9 @@
                                                 " Default value (%s) will be used."
 #define REMOTED_INV_VALUE_DEFAULT               "(9004): Invalid value '%s' in '%s' option. " \
                                                 "Default value will be used."
+
+/* Other */
+#define NETWORK_PATH_EXECUTED           "(9800): File access denied. Network path usage is not allowed: '%s'."
+#define NETWORK_PATH_CONFIGURED         "(9801): Network path not allowed in configuration. '%s': %s."
+
 #endif /* WARN_MESSAGES_H */

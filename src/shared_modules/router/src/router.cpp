@@ -9,26 +9,73 @@
  * Foundation.
  */
 
-#include "router.h"
-#include "flatbuffers/idl.h"
 #include "logging_helper.h"
-#include "routerFacade.hpp"
-#include "routerModule.hpp"
-#include "routerProvider.hpp"
-#include "routerSubscriber.hpp"
-
-std::map<ROUTER_PROVIDER_HANDLE, std::shared_ptr<RouterProvider>> PROVIDERS;
-std::shared_mutex PROVIDERS_MUTEX;
-
+#include <functional>
+#include <string>
 static std::function<void(const modules_log_level_t, const std::string&)> GS_LOG_FUNCTION;
 
-static void logMessage(const modules_log_level_t level, const std::string& msg)
+void logMessage(const modules_log_level_t level, const std::string& msg)
 {
     if (!msg.empty() && GS_LOG_FUNCTION)
     {
         GS_LOG_FUNCTION(level, msg);
     }
 }
+
+#include "external/cpp-httplib/httplib.h"
+#include "flatbuffers/idl.h"
+#include "router.h"
+#include "routerFacade.hpp"
+#include "routerModule.hpp"
+#include "routerModuleGateway.hpp"
+#include "routerProvider.hpp"
+#include "routerSubscriber.hpp"
+#include "schemaAdapter.hpp"
+#include "shared_modules/utils/flatbuffers/include/rsync_schema.h"
+#include "shared_modules/utils/flatbuffers/include/syscheck_deltas_schema.h"
+#include "shared_modules/utils/flatbuffers/include/syscollector_deltas_schema.h"
+#include <filesystem>
+#include <malloc.h>
+#include <utility>
+
+std::map<ROUTER_PROVIDER_HANDLE, std::shared_ptr<RouterProvider>> PROVIDERS;
+std::shared_mutex PROVIDERS_MUTEX;
+
+std::map<msg_type, flatbuffers::Parser> initSchemaParsers()
+{
+    std::map<msg_type, flatbuffers::Parser> SCHEMA_PARSERS;
+    std::map<msg_type, const char*> SCHEMA_MAP = {
+        {MT_SYS_DELTAS, syscollector_deltas_SCHEMA},
+        {MT_SYNC, rsync_SCHEMA},
+        {MT_SYSCHECK_DELTAS, syscheck_deltas_SCHEMA},
+    };
+
+    for (const auto& [type, schema] : SCHEMA_MAP)
+    {
+        SCHEMA_PARSERS[type] = flatbuffers::Parser();
+        SCHEMA_PARSERS[type].opts.skip_unexpected_fields_in_json = true;
+        SCHEMA_PARSERS[type].opts.zero_on_float_to_int =
+            true; // Avoids issues with float to int conversion, custom option made for Wazuh.
+
+        if (!SCHEMA_PARSERS[type].Parse(schema))
+        {
+            throw std::runtime_error("Error parsing schema, " + std::string(SCHEMA_PARSERS[type].error_));
+        }
+    }
+    return SCHEMA_PARSERS;
+}
+
+/**
+ * @brief Struct to hold the server instance and its thread.
+ */
+struct ServerInstance final
+{
+    std::unique_ptr<httplib::Server> server; ///< Server instance
+    std::thread serverThread;                ///< Thread to run the server
+    bool running {false};                    ///< Flag to indicate if the server is running
+};
+
+std::map<std::string, std::shared_ptr<ServerInstance>> G_HTTPINSTANCES;
 
 void RouterModule::initialize(const std::function<void(const modules_log_level_t, const std::string&)>& logFunction)
 {
@@ -253,6 +300,10 @@ extern "C"
             else
             {
                 flatbuffers::Parser parser;
+                parser.opts.skip_unexpected_fields_in_json = true;
+                parser.opts.zero_on_float_to_int =
+                    true; // Avoids issues with float to int conversion, custom option made for Wazuh.
+
                 if (!parser.Parse(schema))
                 {
                     throw std::runtime_error("Error parsing schema, " + std::string(parser.error_));
@@ -277,6 +328,55 @@ extern "C"
         return retVal;
     }
 
+    int router_provider_send_fb_json(ROUTER_PROVIDER_HANDLE handle,
+                                     const char* message,
+                                     const agent_ctx* agent_ctx,
+                                     const msg_type schema)
+    {
+        int retVal = -1;
+        try
+        {
+            if (!message)
+            {
+                throw std::runtime_error("Error sending message to provider. Message is empty");
+            }
+            else
+            {
+                static thread_local auto parserMap = initSchemaParsers();
+                static thread_local std::string buffer;
+
+                auto& parser = parserMap.at(schema);
+                parser.builder_.Clear();
+
+                buffer.clear();
+
+                SchemaAdapter::adaptJsonMessage(message, schema, agent_ctx, buffer);
+
+                if (buffer.empty())
+                {
+                    return 0;
+                }
+
+                if (!parser.Parse(buffer.c_str()))
+                {
+                    logMessage(modules_log_level_t::LOG_ERROR, "JSON message: " + buffer);
+                    throw std::runtime_error("Error parsing message, " + std::string(parser.error_));
+                }
+
+                std::vector<char> data(parser.builder_.GetBufferPointer(),
+                                       parser.builder_.GetBufferPointer() + parser.builder_.GetSize());
+                std::shared_lock<std::shared_mutex> lock(PROVIDERS_MUTEX);
+                PROVIDERS.at(handle)->send(data);
+                retVal = 0;
+            }
+        }
+        catch (const std::exception& e)
+        {
+            logMessage(modules_log_level_t::LOG_ERROR, std::string("Error sending message to provider: ") + e.what());
+        }
+        return retVal;
+    }
+
     void router_provider_destroy(ROUTER_PROVIDER_HANDLE handle)
     {
         std::unique_lock<std::shared_mutex> lock(PROVIDERS_MUTEX);
@@ -284,6 +384,164 @@ extern "C"
         if (it != PROVIDERS.end())
         {
             PROVIDERS.erase(it);
+        }
+    }
+
+    void router_register_api_endpoint(const char* module,
+                                      const char* socketPath,
+                                      const char* method,
+                                      const char* endpoint,
+                                      void* callbackPre,
+                                      void* callbackPost)
+    {
+        if (!socketPath || !endpoint || !method || !module)
+        {
+            logMessage(modules_log_level_t::LOG_ERROR, "Error registering API endpoint. Invalid parameters");
+            return;
+        }
+
+        std::string socketPathStr(socketPath);
+        if (G_HTTPINSTANCES.find(socketPathStr) == G_HTTPINSTANCES.end())
+        {
+            G_HTTPINSTANCES[socketPathStr] = std::make_shared<ServerInstance>();
+            G_HTTPINSTANCES[socketPathStr]->server = std::make_unique<httplib::Server>();
+        }
+
+        auto instance = G_HTTPINSTANCES[socketPathStr];
+        auto methodStr = std::string(method);
+        auto endpointStr = std::string(endpoint);
+        auto moduleStr = std::string(module);
+
+        if (methodStr.compare("GET") == 0)
+        {
+            logMessage(modules_log_level_t::LOG_INFO, "Registering GET endpoint: " + endpointStr);
+            instance->server->Get(
+                endpoint,
+                [callbackPre, callbackPost, endpointStr = std::move(endpointStr), moduleStr = std::move(moduleStr)](
+                    const httplib::Request& req, httplib::Response& res)
+                {
+                    logMessage(modules_log_level_t::LOG_DEBUG_VERBOSE,
+                               "GET: " + endpointStr + " request parameters: " + req.path);
+                    auto start = std::chrono::high_resolution_clock::now();
+                    RouterModuleGateway::redirect(moduleStr, callbackPre, callbackPost, endpointStr, "GET", req, res);
+                    auto end = std::chrono::high_resolution_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+                    logMessage(modules_log_level_t::LOG_DEBUG,
+                               "GET: " + endpointStr + " request processed in " + std::to_string(duration.count()) +
+                                   " us");
+                });
+        }
+        else if (methodStr.compare("POST") == 0)
+        {
+            logMessage(modules_log_level_t::LOG_INFO, "Registering POST endpoint: " + endpointStr);
+            instance->server->Post(
+                endpoint,
+                [callbackPre, callbackPost, endpointStr = std::move(endpointStr), moduleStr = std::move(moduleStr)](
+                    const httplib::Request& req, httplib::Response& res)
+                {
+                    auto start = std::chrono::high_resolution_clock::now();
+                    RouterModuleGateway::redirect(moduleStr, callbackPre, callbackPost, endpointStr, "POST", req, res);
+                    auto end = std::chrono::high_resolution_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+                    logMessage(modules_log_level_t::LOG_DEBUG,
+                               "POST: " + endpointStr + " request processed in " + std::to_string(duration.count()) +
+                                   " us");
+                });
+        }
+        else
+        {
+            logMessage(modules_log_level_t::LOG_ERROR, "Error registering API endpoint. Invalid method");
+            return;
+        }
+    }
+
+    void router_start_api(const char* socketPath)
+    {
+        if (!socketPath)
+        {
+            logMessage(modules_log_level_t::LOG_ERROR, "Error starting API. Invalid socket path");
+            return;
+        }
+
+        std::string socketPathStr(socketPath);
+        if (G_HTTPINSTANCES.find(socketPath) == G_HTTPINSTANCES.end())
+        {
+            logMessage(modules_log_level_t::LOG_ERROR, "Error starting API. Socket path not found");
+            return;
+        }
+
+        auto instance = G_HTTPINSTANCES[socketPath];
+
+        instance->serverThread = std::thread(
+            [instance, socketPathStr = std::move(socketPathStr)]()
+            {
+                const static std::string SOCKETPATH {"queue/sockets/"};
+                std::filesystem::remove(SOCKETPATH + socketPathStr);
+                std::filesystem::path path {SOCKETPATH + socketPathStr};
+                std::filesystem::create_directories(path.parent_path());
+                instance->server->set_address_family(AF_UNIX);
+                instance->server->set_exception_handler(
+                    [](const auto& req, auto& res, std::exception_ptr ep)
+                    {
+                        try
+                        {
+                            std::rethrow_exception(std::move(ep));
+                        }
+                        catch (const std::exception& e)
+                        {
+                            logMessage(modules_log_level_t::LOG_ERROR,
+                                       std::string(e.what()) + " on endpoint: " + req.path);
+                        }
+                        catch (...)
+                        {
+                            logMessage(modules_log_level_t::LOG_ERROR, "Unknown exception");
+                        }
+                        res.status = 500;
+                    });
+                instance->running = instance->server->listen(path.c_str(), true);
+
+                if (instance->running == false)
+                {
+                    logMessage(modules_log_level_t::LOG_ERROR, "Error starting API. Failed to listen on socket");
+                    return;
+                }
+
+                if (chmod(path.c_str(), 0660) == 0)
+                {
+                    logMessage(modules_log_level_t::LOG_DEBUG_VERBOSE, "API socket permissions set to 0660");
+                }
+                else
+                {
+                    logMessage(modules_log_level_t::LOG_ERROR,
+                               "Error setting API socket permissions: " + std::string(strerror(errno)));
+                }
+            });
+        // Spin lock until server is ready
+        while (!instance->server->is_running() && instance->running)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+        logMessage(modules_log_level_t::LOG_INFO, "API started successfully");
+    }
+
+    void router_stop_api(const char* socketPath)
+    {
+        if (!socketPath)
+        {
+            logMessage(modules_log_level_t::LOG_ERROR, "Error stopping API. Invalid socket path");
+            return;
+        }
+
+        auto it = G_HTTPINSTANCES.find(socketPath);
+        if (it != G_HTTPINSTANCES.end())
+        {
+            it->second->server->stop();
+            if (it->second->serverThread.joinable())
+            {
+                logMessage(modules_log_level_t::LOG_INFO, "Stopping server thread");
+                it->second->serverThread.join();
+            }
+            G_HTTPINSTANCES.erase(it);
         }
     }
 

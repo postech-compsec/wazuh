@@ -279,7 +279,19 @@ int Read_Localfile(XML_NODE node, void *d1, __attribute__((unused)) void *d2)
                 labels_free(logf[pl].labels);
                 return 0;
             }
-
+#ifdef WIN32
+            if (is_network_path(node[i]->content)) {
+                logf[pl].file = NULL;
+                logf[pl].ffile = NULL;
+                logf[pl].command = NULL;
+                logf[pl].alias = NULL;
+                logf[pl].logformat = NULL;
+                logf[pl].fp = NULL;
+                labels_free(logf[pl].labels);
+                mwarn(NETWORK_PATH_CONFIGURED, node[i]->element, node[i]->content);
+                return 0;
+            }
+#endif
             os_strdup(node[i]->content, logf[pl].file);
             logf[pl].command = logf[pl].file;
         } else if (strcmp(node[i]->element, xml_localfile_frequency) == 0) {
@@ -318,6 +330,17 @@ int Read_Localfile(XML_NODE node, void *d1, __attribute__((unused)) void *d2)
 
                     os_strdup(newfile, node[i]->content);
                 }
+            }
+            if (is_network_path(node[i]->content)) {
+                logf[pl].file = NULL;
+                logf[pl].ffile = NULL;
+                logf[pl].command = NULL;
+                logf[pl].alias = NULL;
+                logf[pl].logformat = NULL;
+                logf[pl].fp = NULL;
+                labels_free(logf[pl].labels);
+                mwarn(NETWORK_PATH_CONFIGURED, node[i]->element, node[i]->content);
+                return 0;
             }
 #endif
             os_strdup(node[i]->content, logf[pl].file);
@@ -948,9 +971,6 @@ int Remove_Localfile(logreader **logf, int i, int gl, int fr, logreader_glob *gl
                     fclose((*logf)[i].fp);
                 }
             #ifdef WIN32
-                if ((*logf)[i].h && (*logf)[i].h != INVALID_HANDLE_VALUE) {
-                    CloseHandle((*logf)[i].h);
-                }
                 pthread_mutex_destroy(&(*logf)[i].mutex);
             #endif
             }
@@ -1468,13 +1488,15 @@ bool w_logreader_journald_merge(logreader ** logf_ptr, size_t src_index) {
     bool dst_has_filters = logr[dst_index].journal_log->filters != NULL
                            && logr[dst_index].journal_log->filters[0] != NULL;
 
-    // Disable filter is already disabled or if any don't have filters
-    if (!src_has_filters || !dst_has_filters) {
-        logr[dst_index].journal_log->disable_filters = true;
+    // Only disable filters if BOTH blocks have no filters
+    // If at least one has filters, we use the union of non-empty filters
+    bool should_disable_filters = (!src_has_filters && !dst_has_filters);
+    logr[dst_index].journal_log->disable_filters = should_disable_filters;
+    if (should_disable_filters) {
         mwarn(LOGCOLLECTOR_JOURNAL_CONFG_DISABLE_FILTER);
     }
 
-    // Move the filters from the src_index to the dst_index
+    // Move the filters from the src_index to the dst_index if source has filters
     if (src_has_filters) {
         w_journal_add_filter_to_list(&(logr[dst_index].journal_log->filters), logr[src_index].journal_log->filters[0]);
         logr[src_index].journal_log->filters[0] = NULL; // Prevent the filter from being freed

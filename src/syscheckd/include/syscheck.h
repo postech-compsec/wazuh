@@ -24,7 +24,7 @@
 /* Audit defs */
 #define WDATA_DEFAULT_INTERVAL_SCAN 300
 #define AUDIT_SOCKET                "queue/sockets/audit"
-#define AUDIT_CONF_FILE             "etc/af_wazuh.conf"
+#define AUDIT_CONF_FILE             "tmp/af_wazuh.conf"
 #define AUDIT_HEALTHCHECK_DIR       "tmp"
 #define AUDIT_HEALTHCHECK_KEY       "wazuh_hc"
 #define AUDIT_HEALTHCHECK_FILE      "tmp/audit_hc"
@@ -40,16 +40,18 @@
 
 /* Win32 does not have lstat */
 #ifdef WIN32
-    #define w_stat(x, y) _stat64(x, y)
+    #define w_stat(x, y) w_stat64(x, y)
+    #define w_lstat(x, y) w_stat64(x, y)
     #define stat _stat64
 #else
-    #define w_stat(x, y) lstat(x, y)
+    #define w_lstat(x, y) lstat(x, y)
 #endif
 
 /* Global config */
 extern syscheck_config syscheck;
 extern int sys_debug_level;
 extern int audit_queue_full_reported;
+extern int ebpf_kernel_queue_full_reported;
 
 typedef enum fim_event_type {
     FIM_ADD,
@@ -504,6 +506,14 @@ void *audit_parse_thread();
 void audit_set_db_consistency(void);
 
 /**
+ * @brief Function that gets the Audit version using auditctl command
+ *
+ * @param [out] out_code The variable where to store the version code
+ * @return 0 on success, -1 on error
+ */
+int get_audit_version_code(unsigned *out_code);
+
+/**
  * @brief Check if the Audit daemon is installed and running
  *
  * @return The PID of Auditd
@@ -696,15 +706,21 @@ void fim_diff_process_delete_value(const char *key_name, const char *value_name,
  *
  */
 void fim_initialize();
+
+/**
+ * @brief Initializes Windows whodata thread, or send signal to start audit threat in Linux
+ *
+ */
 int fim_whodata_initialize();
 
 /**
  * @brief Checks if a specific file has been configured to be ignored
  *
  * @param file_name The name of the file to check
+ * @param path_type Indicates if the path is a file (FIM REGULAR) or directory (FIM DIRECTORY)
  * @return 1 if it has been configured to be ignored, 0 if not
  */
-int fim_check_ignore(const char *file_name);
+int fim_check_ignore(const char *file_name, mode_t path_type);
 
 /**
  * @brief Checks if a specific folder has been configured to be checked with a specific restriction
@@ -909,4 +925,12 @@ void fim_send_sync_state(const char *location, const char* msg);
  */
 bool fim_shutdown_process_on();
 
+#ifdef __linux__
+#ifdef ENABLE_AUDIT
+/**
+ * @brief Initializes eBPF and does the healthcheck to check availability.
+ */
+void check_ebpf_availability();
+#endif /* ENABLE_AUDIT */
+#endif
 #endif /* SYSCHECK_H */

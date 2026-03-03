@@ -186,7 +186,7 @@ int MonitordConfig(const char *cfg, monitor_config *mond, int no_agents, short d
     mond->emailidsname = NULL;
 
     /* Setting default agent's global configuration */
-    mond->global.agents_disconnection_time = 600;
+    mond->global.agents_disconnection_time = 900;
     mond->global.agents_disconnection_alert_time = 0;
 
     modules |= CREPORTS;
@@ -204,7 +204,7 @@ void monitor_queue_connect() {
         /* Send startup message */
         if (SendMSG(mond.a_queue, OS_MG_STARTED, ARGV0, LOCALFILE_MQ) < 0) {
             mond.a_queue = -1;  // We keep trying to reconnect next time.
-            merror(QUEUE_SEND);
+            mdebug1(QUEUE_SEND);
         }
     }
 }

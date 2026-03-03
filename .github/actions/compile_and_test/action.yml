@@ -42,9 +42,9 @@ runs:
         run: |
           SRC_FOLDER=$(pwd)/src
 
-          VERSION=$(cat src/VERSION)
+          VERSION="v$(grep '"version"' VERSION.json | sed -E 's/.*"version": *"([^"]+)".*/\1/')"
           echo $VERSION
-          REVISION=$(cat src/REVISION)
+          REVISION=`grep '"stage"' VERSION.json | sed -E 's/.*"stage": *"([^"]+)".*/\1/'`
           echo $REVISION
 
           cd ${{ inputs.path }}
@@ -63,7 +63,7 @@ runs:
               echo "Compiling for valgrind and coverage"
               export COMPILATION_FLAGS="-fprofile-arcs -ftest-coverage -lgcov --coverage"
             fi
-            # Read version and revision file.
+
             cmake -DSRC_FOLDER=${SRC_FOLDER} -DCMAKE_CXX_FLAGS="$COMPILATION_FLAGS" -DUNIT_TEST=ON -DVERSION="$VERSION" -DREVISION="$REVISION" ${{ inputs.flags }} .. && make -j2
           fi
 

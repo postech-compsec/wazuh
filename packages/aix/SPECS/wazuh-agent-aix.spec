@@ -4,8 +4,8 @@ Version:     %{_version}
 Release:     %{_release}
 License:     GPL
 URL:         https://www.wazuh.com/
-Vendor:      Wazuh, Inc <info@wazuh.com>
-Packager:    Wazuh, Inc <info@wazuh.com>
+Vendor:      Wazuh <info@wazuh.com>
+Packager:    Wazuh <info@wazuh.com>
 Summary:     The Wazuh agent, used for threat detection, incident response and integrity monitoring.
 
 Group: System Environment/Daemons
@@ -45,7 +45,7 @@ echo 'USER_UPDATE="n"' >> ./etc/preloaded-vars.conf
 echo 'USER_AGENT_SERVER_IP="MANAGER_IP"' >> ./etc/preloaded-vars.conf
 echo 'USER_CA_STORE="/path/to/my_cert.pem"' >> ./etc/preloaded-vars.conf
 echo 'USER_AUTO_START="n"' >> ./etc/preloaded-vars.conf
-./install.sh
+./install.sh || { echo "install.sh failed! Aborting." >&2; exit 1; }
 
 # Remove unnecessary files or directories
 rm -rf %{_localstatedir}/selinux
@@ -64,6 +64,7 @@ cp -pr %{_localstatedir}/* ${RPM_BUILD_ROOT}%{_localstatedir}/
 mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/
 cp gen_ossec.sh ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/
 cp add_localfiles.sh ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/
+cp VERSION.json ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/
 
 # Support files for dynamic creation of configuraiton file
 mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/etc/templates/config/generic
@@ -74,10 +75,6 @@ cp -pr etc/templates/config/generic/localfile-logs/* ${RPM_BUILD_ROOT}%{_localst
 # Support scripts for post installation
 mkdir -p ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/src/init
 cp src/init/*.sh ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/src/init
-
-# Add installation scripts
-cp src/VERSION ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/src/
-cp src/REVISION ${RPM_BUILD_ROOT}%{_localstatedir}/tmp/src/
 
 exit 0
 
@@ -231,6 +228,7 @@ rm -fr %{buildroot}
 %{_init_scripts}/*
 
 %dir %attr(750, root, wazuh) %{_localstatedir}
+%attr(440, wazuh, wazuh) %{_localstatedir}/VERSION.json
 %attr(750, root, wazuh) %{_localstatedir}/agentless
 %dir %attr(770, root, wazuh) %{_localstatedir}/.ssh
 %dir %attr(750, root, wazuh) %{_localstatedir}/active-response
@@ -243,7 +241,7 @@ rm -fr %{buildroot}
 %attr(640, root, wazuh) %config(noreplace) %{_localstatedir}/etc/client.keys
 %attr(640, root, wazuh) %{_localstatedir}/etc/internal_options*
 %attr(640, root, wazuh) %config(noreplace) %{_localstatedir}/etc/local_internal_options.conf
-%attr(660, root, wazuh) %config(noreplace) %{_localstatedir}/etc/ossec.conf
+%attr(660, root, wazuh) %ghost %{_localstatedir}/etc/ossec.conf
 %attr(640, root, wazuh) %{_localstatedir}/etc/wpk_root.pem
 %dir %attr(770, root, wazuh) %{_localstatedir}/etc/shared
 %attr(660, root, wazuh) %config(missingok,noreplace) %{_localstatedir}/etc/shared/*
@@ -270,11 +268,10 @@ rm -fr %{buildroot}
 %dir %attr(1750, root, wazuh) %config(missingok) %{_localstatedir}/tmp
 %attr(750, root,system) %config(missingok) %{_localstatedir}/tmp/add_localfiles.sh
 %attr(750, root,system) %config(missingok) %{_localstatedir}/tmp/gen_ossec.sh
+%attr(440, wazuh, wazuh) %config(missingok) %{_localstatedir}/tmp/VERSION.json
 %attr(750, root,system) %config(missingok) %{_localstatedir}/tmp/etc/templates/config/generic/*.template
 %attr(750, root,system) %config(missingok) %{_localstatedir}/tmp/etc/templates/config/generic/localfile-logs/*.template
 %attr(750, root,system) %config(missingok) %{_localstatedir}/tmp/src/init/*.sh
-%attr(750, root,system) %config(missingok) %{_localstatedir}/tmp/src/VERSION
-%attr(750, root,system) %config(missingok) %{_localstatedir}/tmp/src/REVISION
 %dir %attr(750, root, wazuh) %{_localstatedir}/var
 %dir %attr(770, root, wazuh) %{_localstatedir}/var/incoming
 %dir %attr(770, root, wazuh) %{_localstatedir}/var/run
@@ -284,6 +281,22 @@ rm -fr %{buildroot}
 %attr(750, root, wazuh) %{_localstatedir}/wodles/*
 
 %changelog
+* Wed Feb 11 2026 support <info@wazuh.com> - 4.14.3
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-14-3.html
+* Wed Jan 14 2026 support <info@wazuh.com> - 4.14.2
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-14-2.html
+* Wed Nov 12 2025 support <info@wazuh.com> - 4.14.1
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-14-1.html
+* Wed Oct 22 2025 support <info@wazuh.com> - 4.14.0
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-14-0.html
+* Wed Sep 24 2025 support <info@wazuh.com> - 4.13.1
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-13-1.html
+* Thu Sep 18 2025 support <info@wazuh.com> - 4.13.0
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-13-0.html
+* Wed May 07 2025 support <info@wazuh.com> - 4.12.0
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-12-0.html
+* Tue Apr 01 2025 support <info@wazuh.com> - 4.11.2
+- More info: https://documentation.wazuh.com/current/release-notes/release-4-11-2.html
 * Wed Mar 12 2025 support <info@wazuh.com> - 4.11.1
 - More info: https://documentation.wazuh.com/current/release-notes/release-4-11-1.html
 * Wed Feb 19 2025 support <info@wazuh.com> - 4.11.0

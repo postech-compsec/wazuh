@@ -19,6 +19,7 @@
 #define WM_MS_GRAPH_DEFAULT_ENABLED true
 #define WM_MS_GRAPH_DEFAULT_ONLY_FUTURE_EVENTS true
 #define WM_MS_GRAPH_DEFAULT_CURL_MAX_SIZE 1048576L
+#define WM_MS_GRAPH_DEFAULT_DELAY 30
 #define WM_MS_GRAPH_DEFAULT_RUN_ON_START true
 #define WM_MS_GRAPH_DEFAULT_VERSION "v1.0"
 
@@ -48,6 +49,11 @@
 #define WM_MS_GRAPH_RELATIONSHIP_MANAGED_DEVICES "managedDevices"
 #define WM_MS_GRAPH_RELATIONSHIP_DETECTED_APPS "detectedApps"
 
+// Identity protection
+#define WM_MS_GRAPH_RESOURCE_IDENTITY_PROTECTION "identityProtection"
+#define WM_MS_GRAPH_RELATIONSHIP_RISK_DETECTIONS "riskDetections"
+#define WM_MS_GRAPH_RELATIONSHIP_SERVICE_PRINCIPAL_RISK_DETECTIONS "servicePrincipalRiskDetections"
+
 typedef struct wm_ms_graph_state_t {
 	time_t next_time;
 } wm_ms_graph_state_t;
@@ -72,6 +78,8 @@ typedef struct wm_ms_graph {
 	bool enabled;
 	bool only_future_events;
 	ssize_t curl_max_size;
+	unsigned int page_size;
+	time_t time_delay;
 	bool run_on_start;
 	char* version;
 	sched_scan_config scan_config;

@@ -115,20 +115,18 @@ static void rem_inc_agents_send_request(const char *agent_id);
 static void rem_inc_agents_send_discarded(const char *agent_id);
 
 void * rem_state_main() {
-    int interval = getDefine_Int("remoted", "state_interval", 0, 86400);
-
-    if (!interval) {
+    if (!state_interval) {
         minfo("State file is disabled.");
         return NULL;
     }
 
     os_calloc(48, sizeof(char), refresh_time);
-    if (interval < 60) {
-        snprintf(refresh_time, 48, "Updated every %i seconds.", interval);
-    } else if (interval < 3600) {
-        snprintf(refresh_time, 48, "Updated every %i minutes.", interval/60);
+    if (state_interval < 60) {
+        snprintf(refresh_time, 48, "Updated every %i seconds.", state_interval);
+    } else if (state_interval < 3600) {
+        snprintf(refresh_time, 48, "Updated every %i minutes.", state_interval/60);
     } else {
-        snprintf(refresh_time, 48, "Updated every %i hours.", interval/3600);
+        snprintf(refresh_time, 48, "Updated every %i hours.", state_interval/3600);
     }
 
     mdebug1("State file updating thread started.");
@@ -138,7 +136,7 @@ void * rem_state_main() {
 
     while (1) {
         rem_write_state();
-        sleep(interval);
+        sleep(state_interval);
         w_remoted_clean_agents_state(&sock);
     }
 
@@ -202,10 +200,21 @@ int rem_write_state() {
         "recv_bytes='%lu'\n"
         "\n"
         "# Messages dequeued after the agent closes the connection\n"
-        "dequeued_after_close='%u'\n",
+        "dequeued_after_close='%u'\n"
+        "\n"
+        "# Control messages queue usage\n"
+        "ctrl_msg_queue_usage='%zu'\n"
+        "\n"
+        "# Control messages queue breakdown\n"
+        "ctrl_msg_queue_inserted='%u'\n"
+        "ctrl_msg_queue_replaced='%u'\n"
+        "ctrl_msg_queue_processed='%u'\n"
+        "\n",
         __local_name, refresh_time, rem_get_qsize(), rem_get_tsize(), state_cpy.tcp_sessions,
         state_cpy.recv_breakdown.evt_count, state_cpy.recv_breakdown.ctrl_count, state_cpy.recv_breakdown.discarded_count,
-        state_cpy.sent_bytes, state_cpy.recv_bytes, state_cpy.recv_breakdown.dequeued_count);
+        state_cpy.sent_bytes, state_cpy.recv_bytes, state_cpy.recv_breakdown.dequeued_count,
+        control_msg_queue ? indexed_queue_size(control_msg_queue) : 0,
+        state_cpy.ctrl_queue_breakdown.inserted_count, state_cpy.ctrl_queue_breakdown.replaced_count, state_cpy.ctrl_queue_breakdown.processed_count);
 
     fclose(fp);
 
@@ -532,6 +541,24 @@ void rem_inc_keys_reload() {
     w_mutex_unlock(&state_mutex);
 }
 
+void rem_inc_ctrl_queue_inserted() {
+    w_mutex_lock(&state_mutex);
+    remoted_state.ctrl_queue_breakdown.inserted_count++;
+    w_mutex_unlock(&state_mutex);
+}
+
+void rem_inc_ctrl_queue_replaced() {
+    w_mutex_lock(&state_mutex);
+    remoted_state.ctrl_queue_breakdown.replaced_count++;
+    w_mutex_unlock(&state_mutex);
+}
+
+void rem_inc_ctrl_queue_processed() {
+    w_mutex_lock(&state_mutex);
+    remoted_state.ctrl_queue_breakdown.processed_count++;
+    w_mutex_unlock(&state_mutex);
+}
+
 cJSON* rem_create_state_json() {
     remoted_state_t state_cpy;
 
@@ -600,6 +627,15 @@ cJSON* rem_create_state_json() {
     cJSON_AddNumberToObject(_received_q, "usage", rem_get_qsize());
 
     cJSON_AddNumberToObject(_metrics, "tcp_sessions", state_cpy.tcp_sessions);
+
+    cJSON_AddNumberToObject(_metrics, "control_messages_queue_usage", control_msg_queue ? indexed_queue_size(control_msg_queue) : 0);
+
+    cJSON *_ctrl_queue_breakdown = cJSON_CreateObject();
+    cJSON_AddItemToObject(_metrics, "control_messages_queue_breakdown", _ctrl_queue_breakdown);
+
+    cJSON_AddNumberToObject(_ctrl_queue_breakdown, "inserted", state_cpy.ctrl_queue_breakdown.inserted_count);
+    cJSON_AddNumberToObject(_ctrl_queue_breakdown, "replaced", state_cpy.ctrl_queue_breakdown.replaced_count);
+    cJSON_AddNumberToObject(_ctrl_queue_breakdown, "processed", state_cpy.ctrl_queue_breakdown.processed_count);
 
     return rem_state_json;
 }

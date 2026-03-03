@@ -64,6 +64,7 @@ stages:
               tz_name: !anystr
               tz_offset: !anystr
               version: !anystr
+              uuid: !anystr
           failed_items: []
           total_affected_items: 1
           total_failed_items: 0
@@ -926,6 +927,7 @@ stages:
                   max_request_per_minute: !anyint
                 drop_privileges: !anybool
                 experimental_features: !anybool
+                authentication_pool_size: !anyint
                 upload_configuration:
                   remote_commands:
                     localfile:
@@ -1363,6 +1365,30 @@ stages:
         error: 1128
 
 ---
+test_name: PUT /manager/analysisd/reload
+
+stages:
+
+  - name: Reload analysisd on master
+    request:
+      verify: False
+      url: "{protocol:s}://{host:s}:{port:d}/manager/analysisd/reload"
+      method: PUT
+      headers:
+        Authorization: "Bearer {test_login_token}"
+    response:
+      status_code: 200
+      json:
+        error: 0
+        data:
+          affected_items:
+            - name: 'manager'
+              msg: !anystr
+          failed_items: []
+          total_affected_items: 1
+          total_failed_items: 0
+
+---
 test_name: PUT /manager/configuration
 
 stages:
@@ -1616,7 +1642,7 @@ stages:
       headers:
         Authorization: "Bearer {test_login_token}"
     response:
-      status_code: 200
+      status_code: 202
       json:
         error: 0
         data:
@@ -1696,7 +1722,7 @@ stages:
       headers:
         Authorization: "Bearer {test_login_token}"
     response:
-      status_code: 200
+      status_code: 202
       json:
         error: 0
         data:
@@ -1747,7 +1773,7 @@ stages:
       headers:
         Authorization: "Bearer {test_login_token}"
     response:
-      status_code: 200
+      status_code: 202
       json:
         error: 0
         data:

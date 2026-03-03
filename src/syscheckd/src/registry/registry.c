@@ -686,6 +686,7 @@ void fim_registry_calculate_hashes(fim_entry *entry, registry_t *configuration, 
     char *string_it;
     BYTE buffer[OS_SIZE_2048];
     size_t length;
+    bool is_successful = true;
 
     entry->registry_entry.value->hash_md5[0] = '\0';
     entry->registry_entry.value->hash_sha1[0] = '\0';
@@ -700,17 +701,39 @@ void fim_registry_calculate_hashes(fim_entry *entry, registry_t *configuration, 
 
     switch (entry->registry_entry.value->type) {
     case REG_SZ:
-    case REG_EXPAND_SZ:
-        fim_registry_update_digests(data_buffer, strlen((char *)data_buffer), configuration->opts, md5_ctx, sha1_ctx,
-                                    sha256_ctx);
-        break;
-    case REG_MULTI_SZ:
-        /* Print multiple strings */
-        for (string_it = (char *)data_buffer; *string_it; string_it += strlen(string_it) + 1) {
-            fim_registry_update_digests((BYTE *)string_it, strlen(string_it), configuration->opts, md5_ctx, sha1_ctx,
-                                        sha256_ctx);
+    case REG_EXPAND_SZ: {
+        WCHAR *w_data = (WCHAR *)data_buffer;
+        char *utf8_data = wide_to_utf8(w_data);
+        if (utf8_data) {
+            fim_registry_update_digests((BYTE *)utf8_data, strlen(utf8_data), configuration->opts,
+                                        md5_ctx, sha1_ctx, sha256_ctx);
+            os_free(utf8_data);
+        } else {
+            mdebug1("Error converting registry value data to UTF-8.");
+            is_successful = false;
         }
-        break;
+    }
+    break;
+    case REG_MULTI_SZ: {
+        WCHAR *w_data = (WCHAR *)data_buffer;
+
+        // Multi string check
+        while (*w_data) {
+            char *utf8_data = wide_to_utf8(w_data);
+            if (utf8_data) {
+                fim_registry_update_digests((BYTE *)utf8_data, strlen(utf8_data), configuration->opts,
+                                            md5_ctx, sha1_ctx, sha256_ctx);
+                os_free(utf8_data);
+            }
+            else {
+                mdebug1("Error converting registry value data to UTF-8.");
+                is_successful = false;
+                break;
+            }
+            w_data += wcslen(w_data) + 1; // Update pointer to next string location
+        }
+    }
+    break;
     case REG_DWORD:
         length = snprintf((char *)buffer, OS_SIZE_2048, "%08x", *((unsigned int *)data_buffer));
         fim_registry_update_digests(buffer, length, configuration->opts, md5_ctx, sha1_ctx, sha256_ctx);
@@ -721,6 +744,13 @@ void fim_registry_calculate_hashes(fim_entry *entry, registry_t *configuration, 
             fim_registry_update_digests(buffer, length, configuration->opts, md5_ctx, sha1_ctx, sha256_ctx);
         }
         break;
+    }
+
+    if (!is_successful) {
+        EVP_MD_CTX_free(md5_ctx);
+        EVP_MD_CTX_free(sha1_ctx);
+        EVP_MD_CTX_free(sha256_ctx);
+        return;
     }
 
     fim_registry_final_digests(configuration->opts, md5_ctx, sha1_ctx, sha256_ctx,
@@ -821,6 +851,64 @@ void fim_registry_free_entry(fim_entry *entry) {
     }
 }
 
+/**
+ * @brief Convert registry value data to UTF-8 format for diff generation.
+ *
+ * @param data_buffer The registry value data buffer.
+ * @param data_type The registry value type (REG_SZ, REG_EXPAND_SZ, REG_MULTI_SZ, etc.).
+ *
+ * @return Pointer to UTF-8 string data. For REG_SZ, REG_EXPAND_SZ, and REG_MULTI_SZ,
+ *         returns newly allocated memory that must be freed by caller. For other types,
+ *         returns the original buffer cast to char* (no allocation). Returns NULL if
+ *         UTF-16 to UTF-8 conversion fails.
+ */
+static char *fim_registry_convert_value_for_diff(const BYTE *data_buffer, DWORD data_type) {
+    char *value_data_for_diff = NULL;
+
+    if (data_type == REG_SZ || data_type == REG_EXPAND_SZ) {
+        value_data_for_diff = wide_to_utf8((WCHAR*)data_buffer);
+    } else if (data_type == REG_MULTI_SZ) {
+        WCHAR *w_data = (WCHAR *)data_buffer;
+        size_t total_size = 0;
+        WCHAR *it;
+        char *cur;
+
+        it = w_data;
+        while (*it) {
+            char *utf8_temp = wide_to_utf8(it);
+            if (utf8_temp) {
+                total_size += strlen(utf8_temp) + 1;
+                os_free(utf8_temp);
+            } else {
+                return NULL;
+            }
+            it += wcslen(it) + 1;
+        }
+        total_size += 1;
+
+        os_calloc(total_size, sizeof(char), value_data_for_diff);
+
+        cur = value_data_for_diff;
+        while (*w_data) {
+            char *utf8_data = wide_to_utf8(w_data);
+            if (utf8_data) {
+                size_t len = strlen(utf8_data);
+                memcpy(cur, utf8_data, len + 1);
+                cur += len + 1;
+                os_free(utf8_data);
+            } else {
+                os_free(value_data_for_diff);
+                return NULL;
+            }
+            w_data += wcslen(w_data) + 1;
+        }
+        *cur = '\0';
+    } else {
+        value_data_for_diff = (char *)data_buffer;
+    }
+
+    return value_data_for_diff;
+}
 
 /**
  * @brief Query the values belonging to a key.
@@ -842,7 +930,7 @@ void fim_read_values(HKEY key_handle,
                      TXN_HANDLE regval_txn_handler,
                      fim_val_txn_context_t *txn_ctx_regval) {
     fim_registry_value_data value_data;
-    TCHAR *value_buffer;
+    WCHAR *value_name_buffer;
     BYTE *data_buffer;
     DWORD i;
     fim_entry new;
@@ -855,11 +943,12 @@ void fim_read_values(HKEY key_handle,
 
     value_data.arch = arch;
     value_data.path = path;
+    value_data.name = NULL;
     new.registry_entry.value = &value_data;
     new.registry_entry.key = NULL;
 
-    os_calloc(max_value_length + 1, sizeof(TCHAR), value_buffer);
-    os_calloc(max_value_data_length, sizeof(BYTE), data_buffer);
+    os_calloc(max_value_length + 1, sizeof(WCHAR), value_name_buffer);
+    os_calloc(max_value_data_length + 4, sizeof(BYTE), data_buffer);
 
     for (i = 0; i < value_count; i++) {
         DWORD value_size = max_value_length + 1;
@@ -868,15 +957,27 @@ void fim_read_values(HKEY key_handle,
 
         configuration = fim_registry_configuration(path, arch);
         if (configuration == NULL) {
+            os_free(value_data.name);
+            os_free(value_name_buffer);
+            os_free(data_buffer);
             return;
         }
 
-        if (RegEnumValue(key_handle, i, value_buffer, &value_size, NULL, &data_type, data_buffer, &data_size) !=
+        if (RegEnumValueW(key_handle, i, value_name_buffer, &value_size, NULL, &data_type, data_buffer, &data_size) !=
             ERROR_SUCCESS) {
             break;
         }
 
-        new.registry_entry.value->name = value_buffer;
+        os_free(value_data.name);
+
+        char *value_name_utf8 = wide_to_utf8(value_name_buffer);
+
+        if (value_name_utf8 == NULL) {
+            mdebug1("Failed to convert value name to UTF-8");
+            continue;
+        }
+
+        new.registry_entry.value->name = value_name_utf8;
         new.registry_entry.value->type = data_type <= REG_QWORD ? data_type : REG_UNKNOWN;
         new.registry_entry.value->size = data_size;
         new.registry_entry.value->last_event = time(NULL);
@@ -890,9 +991,9 @@ void fim_read_values(HKEY key_handle,
 
         if (fim_registry_validate_ignore(value_path, configuration, 0)) {
             os_free(value_path);
-            os_free(value_data.name);
             continue;
         }
+
         os_free(value_path);
 
         if (fim_check_restrict(new.registry_entry.value->name, configuration->restrict_value)) {
@@ -912,8 +1013,17 @@ void fim_read_values(HKEY key_handle,
         fim_registry_get_checksum_value(new.registry_entry.value);
 
         if (configuration->opts & CHECK_SEECHANGES) {
-            diff = fim_registry_value_diff(new.registry_entry.value->path, new.registry_entry.value->name,
-                                       (char *)data_buffer, new.registry_entry.value->type, configuration);
+            char *value_data_for_diff = fim_registry_convert_value_for_diff(data_buffer, data_type);
+
+            if (value_data_for_diff) {
+                diff = fim_registry_value_diff(new.registry_entry.value->path, new.registry_entry.value->name,
+                                           value_data_for_diff, new.registry_entry.value->type, configuration);
+            }
+
+            // Free only if allocated in this function
+            if (data_type == REG_SZ || data_type == REG_EXPAND_SZ || data_type == REG_MULTI_SZ) {
+                os_free(value_data_for_diff);
+            }
         }
         txn_ctx_regval->diff = diff;
         txn_ctx_regval->data = new.registry_entry.value;
@@ -927,6 +1037,7 @@ void fim_read_values(HKEY key_handle,
 
     new.registry_entry.value = NULL;
     os_free(value_data.name);
+    os_free(value_name_buffer);
     os_free(data_buffer);
 }
 
@@ -991,8 +1102,18 @@ void fim_open_key(HKEY root_key_handle,
 
     access_rights = KEY_READ | (arch == ARCH_32BIT ? KEY_WOW64_32KEY : KEY_WOW64_64KEY);
 
-    if (RegOpenKeyEx(root_key_handle, sub_key, 0, access_rights, &current_key_handle) != ERROR_SUCCESS) {
-        mdebug1(FIM_REG_OPEN, sub_key, arch == ARCH_32BIT ? "[x32]" : "[x64]");
+    WCHAR *sub_key_wide = auto_to_wide(sub_key);
+
+    if (sub_key_wide == NULL) {
+        mdebug1("Failed to convert registry key to wide character: '%s'", sub_key);
+        return;
+    }
+
+    LONG reg_result = RegOpenKeyExW(root_key_handle, sub_key_wide, 0, access_rights, &current_key_handle);
+    os_free(sub_key_wide);
+
+    if (reg_result != ERROR_SUCCESS) {
+        mdebug1(FIM_REG_OPEN, sub_key, arch == ARCH_32BIT ? "[x32]" : "[x64]", reg_result);
         return;
     }
 
@@ -1008,19 +1129,28 @@ void fim_open_key(HKEY root_key_handle,
         char *new_full_key;
         char *new_sub_key;
         size_t new_full_key_length;
-        TCHAR sub_key_name_b[MAX_KEY_LENGTH + 1];
-        DWORD sub_key_name_s = MAX_KEY_LENGTH;
+        WCHAR sub_key_name_b[MAX_KEY_LENGTH + 1];
+        DWORD sub_key_name_s = MAX_KEY_LENGTH + 1;
 
-        if (RegEnumKeyEx(current_key_handle, i, sub_key_name_b, &sub_key_name_s, NULL, NULL, NULL, NULL) !=
+        if (RegEnumKeyExW(current_key_handle, i, sub_key_name_b, &sub_key_name_s, NULL, NULL, NULL, NULL) !=
             ERROR_SUCCESS) {
             continue;
         }
 
-        new_full_key_length = strlen(full_key) + sub_key_name_s + 2;
+        char *sub_key_name_utf8 = wide_to_utf8(sub_key_name_b);
+
+        if (sub_key_name_utf8 == NULL) {
+            mdebug1("Failed to convert sub key name to UTF-8");
+            continue;
+        }
+
+        new_full_key_length = strlen(full_key) + strlen(sub_key_name_utf8) + 2;
 
         os_malloc(new_full_key_length, new_full_key);
 
-        snprintf(new_full_key, new_full_key_length, "%s\\%s", full_key, sub_key_name_b);
+        snprintf(new_full_key, new_full_key_length, "%s\\%s", full_key, sub_key_name_utf8);
+
+        os_free(sub_key_name_utf8);
 
         if (new_sub_key = strchr(new_full_key, '\\'), new_sub_key) {
             new_sub_key++;

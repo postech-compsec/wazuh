@@ -18,6 +18,12 @@ wfd_t * wpopenv(const char * path, char * const * argv, int flags) {
     FILE * fp_out = NULL;
 
 #ifdef WIN32
+    if (is_network_path(path)) {
+        errno = EACCES;
+        mwarn(NETWORK_PATH_EXECUTED, path);
+        return (NULL);
+    }
+
     int fd;
     LPTSTR lpCommandLine = NULL;
     HANDLE hPipeIn[2] = { INVALID_HANDLE_VALUE, INVALID_HANDLE_VALUE };
@@ -223,7 +229,7 @@ wfd_t * wpopenv(const char * path, char * const * argv, int flags) {
     case 0:
         // Child code
 
-        if (flags & W_CHECK_WRITE && !access(path, W_OK)) {
+        if (flags & W_CHECK_WRITE && !waccess(path, W_OK)) {
             merror("At wpopenv(): file '%s' has write permissions.", path);
             _exit(127);
         }

@@ -29,7 +29,7 @@ from api.configuration import security_conf
 from api.constants import SECURITY_PATH
 from wazuh.core.common import wazuh_uid, wazuh_gid, DEFAULT_RBAC_RESOURCES
 from wazuh.core.utils import get_utc_now, safe_move
-from wazuh.rbac.utils import clear_cache
+from wazuh.rbac.utils import clear_tokens_cache
 
 logger = logging.getLogger("wazuh-api")
 
@@ -44,7 +44,7 @@ DB_FILE = os.path.join(SECURITY_PATH, "rbac.db")
 DB_FILE_TMP = f"{DB_FILE}.tmp"
 CURRENT_ORM_VERSION = 1
 _new_columns = {}
-_engine = create_engine(f"sqlite:///{DB_FILE}", echo=False)
+_engine = create_engine(f"sqlite:///{DB_FILE}", pool_size=10, echo=False)
 _Base = declarative_base()
 
 # Required rules for role
@@ -584,7 +584,7 @@ class RBACManager:
         session : Session
             SQL Alchemy ORM session.
         """
-        self.session = session or sessionmaker(bind=create_engine(f"sqlite:///{DB_FILE}", echo=False))()
+        self.session = session or sessionmaker(bind=_engine)()
 
     def __enter__(self):
         return self
@@ -694,7 +694,7 @@ class TokenManager(RBACManager):
                 self.session.add(RunAsTokenBlacklist())
                 self.session.commit()
 
-            clear_cache()
+            clear_tokens_cache()
             return True
         except IntegrityError:
             self.session.rollback()
@@ -3165,7 +3165,7 @@ def check_database_integrity():
 
         # If the database does not exist, it means this is a fresh installation and must be created properly
         else:
-            logger.info(f"RBAC database not found. Initializing")
+            logger.info("RBAC database not found. Initializing")
             db_manager.connect(DB_FILE)
             db_manager.create_database(DB_FILE)
             _set_permissions_and_ownership(DB_FILE)

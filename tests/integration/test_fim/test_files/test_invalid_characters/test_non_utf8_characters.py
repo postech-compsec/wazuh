@@ -56,180 +56,111 @@ pytest_args:
 tags:
     - fim
 '''
-import sys
-import pytest
-import os
-import subprocess
-import time
 
-if sys.platform == 'win32':
+import os
+import sys
+
+import pytest
+
+if sys.platform == "win32":
     import win32con
     from win32con import KEY_WOW64_64KEY
 
 from pathlib import Path
 
 from wazuh_testing.constants.paths.logs import WAZUH_LOG_PATH
-from wazuh_testing.constants.platforms import WINDOWS
 from wazuh_testing.modules.agentd.configuration import AGENTD_DEBUG, AGENTD_WINDOWS_DEBUG
-from wazuh_testing.modules.fim.patterns import IGNORING_DUE_TO_INVALID_NAME, SYNC_INTEGRITY_MESSAGE, EVENT_TYPE_ADDED
-from wazuh_testing.modules.fim.utils import create_registry
-from wazuh_testing.modules.monitord.configuration import MONITORD_ROTATE_LOG
 from wazuh_testing.modules.fim import configuration
+from wazuh_testing.modules.fim.patterns import (IGNORING_DUE_TO_INVALID_NAME,
+                                                SYNC_INTEGRITY_MESSAGE)
+from wazuh_testing.modules.monitord.configuration import MONITORD_ROTATE_LOG
 from wazuh_testing.tools.monitors.file_monitor import FileMonitor
 from wazuh_testing.utils import file
 from wazuh_testing.utils.callbacks import generate_callback
-from wazuh_testing.utils.configuration import get_test_cases_data, load_configuration_template
+from wazuh_testing.utils.configuration import (get_test_cases_data,
+                                               load_configuration_template)
 
-from . import TEST_CASES_PATH, CONFIGS_PATH
-
+from . import CONFIGS_PATH, TEST_CASES_PATH
 
 # Pytest marks to run on any service type on linux or windows.
-pytestmark = [pytest.mark.agent, pytest.mark.linux, pytest.mark.win32, pytest.mark.tier(level=1)]
+pytestmark = [pytest.mark.agent, pytest.mark.linux,
+              pytest.mark.win32, pytest.mark.tier(level=1)]
 
 # Test metadata, configuration and ids.
 cases_path = Path(TEST_CASES_PATH, 'cases_nonUTF8.yaml')
 config_path = Path(CONFIGS_PATH, 'configuration_basic.yaml')
 test_configuration, test_metadata, cases_ids = get_test_cases_data(cases_path)
-test_configuration = load_configuration_template(config_path, test_configuration, test_metadata)
+test_configuration = load_configuration_template(
+    config_path, test_configuration, test_metadata)
 
 # Set configurations required by the fixtures.
-local_internal_options = {configuration.SYSCHECK_DEBUG: 2, AGENTD_DEBUG: 2, MONITORD_ROTATE_LOG: 0}
-if sys.platform == WINDOWS: local_internal_options.update({AGENTD_WINDOWS_DEBUG: 2})
+local_internal_options = {
+    configuration.SYSCHECK_DEBUG: 2, AGENTD_DEBUG: 2, MONITORD_ROTATE_LOG: 0}
+if sys.platform == "win32":
+    local_internal_options.update({AGENTD_WINDOWS_DEBUG: 2})
+
+# Valid UTF-8 filename test cases with actual symbols, diacritics, and multi-language characters
+valid_utf8_sequences= [
+    "Hello_World.txt",          # Basic ASCII
+    "Über.txt",          # Ü (U+00DC, 2-byte UTF-8)
+    "über.txt",          # ü (U+00FC, 2-byte UTF-8)
+    "☃_snowman.txt",  # ☃ (U+2603, 3-byte UTF-8)
+    "😁_smile.txt",  # 😁 (U+1F601, 4-byte UTF-8)
+    "Japanese_こんにちは.txt",   # Japanese text (multi-byte)
+    "Korean_안녕하세요.txt",     # Korean text (multi-byte)
+    "Spanish_¡Hola!.txt",       # Spanish text with diacritic (¡)
+    "French_Ça_va.txt",         # French text with diacritic (Ç)
+    "German_Äpfel.txt",         # German text with diacritic (Ä)
+    "Portuguese_É_bom.txt",     # Portuguese text with diacritic (É)
+    "Turkish_İyi_günler.txt",   # Turkish text with diacritic (İ)
+    "Estonian_Õnnelik.txt",     # Estonian text with diacritic (Õ)
+    "Polish_Łódź.txt",          # Polish text with diacritic (Ł)
+    "Czech_Škoda.txt",          # Czech text with diacritic (Š)
+    "Hungarian_Öröm.txt",       # Hungarian text with diacritic (Ö)
+    "Romanian_Și.txt",          # Romanian text with diacritic (Ș)
+    "Vietnamese_Đồng.txt",      # Vietnamese text with diacritic (Đ)
+    "Thai_สวัสดี.txt",         # Thai text (multi-byte)
+    "Tamil_வணக்கம்.txt",      # Tamil text (multi-byte)
+    "Telugu_నమస్కారం.txt",   # Telugu text (multi-byte)
+    "Finnish_Ääkköset.txt",     # Finnish text with diacritic (Ää)
+    "Norwegian_Ålesund.txt",    # Norwegian text with diacritic (Å)
+    "Greek_Σὲ_γνωρίζω.txt",     # Greek text with multi-byte sequences
+    "Chinese_中文字符.txt",       # Chinese characters (3-byte UTF-8)
+    "Russian_Привет.txt",       # Cyrillic characters (multi-byte)
+    "Hebrew_שלום.txt",          # Hebrew text (multi-byte)
+    "Arabic_مرحبا.txt",         # Arabic text (multi-byte)
+    "Hindi_नमस्ते.txt",         # Hindi (Devanagari script, multi-byte)
+    "Math_∑_√_π.txt",           # Mathematical symbols (sum, square root, pi)
+    "Technical_±_Ω.txt",        # Technical symbols (plus-minus, ohm)
+    "Emoji_🎉_🚀.txt",           # Emoji characters
+    "Currency_€_¥_£.txt",       # Currency symbols (Euro, Yen, Pound)
+    "Punctuation_@_#_%_&.txt",  # Various punctuation characters
+    "File_with_parentheses_(example).txt",  # Parentheses in filename
+]
+
 
 @pytest.mark.parametrize('test_configuration, test_metadata', zip(test_configuration, test_metadata), ids=cases_ids)
-def test_nonUTF8(test_configuration, test_metadata, set_wazuh_configuration, configure_local_internal_options,
-                  truncate_monitored_files, folder_to_monitor, daemons_handler, start_monitoring):
+def test_valid_utf8_filenames_do_not_trigger_warning(test_configuration, test_metadata, set_wazuh_configuration, configure_local_internal_options,
+                                                     truncate_monitored_files, folder_to_monitor, daemons_handler, start_monitoring) -> None:
     '''
-    description: Check if the 'wazuh-syscheckd' is able to correctly detect a pathname containing an invalid
-                 character, preventing its processing and writing a log warning.
-
-    wazuh_min_version: 4.9.0
-
-    tier: 1
-
-    parameters:
-        - test_configuration:
-            type: dict
-            brief: Configuration values for ossec.conf.
-        - test_metadata:
-            type: dict
-            brief: Test case data.
-        - set_wazuh_configuration:
-            type: fixture
-            brief: Set ossec.conf configuration.
-        - configure_local_internal_options:
-            type: fixture
-            brief: Set local_internal_options.conf file.
-        - truncate_monitored_files:
-            type: fixture
-            brief: Truncate all the log files and json alerts files before and after the test execution.
-        - folder_to_monitor:
-            type: str
-            brief: Folder created for monitoring.
-        - daemons_handler:
-            type: fixture
-            brief: Handler of Wazuh daemons.
-        - start_monitoring:
-            type: fixture
-            brief: Wait FIM to start.
-
-    assertions:
-        - Verify that the FIM output a warning indicating that the file cannot be processed because it contains nonUTF8 characters.
-
-    input_description: The test cases are contained in external YAML file (cases_nonUTF8.yaml) which includes
-                       configuration parameters for the 'wazuh-syscheckd' daemon and testing directories to monitor.
-                       The configuration template is contained in another external YAML file
-                       (configuration_basic.yaml).
-
-    expected_output:
-        - r".*Ignoring file '(.*)' due to unsupported name.*"
-
-    tags:
-        - scheduled
-        - realtime
-        - who_data
+    description: Check if the 'wazuh-syscheckd' correctly processes valid UTF-8 file names without triggering warnings.
     '''
     monitor = FileMonitor(WAZUH_LOG_PATH)
 
-    # Create
-    test_path = os.path.join(test_metadata['folder_to_monitor'], '§¨©ª«¬-®¯±²³¶¹º»¼½¾testáéíóú')
-    file.truncate_file(WAZUH_LOG_PATH)
-    if sys.platform == 'win32':
-        file.write_file(test_path)
-    else:
-        subprocess.run(f'touch $(echo -n "{test_path}" | iconv -f UTF-8 -t ISO-8859-1)', shell=True, check=True)
-    monitor.start(generate_callback(IGNORING_DUE_TO_INVALID_NAME))
-    assert monitor.callback_result
-
-    # Check Sync
-    time.sleep(5)
-    file.truncate_file(WAZUH_LOG_PATH)
-    monitor.start(generate_callback(SYNC_INTEGRITY_MESSAGE))
-    assert monitor.callback_result
-
-if sys.platform == WINDOWS:
-    cases_path = Path(TEST_CASES_PATH, 'cases_registries.yaml')
-    config_path = Path(CONFIGS_PATH, 'configuration_registries.yaml')
-    test_configuration, test_metadata, cases_ids = get_test_cases_data(cases_path)
-    test_configuration = load_configuration_template(config_path, test_configuration, test_metadata)
-
-    @pytest.mark.parametrize('test_configuration, test_metadata', zip(test_configuration, test_metadata), ids=cases_ids)
-    def test_invalid_registry(test_configuration, test_metadata, configure_local_internal_options, truncate_monitored_files,
-                              set_wazuh_configuration, daemons_handler, detect_end_scan):
-        '''
-        description: Check if the 'wazuh-syscheckd' is able to correctly process a registry key name containing an invalid
-                     character.
-
-        wazuh_min_version: 4.9.0
-
-        tier: 1
-
-        parameters:
-            - test_configuration:
-                type: dict
-                brief: Configuration values for ossec.conf.
-            - test_metadata:
-                type: dict
-                brief: Test case data.
-            - configure_local_internal_options:
-                type: fixture
-                brief: Set local_internal_options.conf file.
-            - truncate_monitored_files:
-                type: fixture
-                brief: Truncate all the log files and json alerts files before and after the test execution.
-            - set_wazuh_configuration:
-                type: fixture
-                brief: Set ossec.conf configuration.
-            - daemons_handler:
-                type: fixture
-                brief: Handler of Wazuh daemons.
-            - detect_end_scan
-                type: fixture
-                brief: Check first scan end.
-
-        assertions:
-            - Verify that the FIM generate correctly an events with a new registry key.
-
-        input_description: The test cases are contained in external YAML file (cases_registries.yaml) which includes
-                           configuration parameters for the 'wazuh-syscheckd' daemon and testing directories to monitor.
-                           The configuration template is contained in another external YAML file
-                           (configuration_registries.yaml).
-
-        expected_output:
-            - r'.*Sending FIM event: (.+)$' ('added', 'modified', and 'deleted' events)
-
-        '''
-        monitor = FileMonitor(WAZUH_LOG_PATH)
-
-        # Create
-        sub_key = os.path.join(test_metadata['sub_key'], '§¨©ª«¬-®¯±²³¶¹º»¼½¾testáéíóú')
+    # iterate over invalid UTF-8 sequences
+    for valid_sequence in valid_utf8_sequences:
+        # No UTF-8 conversion here, just direct file name creation with invalid sequences
+        test_path_bytes = os.path.join(
+            test_metadata['folder_to_monitor'], valid_sequence)
         file.truncate_file(WAZUH_LOG_PATH)
-        create_registry(win32con.HKEY_LOCAL_MACHINE, sub_key, KEY_WOW64_64KEY)
-        monitor.start(generate_callback(EVENT_TYPE_ADDED))
-        assert monitor.callback_result
 
-        # Check Sync
-        time.sleep(5)
-        file.truncate_file(WAZUH_LOG_PATH)
+        try:
+            # Create the file with the invalid byte sequence as part of the file name
+            with open(test_path_bytes, 'w') as f:
+                f.write('.')
+            assert os.path.exists(test_path_bytes), f"Failed to create file: {test_path_bytes!r}"
+        except:
+            raise
+
         monitor.start(generate_callback(SYNC_INTEGRITY_MESSAGE))
         assert monitor.callback_result

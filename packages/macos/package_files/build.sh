@@ -53,7 +53,7 @@ function build() {
     done
 
     echo "Running install script"
-    ${SOURCES_PATH}/install.sh
+    ${SOURCES_PATH}/install.sh || { echo "install.sh failed! Aborting." >&2; exit 1; }
 
     find ${DESTINATION_PATH}/ruleset/sca/ -type f -exec rm -f {} \;
 
@@ -61,6 +61,7 @@ function build() {
     mkdir -p ${INSTALLATION_SCRIPTS_DIR}/
     cp ${SOURCES_PATH}/gen_ossec.sh ${INSTALLATION_SCRIPTS_DIR}/
     cp ${SOURCES_PATH}/add_localfiles.sh ${INSTALLATION_SCRIPTS_DIR}/
+    cp ${SOURCES_PATH}/VERSION.json ${INSTALLATION_SCRIPTS_DIR}/
 
     mkdir -p ${INSTALLATION_SCRIPTS_DIR}/src/init
     mkdir -p ${INSTALLATION_SCRIPTS_DIR}/etc/templates/config/{generic,darwin}
@@ -71,18 +72,15 @@ function build() {
     find ${SOURCES_PATH}/src/init/ -name *.sh -type f -exec install -m 0640 {} ${INSTALLATION_SCRIPTS_DIR}/src/init \;
 
     mkdir -p ${INSTALLATION_SCRIPTS_DIR}/sca/generic
-    mkdir -p ${INSTALLATION_SCRIPTS_DIR}/sca/darwin/{15,16,17,18,20,21,22,23,24}
+    mkdir -p ${INSTALLATION_SCRIPTS_DIR}/sca/darwin/{15,16,17,18,20,21,22,23,24,25}
 
     cp -r ${SOURCES_PATH}/ruleset/sca/darwin ${INSTALLATION_SCRIPTS_DIR}/sca
     cp -r ${SOURCES_PATH}/ruleset/sca/generic ${INSTALLATION_SCRIPTS_DIR}/sca
     cp ${SOURCES_PATH}/etc/templates/config/generic/sca.files ${INSTALLATION_SCRIPTS_DIR}/sca/generic/
 
-    for n in $(seq 15 24); do
+    for n in $(seq 15 25); do
         cp ${SOURCES_PATH}/etc/templates/config/darwin/$n/sca.files ${INSTALLATION_SCRIPTS_DIR}/sca/darwin/$n/
     done
-
-    cp ${SOURCES_PATH}/src/VERSION ${INSTALLATION_SCRIPTS_DIR}/src/
-    cp ${SOURCES_PATH}/src/REVISION ${INSTALLATION_SCRIPTS_DIR}/src/
 }
 
 build

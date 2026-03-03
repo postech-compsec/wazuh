@@ -607,6 +607,32 @@ stages:
          total_failed_items: 0
 
 ---
+test_name: GET /agents/summary
+
+stages:
+
+ - name: Get the agents summary (Partially allowed, user agnostic)
+   request:
+     verify: False
+     url: "{protocol:s}://{host:s}:{port:d}/agents/summary"
+     method: GET
+     headers:
+       Authorization: "Bearer {test_login_token}"
+   response:
+     status_code: 200
+     json:
+       error: 0
+       data:
+         status:
+           active: 4
+           disconnected: 1
+           never_connected: 1
+           pending: 0
+         os:
+          ubuntu: 5
+         groups: !anything
+
+---
 test_name: GET /agents/summary/status
 
 stages:
@@ -925,6 +951,7 @@ stages:
         function: tavern_utils:healthcheck_agent_restart
         extra_kwargs:
           agents_list: ["001", "008"]
+          restarted: False
       status_code: 200
       json:
         error: 0
@@ -1273,6 +1300,7 @@ stages:
         function: tavern_utils:healthcheck_agent_restart
         extra_kwargs:
           agents_list: ["002"]
+          restarted: False
       status_code: 200
       json:
         error: 2
@@ -1333,6 +1361,7 @@ stages:
         function: tavern_utils:healthcheck_agent_restart
         extra_kwargs:
           agents_list: ["002", "006", "008"]
+          restarted: False
       status_code: 200
 
   - name: Try to update group1 configuration (Denied)
@@ -1366,6 +1395,7 @@ stages:
         function: tavern_utils:healthcheck_agent_restart
         extra_kwargs:
           agents_list: ["004"]
+          restarted: False
       status_code: 200
       json:
         error: 2

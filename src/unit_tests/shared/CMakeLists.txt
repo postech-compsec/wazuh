@@ -28,13 +28,18 @@ if(NOT ${TARGET} STREQUAL "winagent")
                             -Wl,--wrap,gzopen,--wrap,gzread,--wrap,gzclose,--wrap,fgetc \
                             -Wl,--wrap,gzeof,--wrap,gzerror,--wrap,gzwrite,--wrap,fgetpos \
                             -Wl,--wrap,realpath,--wrap,getenv,--wrap,atexit ${DEBUG_OP_WRAPPERS} \
-                            -Wl,--wrap,merror,--wrap,fseek")
+                            -Wl,--wrap,merror,--wrap,fseek,--wrap,access \
+                            -Wl,--wrap,opendir,--wrap,readdir,--wrap,closedir,--wrap,rmdir \
+                            -Wl,--wrap,IsDir")
     list(APPEND shared_tests_flags "${FILE_OP_BASE_FLAGS}")
 else()
     list(APPEND shared_tests_flags "-Wl,--wrap,get_windows_file_time_epoch,--wrap,mdebug2 \
                                     -Wl,--wrap,syscom_dispatch -Wl,--wrap,Start_win32_Syscheck \
-                                    -Wl,--wrap=is_fim_shutdown -Wl,--wrap=_imp__dbsync_initialize \
-                                    -Wl,--wrap=_imp__rsync_initialize -Wl,--wrap=fim_db_teardown ${DEBUG_OP_WRAPPERS}")
+                                    -Wl,--wrap=is_fim_shutdown -Wl,--wrap=_imp__dbsync_initialize -Wl,--wrap=CreateProcessW \
+                                    -Wl,--wrap=_imp__rsync_initialize -Wl,--wrap=fim_db_teardown -Wl,--wrap=getpid \
+                                    -Wl,--wrap=access -Wl,--wrap=CreateFile -Wl,--wrap=opendir -Wl,--wrap=stat \
+                                    -Wl,--wrap=utf8_CreateFile -Wl,--wrap=utf8_stat64 -Wl,--wrap=QueryDosDeviceA \
+                                    -Wl,--wrap=convert_windows_string -Wl,--wrap=wstr_split ${DEBUG_OP_WRAPPERS}")
 endif()
 
 list(APPEND shared_tests_names "test_integrity_op")
@@ -115,15 +120,34 @@ else()
 list(APPEND shared_tests_flags "${QUEUE_LINKED_OP_BASE_FLAGS}")
 endif()
 
+list(APPEND shared_tests_names "test_indexed_queue_op")
+set(INDEXED_QUEUE_OP_FLAGS "-Wl,--wrap=pthread_mutex_lock,--wrap=pthread_mutex_unlock,--wrap=pthread_cond_wait \
+                            -Wl,--wrap=pthread_cond_signal,--wrap=pthread_cond_timedwait")
+if(${TARGET} STREQUAL "winagent")
+list(APPEND shared_tests_flags "${INDEXED_QUEUE_OP_FLAGS} -Wl,--wrap,syscom_dispatch -Wl,--wrap,Start_win32_Syscheck \
+                                -Wl,--wrap=is_fim_shutdown -Wl,--wrap=_imp__dbsync_initialize \
+                                -Wl,--wrap=_imp__rsync_initialize -Wl,--wrap=fim_db_teardown")
+else()
+list(APPEND shared_tests_flags "${INDEXED_QUEUE_OP_FLAGS}")
+endif()
+
 list(APPEND shared_tests_names "test_agent_op")
 if(${TARGET} STREQUAL "winagent")
 list(APPEND shared_tests_flags "-Wl,--wrap,wdb_get_agent_info -Wl,--wrap,_mdebug1 -Wl,--wrap,getpid \
                                 -Wl,--wrap,syscom_dispatch -Wl,--wrap,Start_win32_Syscheck \
                                 -Wl,--wrap=is_fim_shutdown -Wl,--wrap=_imp__dbsync_initialize \
+                                -Wl,--wrap,_merror -Wl,--wrap,_mwarn -Wl,--wrap,external_socket_connect \
+                                -Wl,--wrap,sleep -Wl,--wrap,strerror -Wl,--wrap,getpid -Wl,--wrap,close \
+                                -Wl,--wrap,fclose -Wl,--wrap,fprintf -Wl,--wrap,wfopen -Wl,--wrap,_merror \
+                                -Wl,--wrap,fflush -Wl,--wrap,fgets -Wl,--wrap,fgetpos -Wl,--wrap,fopen -Wl,--wrap,fread \
+                                -Wl,--wrap,fseek -Wl,--wrap,fwrite -Wl,--wrap,remove -Wl,--wrap,fgetc -Wl,--wrap,popen \
                                 -Wl,--wrap=_imp__rsync_initialize -Wl,--wrap=fim_db_teardown ${DEBUG_OP_WRAPPERS}")
 else()
 list(APPEND shared_tests_flags "-Wl,--wrap,_merror -Wl,--wrap,_mwarn -Wl,--wrap,external_socket_connect \
                                 -Wl,--wrap,sleep -Wl,--wrap,strerror -Wl,--wrap,getpid -Wl,--wrap,close \
+                                -Wl,--wrap,fclose -Wl,--wrap,fprintf -Wl,--wrap,wfopen -Wl,--wrap,_merror \
+                                -Wl,--wrap,fflush -Wl,--wrap,fgets -Wl,--wrap,fgetpos -Wl,--wrap,fopen -Wl,--wrap,fread \
+                                -Wl,--wrap,fseek -Wl,--wrap,fwrite -Wl,--wrap,remove -Wl,--wrap,fgetc -Wl,--wrap,popen \
                                 -Wl,--wrap,OS_SendSecureTCPCluster -Wl,--wrap,OS_RecvSecureClusterTCP ${DEBUG_OP_WRAPPERS}")
 endif()
 
@@ -177,6 +201,15 @@ list(APPEND shared_tests_flags "-Wl,--wrap,getDefine_Int -Wl,--wrap,syscom_dispa
 else()
 list(APPEND shared_tests_flags "-Wl,--wrap,getDefine_Int,--wrap,control_check_connection,--wrap,send,--wrap,recv,--wrap,close \
                                 -Wl,--wrap,getpid,--wrap,fcntl")
+endif()
+
+list(APPEND shared_tests_names "test_labels_op")
+if(${TARGET} STREQUAL "winagent")
+list(APPEND shared_tests_flags "-Wl,--wrap,syscom_dispatch -Wl,--wrap,Start_win32_Syscheck \
+                                -Wl,--wrap=is_fim_shutdown -Wl,--wrap=_imp__dbsync_initialize \
+                                -Wl,--wrap=_imp__rsync_initialize -Wl,--wrap=fim_db_teardown")
+else()
+list(APPEND shared_tests_flags " ")
 endif()
 
 list(APPEND shared_tests_names "test_custom_output_search_replace")
@@ -234,7 +267,9 @@ if(${TARGET} STREQUAL "winagent")
     # cJSON_CreateArray@0 instead of cJSON_CreateArray since linker will be looking for cdecl forma
     # More info at: (https://devblogs.microsoft.com/oldnewthing/20040108-00/?p=41163)
     list(APPEND shared_tests_flags "${SYSCHECK_OP_BASE_FLAGS} -Wl,--wrap=syscom_dispatch -Wl,--wrap=is_fim_shutdown \
-                                    -Wl,--wrap,cJSON_CreateArray@0 -Wl,--wrap,cJSON_CreateObject@0 -Wl,--wrap=Start_win32_Syscheck")
+                                    -Wl,--wrap,cJSON_CreateArray@0 -Wl,--wrap,cJSON_CreateObject@0 -Wl,--wrap=Start_win32_Syscheck \
+                                    -Wl,--wrap,utf8_CreateFile -Wl,--wrap,utf8_GetFileSecurity -Wl,--wrap,utf8_GetFileAttributes \
+                                    -Wl,--wrap=QueryDosDeviceA")
 else()
     list(APPEND shared_tests_flags "${SYSCHECK_OP_BASE_FLAGS} -Wl,--wrap=cJSON_CreateArray,--wrap=cJSON_CreateObject -Wl,--wrap,getpid")
 endif()

@@ -40,12 +40,12 @@ info:
 
     <SecurityDefinitions />
 
-  version: '4.11.1'
-  x-revision: '41112'
+  version: '4.14.3'
+  x-revision: 'rc3'
   title: 'Wazuh API REST'
   license:
     name: 'GPL 2.0'
-    url: 'https://github.com/wazuh/wazuh/blob/v4.11.1/LICENSE'
+    url: 'https://github.com/wazuh/wazuh/blob/v4.14.3/LICENSE'
 
 servers:
   - url: '{protocol}://{host}:{port}'
@@ -571,7 +571,7 @@ components:
             detail: "Permission denied: Resource type: *:*"
             remediation: "Please, make sure you have permissions to execute the current request. For more information
             on how to set up permissions, please visit
-            https://documentation.wazuh.com/4.11/user-manual/api/rbac/configuration.html"
+            https://documentation.wazuh.com/4.14/user-manual/api/rbac/configuration.html"
             error: 4000
             dapi_errors:
               unknown-node:
@@ -638,7 +638,7 @@ components:
             title: "Wazuh Error"
             detail: "Maximum number of requests per minute reached"
             remediation: "This limit can be changed in api.yaml file. More information here:
-            https://documentation.wazuh.com/4.11/user-manual/api/security/configuration.html"
+            https://documentation.wazuh.com/4.14/user-manual/api/security/configuration.html"
             code: 6001
 
     ResourceNotFoundResponse:
@@ -651,7 +651,7 @@ components:
             title: "Resource Not Found"
             detail: "The group does not exist"
             remediation: "Please, use `GET /groups` to find all available groups:
-            https://documentation.wazuh.com/4.11/user-manual/api/rbac/configuration.html"
+            https://documentation.wazuh.com/4.14/user-manual/api/rbac/configuration.html"
             code: 1710
             dapi_errors:
               unknown-node:
@@ -769,6 +769,19 @@ components:
               - type: string
               - type: object
 
+    NodeAnalysisdReload:
+      type: object
+      required:
+        - name
+        - msg
+      properties:
+        name:
+          type: string
+          description: "Node name"
+        msg:
+          type: string
+          description: "Reload operation message"
+
     AllItemsResponse:
       type: object
       required:
@@ -885,6 +898,18 @@ components:
               items:
                 $ref: '#/components/schemas/NodeID'
         - $ref: '#/components/schemas/AllItemsResponse'
+
+    AllItemsResponseNodeAnalysisdReload:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              items:
+                $ref: '#/components/schemas/NodeAnalysisdReload'
 
     AllItemsResponseNodeHealthcheck:
       allOf:
@@ -1174,6 +1199,58 @@ components:
               items:
                 $ref: '#/components/schemas/SyscollectorNetwork'
 
+    AllItemsResponseSyscollectorUsers:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorUser'
+
+    AllItemsResponseSyscollectorGroups:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorGroup'
+
+    AllItemsResponseSyscollectorBrowserExtensions:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorBrowserExtension'
+
+    AllItemsResponseSyscollectorService:
+      allOf:
+        - $ref: '#/components/schemas/AllItemsResponse'
+        - type: object
+          required:
+            - affected_items
+          properties:
+            affected_items:
+              type: array
+              description: "Items that successfully applied the API call action"
+              items:
+                $ref: '#/components/schemas/SyscollectorService'
+
     AllItemsResponseUsers:
       allOf:
         - $ref: '#/components/schemas/AllItemsResponse'
@@ -1333,9 +1410,8 @@ components:
           type: string
           description: "API version in the manager"
         revision:
-          type: integer
+          type: string
           description: "API revision"
-          format: int32
         license_name:
           type: string
           description: "API license name"
@@ -1556,6 +1632,29 @@ components:
       - never_connected
       - disconnected
       description: "Agent status. It is calculated based on the last keepalive and the Wazuh version"
+
+    AgentsSummary:
+      type: object
+      properties:
+        status:
+          type: object
+          properties:
+            active:
+              type: integer
+              format: int32
+            disconnected:
+              type: integer
+              format: int32
+            never_connected:
+              type: integer
+              format: int32
+            pending:
+              type: integer
+              format: int32
+        os:
+          type: object
+        groups:
+          type: object
 
     AgentsSummaryStatus:
       type: object
@@ -3820,6 +3919,9 @@ components:
           type: string
         tz_name:
           type: string
+        uuid:
+          type: string
+          nullable: true
 
     WazuhManagerConfiguration:
       type: object
@@ -4037,7 +4139,7 @@ components:
           type: number
           format: float
           description: "Same as `alerts_written` but focusing on [FTS alerts]
-          (https://documentation.wazuh.com/4.11/user-manual/ruleset/ruleset-xml-syntax/decoders.html?highlight=fts
+          (https://documentation.wazuh.com/4.14/user-manual/ruleset/ruleset-xml-syntax/decoders.html?highlight=fts
           #fts)"
         hostinfo_queue_size:
           type: number
@@ -4385,6 +4487,12 @@ components:
           description: "Enable features under development"
           type: boolean
           default: false
+        authentication_pool_size:
+          description: "Number of processes dedicated to processing authentication requests"
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 2
 
     LastScan:
       type: object
@@ -5256,6 +5364,373 @@ components:
         agent_id:
           $ref: '#/components/schemas/AgentID'
 
+    SyscollectorUser:
+      type: object
+      properties:
+        scan:
+          $ref: '#/components/schemas/ScanIdTime'
+        agent_id:
+          $ref: '#/components/schemas/AgentID'
+        user:
+          type: object
+          description: "User information"
+          properties:
+            name:
+              type: string
+              description: "User name"
+            full_name:
+              type: string
+              description: "User full name"
+            home:
+              type: string
+              description: "User home directory"
+            id:
+              type: integer
+              description: "User ID"
+            uid_signed:
+              type: integer
+              description: "User signed UID"
+            uuid:
+              type: string
+              description: "User UUID"
+            groups:
+              type: string
+              description: "User groups"
+            group_id:
+              type: integer
+              description: "User group ID"
+            group_id_signed:
+              type: integer
+              description: "User signed group ID"
+            created:
+              type: number
+              format: float
+              description: "User creation timestamp"
+            roles:
+              type: string
+              description: "User roles"
+            shell:
+              type: string
+              description: "User shell"
+            type:
+              type: string
+              description: "User type"
+            is_hidden:
+              type: integer
+              description: "User visibility"
+            is_remote:
+              type: integer
+              description: "User remote accessibility"
+            last_login:
+              type: integer
+              description: "User last login"
+            auth_failed_count:
+              type: number
+              format: float
+              description: "Number of authentication failures"
+            auth_failed_timestamp:
+              type: number
+              format: float
+              description: "Last authentication failure timestamp"
+            password_expiration_date:
+              type: string
+              description: "Password expiration date"
+            password_hash_algorithm:
+              type: string
+              description: "Password hash algorithm"
+            password_inactive_days:
+              type: integer
+              description: "Password inactive days"
+            password_last_change:
+              type: number
+              format: float
+              description: "Password last change"
+            password_max_days_between_changes:
+              type: integer
+              description: "Password maximum number of days between changes"
+            password_min_days_between_changes:
+              type: integer
+              description: "Password minimum number of days between changes"
+            password_status:
+              type: string
+              description: "Password status"
+            password_warning_days_before_expiration:
+              type: integer
+              description: "Password warnings before expiration"
+        process_pid:
+          type: integer
+          description: "Process ID"
+        host_ip:
+          type: string
+          description: "Host IP address"
+        login:
+          type: object
+          description: "User login details"
+          properties:
+            status:
+              type: integer
+              description: "Login status"
+            tty:
+              type: string
+              description: "Login TTY"
+            type:
+              type: string
+              description: "Login type"
+        checksum:
+          type: string
+          description: "User checksum"
+
+    SyscollectorGroup:
+      type: object
+      properties:
+        scan:
+          $ref: '#/components/schemas/ScanIdTime'
+        agent_id:
+          $ref: '#/components/schemas/AgentID'
+        group:
+          type: object
+          description: "Group information"
+          properties:
+            id:
+              type: integer
+              description: "Group ID"
+            name:
+              type: string
+              description: "Group name"
+            description:
+              type: string
+              description: "Group description"
+            id_signed:
+              type: integer
+              description: "Group signed ID"
+            uuid:
+              type: string
+              description: "Group UUID"
+            is_hidden:
+              type: integer
+              description: "Group visibility"
+            users:
+              type: string
+              description: "Group users"
+        checksum:
+          type: string
+          description: "Group checksum"
+
+    SyscollectorBrowserExtension:
+      type: object
+      properties:
+        scan:
+          $ref: '#/components/schemas/ScanIdTime'
+        agent_id:
+          $ref: '#/components/schemas/AgentID'
+        browser:
+          type: object
+          description: "Browser information"
+          properties:
+            name:
+              type: string
+              description: "Browser name"
+            profile_name:
+              type: string
+              description: "Browser profile name"
+            profile_path:
+              type: string
+              description: "File system path to the profile"
+            profile_referenced:
+              type: boolean
+              description: "Profile referenced by preferences"
+        file_hash:
+          type: object
+          description: "manifest.json file information"
+          properties:
+            sha256:
+              type: string
+              description: "SHA256 of manifest.json file"
+        package:
+          type: object
+          description: "Package information"
+          properties:
+            id:
+              type: string
+              description: "Unique identifier of the extension"
+            name:
+              type: string
+              description: "Display name of the extension"
+            version:
+              type: string
+              description: "Extension version"
+            path:
+              type: string
+              description: "Path to extension files or manifest"
+            autoupdate:
+              type: boolean
+              description: "If the addon uses background updates"
+            visible:
+              type: boolean
+              description: "If the extension is visible"
+            build_version:
+              type: string
+              description: "Bundle SDK used to compile the extension"
+            description:
+              type: string
+              description: "Package optional description"
+            enabled:
+              type: boolean
+              description: "Whether the extension is enabled"
+            from_webstore:
+              type: boolean
+              description: "Whether the extension is installed from webstore"
+            installed:
+              type: string
+              description: "Original install time"
+            permissions:
+              type: string
+              description: "Required or optional permissions"
+            persistent:
+              type: boolean
+              description: "Persistent across tabs"
+            reference:
+              type: string
+              description: "Update URL for the extension"
+            type:
+              type: string
+              description: "Type of the extension"
+            vendor:
+              type: string
+              description: "Author or creator"
+        checksum:
+          type: string
+          description: "Browser extension checksum"
+
+
+    SyscollectorService:
+      type: object
+      properties:
+        scan:
+          $ref: '#/components/schemas/ScanIdTime'
+        agent_id:
+          $ref: '#/components/schemas/AgentID'
+        service:
+          type: object
+          properties:
+            id:
+              type: string
+              description: "Service unique identifier"
+            name:
+              type: string
+              description: "Service display name"
+            description:
+              type: string
+              description: "Service description"
+            type:
+              type: string
+              description: "Service type"
+            state:
+              type: string
+              description: "Service current state"
+            sub_state:
+              type: string
+              description: "Low-level sub-state"
+            enabled:
+              type: string
+              description: "Service enabled state"
+            start_type:
+              type: string
+              description: "Service start type"
+            restart:
+              type: string
+              description: "Service restart policy"
+            frequency:
+              type: integer
+              format: int64
+              description: "Run frequency in seconds"
+            starts_on_mount:
+              type: boolean
+              description: "Whether the service launches every time a filesystem is mounted"
+            starts_on_path_modified:
+              type: string
+              description: "Whether the service starts on path modification"
+            starts_on_not_empty_directory:
+              type: string
+              description: "Whether the service starts on not empty directory"
+            inetd_compatibility:
+              type: boolean
+              description: "Whether to run job as if launched from inetd"
+            exit_code:
+              type: integer
+              format: int32
+              description: "Service-specific exit code on failure"
+            win32_exit_code:
+              type: integer
+              format: int32
+              description: "Windows 32-bit specific exit code"
+            following:
+              type: string
+              description: "Unit followed by the service in systemd"
+            object_path:
+              type: string
+              description: "D-Bus object path of the service"
+            target_ephemeral_id:
+              type: integer
+              format: int64
+              description: "Job ID assigned"
+            target_type:
+              type: string
+              description: "Type of systemd job"
+            target_address:
+              type: string
+              description: "Path to job object"
+            address:
+              type: string
+              description: "Path to the service"
+        process:
+          type: object
+          description: "Process information"
+          properties:
+            pid:
+              type: integer
+              format: int64
+              description: "Process ID of the running service"
+            executable:
+              type: string
+              description: "Path to the service executable"
+            args:
+              type: string
+              description: "Command line arguments for the service/job."
+            user_name:
+              type: string
+              description: "User account running the service"
+            group_name:
+              type: string
+              description: "Group account running the service"
+            working_directory:
+              type: string
+              description: "Working directory of the service"
+            root_directory:
+              type: string
+              description: "Chroot directory before execution"
+        file:
+          type: object
+          properties:
+            path:
+              type: string
+              description: "Path to the service unit file"
+        log_file:
+          type: object
+          properties:
+            path:
+              type: string
+              description: "Redirect stdout to a file/pipe"
+        error_log_file:
+          type: object
+          properties:
+            path:
+              type: string
+              description: "Redirect stderr to a file/pipe"
+        checksum:
+          type: string
+          description: "Service checksum"
+
     # Lists models
     CDBList:
       allOf:
@@ -6084,7 +6559,9 @@ components:
     purge:
       in: query
       name: purge
-      description: "Permanently delete an agent from the key store"
+      description: |
+        Permanently delete an agent from the key store. The wazuh-authd `purge` configuration option has
+        precedence over this parameter, when enabled, agents will be permanently deleted regardless of this value.
       schema:
         type: boolean
         default: false
@@ -7264,9 +7741,9 @@ paths:
               example:
                 title: "Wazuh API"
                 api_version: "v4.5.0"
-                revision: '40100'
+                revision: 'beta1'
                 license_name: "GPL 2.0"
-                license_url: "https://github.com/wazuh/wazuh/blob/v4.11.1/LICENSE"
+                license_url: "https://github.com/wazuh/wazuh/blob/v4.14.3/LICENSE"
                 hostname: "wazuh"
                 timestamp: "2019-04-02T08:08:11Z"
 
@@ -7602,7 +8079,7 @@ paths:
                 data:
                   client:
                     config-profile: "ubuntu, ubuntu20, ubuntu20.04"
-                    notify_time: 10
+                    notify_time: 20
                     time-reconnect: 60
                     force_reconnect_interval: 0
                     ip_update_interval: 0
@@ -8893,8 +9370,8 @@ paths:
                           code: 1707
                           message: "Cannot send request, agent is not active"
                           remediation: "Please, check non-active agents connection and try again.
-                           Visit https://documentation.wazuh.com/4.11/user-manual/registering/index.html
-                           and https://documentation.wazuh.com/4.11/user-manual/agents/agent-connection.html
+                           Visit https://documentation.wazuh.com/4.14/user-manual/registering/index.html
+                           and https://documentation.wazuh.com/4.14/user-manual/agents/agent-connection.html
                            to obtain more information on registering and connecting agents"
                         id:
                           - '009'
@@ -8958,6 +9435,56 @@ paths:
                   total_failed_items: 0
                   failed_items: []
                 message: 'All selected agents information was returned'
+                error: 0
+        '400':
+          $ref: '#/components/responses/ResponseError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedResponse'
+        '405':
+          $ref: '#/components/responses/InvalidHTTPMethodResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+
+  /agents/summary:
+    get:
+      tags:
+        - Agents
+      summary: "Summarize agents information"
+      description: "Return a summary of the available agents OS, status and groups"
+      operationId: api.controllers.agent_controller.get_agents_summary
+      x-rbac-actions:
+        - $ref: '#/x-rbac-catalog/actions/agent:read'
+      parameters:
+        - $ref: '#/components/parameters/pretty'
+        - $ref: '#/components/parameters/wait_for_complete'
+        - $ref: '#/components/parameters/agents_list'
+      responses:
+        '200':
+          description: "Available agents summary"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AgentsSummary'
+              example:
+                data:
+                  status:
+                    active: 8
+                    disconnected: 0
+                    never_connected: 1
+                    pending: 2
+                  os:
+                    debian: 8
+                    ubuntu: 3
+                  groups:
+                    default: 11
+                    test: 5
                 error: 0
         '400':
           $ref: '#/components/responses/ResponseError'
@@ -10064,6 +10591,7 @@ paths:
                         drop_privileges: true
                         experimental_features: false
                         max_upload_size: 10485760
+                        authentication_pool_size: 2
                         intervals:
                           request_timeout: 10
                         https:
@@ -10110,6 +10638,7 @@ paths:
                         drop_privileges: true
                         experimental_features: false
                         max_upload_size: 10485760
+                        authentication_pool_size: 2
                         intervals:
                           request_timeout: 10
                         https:
@@ -10156,6 +10685,7 @@ paths:
                         drop_privileges: true
                         experimental_features: false
                         max_upload_size: 10485760
+                        authentication_pool_size: 2
                         intervals:
                           request_timeout: 10
                         https:
@@ -10307,6 +10837,7 @@ paths:
                       openssl_support: yes
                       tz_offset: +0000
                       tz_name: UTC
+                      uuid: c842f85c-c24b-4b39-9508-093ce53482e7
                   total_affected_items: 1
                   total_failed_items: 0
                   failed_items: []
@@ -10366,7 +10897,7 @@ paths:
                         email_to: recipient@example.wazuh.com
                         email_maxperhour: 12
                         email_log_source: alerts.log
-                        agents_disconnection_time: "10m"
+                        agents_disconnection_time: "15m"
                         agents_disconnection_alert_time: 0
                         update_check: yes
                         white_list:
@@ -10541,6 +11072,9 @@ paths:
                           - etc/lists/audit-keys
                           - etc/lists/amazon/aws-eventnames
                           - etc/lists/security-eventchannel
+                          - etc/lists/malicious-ioc/malware-hashes
+                          - etc/lists/malicious-ioc/malicious-ip
+                          - etc/lists/malicious-ioc/malicious-domains
                       auth:
                         disabled: no
                         port: "1515"
@@ -11389,10 +11923,9 @@ paths:
         - $ref: '#/x-rbac-catalog/actions/cluster:restart'
       parameters:
         - $ref: '#/components/parameters/pretty'
-        - $ref: '#/components/parameters/wait_for_complete'
         - $ref: '#/components/parameters/nodes_list'
       responses:
-        '200':
+        '202':
           description: "List of affected nodes"
           content:
             application/json:
@@ -11413,6 +11946,55 @@ paths:
                     total_failed_items: 0
                     failed_items: []
                   message: "Restart request sent to all specified nodes"
+                  error: 0
+        '400':
+          $ref: '#/components/responses/ResponseError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedResponse'
+        '405':
+          $ref: '#/components/responses/InvalidHTTPMethodResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+
+  /cluster/analysisd/reload:
+    put:
+      tags:
+        - Cluster
+      summary: "Reloads the analysisd process for the nodes"
+      description: "Reloads the analysisd process on all nodes in the cluster, or on a specified list of nodes"
+      operationId: api.controllers.cluster_controller.put_reload_analysisd
+      x-rbac-actions:
+        - $ref: '#/x-rbac-catalog/actions/cluster:read'
+        - $ref: '#/x-rbac-catalog/actions/cluster:restart'
+      parameters:
+        - $ref: '#/components/parameters/pretty'
+        - $ref: '#/components/parameters/wait_for_complete'
+        - $ref: '#/components/parameters/nodes_list'
+      responses:
+        '200':
+          description: "List of affected nodes and return messages"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AllItemsResponseNodeAnalysisdReload'
+                example:
+                  data:
+                    affected_items:
+                      - name: "manager"
+                        msg: "Ruleset reload request sent successfully."
+                      - name: "worker"
+                        msg: "Ruleset reload request sent successfully."
+                    total_affected_items: 2
+                    total_failed_items: 0
+                    failed_items: [ ]
+                  message: "Reload request sent to all specified nodes"
                   error: 0
         '400':
           $ref: '#/components/responses/ResponseError'
@@ -12014,6 +12596,7 @@ paths:
                       openssl_support: yes
                       tz_offset: +0000
                       tz_name: UTC
+                      uuid: c842f85c-c24b-4b39-9508-093ce53482e7
                   total_affected_items: 1
                   total_failed_items: 0
                   failed_items: []
@@ -12914,6 +13497,7 @@ paths:
                         drop_privileges: true
                         experimental_features: false
                         max_upload_size: 10485760
+                        authentication_pool_size: 2
                         intervals:
                           request_timeout: 10
                         https:
@@ -12972,6 +13556,52 @@ paths:
         '429':
           $ref: '#/components/responses/TooManyRequestsResponse'
 
+  /manager/analysisd/reload:
+    put:
+      tags:
+        - Manager
+      summary: "Reloads the analysisd process for the master or local node"
+      description: "Reloads the analysisd process on the master or local node"
+      operationId: api.controllers.manager_controller.put_reload_analysisd
+      x-rbac-actions:
+        - $ref: '#/x-rbac-catalog/actions/manager:read'
+        - $ref: '#/x-rbac-catalog/actions/manager:restart'
+      parameters:
+        - $ref: '#/components/parameters/pretty'
+        - $ref: '#/components/parameters/wait_for_complete'
+      responses:
+        '200':
+          description: "List of affected nodes and return messages"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AllItemsResponseNodeAnalysisdReload'
+                example:
+                  data:
+                    affected_items:
+                      - name: "manager"
+                        msg: "Ruleset reload request sent successfully."
+                    total_affected_items: 1
+                    total_failed_items: 0
+                    failed_items: []
+                  message: "Reload request sent to all specified nodes"
+                  error: 0
+        '400':
+          $ref: '#/components/responses/ResponseError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedResponse'
+        '405':
+          $ref: '#/components/responses/InvalidHTTPMethodResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+
   /manager/restart:
     put:
       tags:
@@ -12984,9 +13614,8 @@ paths:
         - $ref: '#/x-rbac-catalog/actions/manager:restart'
       parameters:
         - $ref: '#/components/parameters/pretty'
-        - $ref: '#/components/parameters/wait_for_complete'
       responses:
-        '200':
+        '202':
           description: "Confirmation message"
           content:
             application/json:
@@ -16839,8 +17468,8 @@ paths:
                   total_affected_items: 307
                   total_failed_items: 0
                   failed_items: []
-                  message: "All specified syscollector information was returned"
-                  error: 0
+                message: "All specified syscollector information was returned"
+                error: 0
         '400':
           $ref: '#/components/responses/ResponseError'
         '401':
@@ -17041,6 +17670,325 @@ paths:
                       pid: "1"
                       fgroup: "root"
                       ruser: "root"
+                      agent_id: "001"
+                  total_affected_items: 1
+                  total_failed_items: 0
+                  failed_items: []
+                message: "All specified syscollector information was returned"
+                error: 0
+        '400':
+          $ref: '#/components/responses/ResponseError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedResponse'
+        '405':
+          $ref: '#/components/responses/InvalidHTTPMethodResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+
+  /syscollector/{agent_id}/users:
+    get:
+      tags:
+        - Syscollector
+      summary: "Get agent users"
+      description: "Return the agent's users info"
+      operationId: api.controllers.syscollector_controller.get_user_info
+      x-rbac-actions:
+        - $ref: '#/x-rbac-catalog/actions/syscollector:read'
+      parameters:
+        - $ref: '#/components/parameters/agent_id'
+        - $ref: '#/components/parameters/pretty'
+        - $ref: '#/components/parameters/wait_for_complete'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/search'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/query'
+        - $ref: '#/components/parameters/distinct'
+      responses:
+        '200':
+          description: "Return an agent's user results"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AllItemsResponseSyscollectorUsers'
+              example:
+                data:
+                  affected_items:
+                    - login:
+                        status: 0
+                        tty: ""
+                        type: ""
+                      scan:
+                        id: 0
+                        time: "2025-07-16T08:23:57+00:00"
+                      user:
+                        auth_failed_count: 0
+                        full_name: root
+                        group_id: 0
+                        group_id_signed: 0
+                        groups: root
+                        home: "/root"
+                        id: 0
+                        is_hidden: 0
+                        is_remote: 1
+                        name: root
+                        password_last_change: 1752451200
+                        password_max_days_between_changes: 99999
+                        password_min_days_between_changes: 0
+                        password_status: locked
+                        password_warning_days_before_expiration: 7
+                        roles: ""
+                        shell: "/bin/bash"
+                        type: ""
+                        uid_signed: 0
+                        uuid: ""
+                      checksum: 062ab82fc0c2619847ce2d688ed1bda2d2813dcb
+                      process_pid: 0
+                      host_ip: ""
+                      agent_id: "001"
+                  total_affected_items: 1
+                  total_failed_items: 0
+                  failed_items: []
+                message: "All specified syscollector information was returned"
+                error: 0
+        '400':
+          $ref: '#/components/responses/ResponseError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedResponse'
+        '405':
+          $ref: '#/components/responses/InvalidHTTPMethodResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+
+  /syscollector/{agent_id}/groups:
+    get:
+      tags:
+        - Syscollector
+      summary: "Get agent groups"
+      description: "Return the agent's users groups info"
+      operationId: api.controllers.syscollector_controller.get_group_info
+      x-rbac-actions:
+        - $ref: '#/x-rbac-catalog/actions/syscollector:read'
+      parameters:
+        - $ref: '#/components/parameters/agent_id'
+        - $ref: '#/components/parameters/pretty'
+        - $ref: '#/components/parameters/wait_for_complete'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/search'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/query'
+        - $ref: '#/components/parameters/distinct'
+      responses:
+        '200':
+          description: "Return an agent's group results"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AllItemsResponseSyscollectorGroups'
+              example:
+                data:
+                  affected_items:
+                    - group:
+                        description: ""
+                        id: 101
+                        id_signed: 101
+                        is_hidden: 0
+                        name: _ssh
+                        users: ""
+                        uuid: ""
+                      scan:
+                        id: 0
+                        time: "2025-07-16T07:52:59+00:00"
+                      checksum: 077252650e9f983e2f31b271c00e9050f7324756
+                      agent_id: "001"
+                  total_affected_items: 1
+                  total_failed_items: 0
+                  failed_items: []
+                message: "All specified syscollector information was returned"
+                error: 0
+        '400':
+          $ref: '#/components/responses/ResponseError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedResponse'
+        '405':
+          $ref: '#/components/responses/InvalidHTTPMethodResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+
+  /syscollector/{agent_id}/browser_extensions:
+    get:
+      tags:
+        - Syscollector
+      summary: "Get agent browser extensions"
+      description: "Return the agent's browser extensions info"
+      operationId: api.controllers.syscollector_controller.get_browser_extensions_info
+      x-rbac-actions:
+        - $ref: '#/x-rbac-catalog/actions/syscollector:read'
+      parameters:
+        - $ref: '#/components/parameters/agent_id'
+        - $ref: '#/components/parameters/pretty'
+        - $ref: '#/components/parameters/wait_for_complete'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/search'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/query'
+        - $ref: '#/components/parameters/distinct'
+      responses:
+        '200':
+          description: "Return an agent's browser extensions results"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AllItemsResponseSyscollectorBrowserExtensions'
+              example:
+                data:
+                  affected_items:
+                    - browser:
+                        name: "Google Chrome"
+                        profile_name: "Default"
+                        profile_path: "/Users/user/Library/Application Support/Google/Chrome/Default"
+                        profile_referenced: false
+                      file_hash:
+                        sha256: "077252650e9f983e2f31b271c00e9050f7324756"
+                      package:
+                        id: 0
+                        name: "Example Extension"
+                        version: "1.0.0"
+                        path: "/Users/user/Library/Application Support/Google/Chrome/Default/Extensions/example"
+                        autoupdate: true
+                        build_version: "1.0.0"
+                        description: "The default profile for Google Chrome"
+                        enabled: true
+                        from_webstore: true
+                        installed: "1721139179"
+                        permissions: ""
+                        persistent: true
+                        reference: https://update.url.for.extension/docs/extensions/reference/
+                        type: "extension"
+                        vendor: "Google Inc."
+                      scan:
+                        id: 0
+                        time: "2025-07-16T07:52:59+00:00"
+                      checksum: 077252650e9f983e2f31b271c00e9050f7324756
+                      agent_id: "001"
+                  total_affected_items: 1
+                  total_failed_items: 0
+                  failed_items: []
+                message: "All specified syscollector information was returned"
+                error: 0
+        '400':
+          $ref: '#/components/responses/ResponseError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedResponse'
+        '403':
+          $ref: '#/components/responses/PermissionDeniedResponse'
+        '405':
+          $ref: '#/components/responses/InvalidHTTPMethodResponse'
+        '429':
+          $ref: '#/components/responses/TooManyRequestsResponse'
+
+  /syscollector/{agent_id}/services:
+    get:
+      tags:
+        - Syscollector
+      summary: "Get agent services"
+      description: "Return the agent's services info"
+      operationId: api.controllers.syscollector_controller.get_services_info
+      x-rbac-actions:
+        - $ref: '#/x-rbac-catalog/actions/syscollector:read'
+      parameters:
+        - $ref: '#/components/parameters/agent_id'
+        - $ref: '#/components/parameters/pretty'
+        - $ref: '#/components/parameters/wait_for_complete'
+        - $ref: '#/components/parameters/offset'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/search'
+        - $ref: '#/components/parameters/select'
+        - $ref: '#/components/parameters/query'
+        - $ref: '#/components/parameters/distinct'
+      responses:
+        '200':
+          description: "Return an agent's services results"
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AllItemsResponseSyscollectorService'
+              example:
+                data:
+                  affected_items:
+                    - service:
+                        id: "001"
+                        name: "My Service"
+                        description: "A description of my service"
+                        type: "simple"
+                        state: "running"
+                        sub_state: "active"
+                        enabled: true
+                        start_type: "automatic"
+                        restart: "on-failure"
+                        frequency: "daily"
+                        starts_on_mount: true
+                        starts_on_path_modified: yes
+                        starts_on_not_empty_directory: yes
+                        inetd_compatibility: true
+                        exit_code: 0
+                        win32_exit_code: 0
+                        following: ""
+                        object_path: ""
+                        target_ephemeral_id: 2139129
+                        target_type: ""
+                        target_address: ""
+                        address: ""
+                      process:
+                        pid: 9128392
+                        executable: /usr/bin/my_service
+                        args: ["--config", "/etc/my_service/config.yaml"]
+                        user_name: my_user
+                        group_name: my_group
+                        working_directory: /var/lib/my_service
+                        root_directory: /
+                      file:
+                        path: ""
+                      log_file:
+                        path: "/var/log/my_service.log"
+                      error_log_file:
+                        path: ""
+                      scan:
+                        id: 0
+                        time: "2025-07-16T07:52:59+00:00"
+                      checksum: 077252650e9f983e2f31b271c00e9050f7324756
                       agent_id: "001"
                   total_affected_items: 1
                   total_failed_items: 0
@@ -19120,4 +20068,4 @@ paths:
 
 externalDocs:
   description: "Learn more about the Wazuh API"
-  url: 'https://documentation.wazuh.com/4.11/user-manual/api/index.html'
+  url: 'https://documentation.wazuh.com/4.14/user-manual/api/index.html'

@@ -21,7 +21,7 @@ with patch('wazuh.common.wazuh_uid'):
             get_node_config, get_stats_analysisd_node, get_stats_hourly_node, get_daemon_stats_node,
             get_stats_node, get_stats_remoted_node, get_stats_weekly_node,
             get_status, get_status_node, put_restart, update_configuration, get_nodes_ruleset_sync_status)
-        from wazuh import cluster, common, manager, stats
+        from wazuh import cluster, common, manager, stats, analysis
         from wazuh.tests.util import RBAC_bypasser
 
         wazuh.rbac.decorators.expose_resources = RBAC_bypasser
@@ -570,16 +570,45 @@ async def test_get_api_config(mock_exc, mock_dapi, mock_remove, mock_dfunc, mock
 @patch('api.controllers.cluster_controller.DistributedAPI.distribute_function', return_value=AsyncMock())
 @patch('api.controllers.cluster_controller.remove_nones_to_dict')
 @patch('api.controllers.cluster_controller.DistributedAPI.__init__', return_value=None)
-@patch('api.controllers.cluster_controller.raise_if_exc', return_value=CustomAffectedItems())
-async def test_put_restart(mock_exc, mock_dapi, mock_remove, mock_dfunc, mock_request):
+async def test_put_restart(mock_dapi, mock_remove, mock_dfunc, mock_request):
     """Verify 'put_restart' endpoint is working as expected."""
-    with patch('api.controllers.cluster_controller.get_system_nodes', return_value=AsyncMock()) as mock_snodes:
-        result = await put_restart()
-        f_kwargs = {'node_list': '*'}
+    system_nodes_mock = AsyncMock()
+    system_nodes_mock.return_value = ['master-node', 'worker-node']
+    with patch('api.controllers.cluster_controller.get_system_nodes', return_value=system_nodes_mock), \
+    patch('api.controllers.cluster_controller.raise_if_exc', return_value=system_nodes_mock.return_value), \
+    patch('wazuh.manager.manager_restart'):
+        result = await put_restart(nodes_list='worker-node')
+        f_kwargs = {'node_list': 'worker-node'}
         mock_dapi.assert_called_once_with(f=manager.restart,
                                           f_kwargs=mock_remove.return_value,
                                           request_type='distributed_master',
                                           is_async=False,
+                                          logger=ANY,
+                                          broadcasting=False,
+                                          rbac_permissions=mock_request.context['token_info']['rbac_policies'],
+                                          wait_for_complete=True,
+                                          nodes=system_nodes_mock.return_value
+                                          )
+        mock_remove.assert_called_once_with(f_kwargs)
+        assert isinstance(result, ConnexionResponse)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mock_request", ["cluster_controller"], indirect=True)
+@patch('api.controllers.cluster_controller.DistributedAPI.distribute_function', return_value=AsyncMock())
+@patch('api.controllers.cluster_controller.remove_nones_to_dict')
+@patch('api.controllers.cluster_controller.DistributedAPI.__init__', return_value=None)
+@patch('api.controllers.cluster_controller.raise_if_exc', return_value=CustomAffectedItems())
+async def test_put_reload_analysisd(mock_exc, mock_dapi, mock_remove, mock_dfunc, mock_request):
+    """Verify 'put_reload_analysisd' endpoint is working as expected."""
+    with patch('api.controllers.cluster_controller.get_system_nodes', return_value=AsyncMock()) as mock_snodes:
+        from api.controllers.cluster_controller import put_reload_analysisd
+        result = await put_reload_analysisd()
+        f_kwargs = {'node_list': '*'}
+        mock_dapi.assert_called_once_with(f=analysis.reload_ruleset,
+                                          f_kwargs=mock_remove.return_value,
+                                          request_type='distributed_master',
+                                          is_async=True,
                                           wait_for_complete=False,
                                           logger=ANY,
                                           broadcasting=True,

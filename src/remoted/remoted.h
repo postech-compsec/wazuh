@@ -20,6 +20,7 @@
 #include "../config/global-config.h"
 #include "../os_crypto/md5/md5_op.h"
 #include "sec.h"
+#include "indexed_queue_op.h"
 
 #define FD_LIST_INIT_VALUE 1024
 #define REMOTED_MSG_HEADER "1:" ARGV0 ":"
@@ -97,7 +98,10 @@ void *wait_for_msgs(void *none);
 void *update_shared_files(void *none);
 
 /* Save control messages */
-void save_controlmsg(const keyentry * key, char *msg, size_t msg_length, int *wdb_sock);
+void save_controlmsg(const keyentry * key, char *msg, int *wdb_sock, bool *post_startup, int is_startup, int is_shutdown);
+
+/* Pre process control message and return whether it should be queued for wdb processing */
+int validate_control_msg(const keyentry * key, char *r_msg, size_t msg_length, char **cleaned_msg, int *is_startup, int *is_shutdown);
 
 /* Assign a group to an agent without group */
 cJSON *assign_group_to_agent(const char *agent_id, const char *md5);
@@ -114,6 +118,7 @@ int req_save(const char * counter, const char * buffer, size_t length);
 /* Send message to agent */
 /* Must not call key_lock() before this */
 int send_msg(const char *agent_id, const char *msg, ssize_t msg_length);
+int send_msg_with_key_control(const char* agent_id, const char* msg, ssize_t msg_length, bool skip_key_lock);
 
 int check_keyupdate(void);
 
@@ -189,8 +194,8 @@ size_t rem_getCounter(int fd);
 
 extern keystore keys;
 extern remoted logr;
+extern w_indexed_queue_t *control_msg_queue;
 extern char* node_name;
-extern int timeout;
 extern int pass_empty_keyfile;
 extern int sender_pool;
 extern int rto_sec;
@@ -199,7 +204,6 @@ extern int max_attempts;
 extern int request_pool;
 extern int request_timeout;
 extern int response_timeout;
-extern int INTERVAL;
 extern int disk_storage;
 extern rlim_t nofile;
 extern int guess_agent_group;
@@ -211,6 +215,14 @@ extern int send_timeout_to_retry;
 extern int tcp_keepidle;
 extern int tcp_keepintvl;
 extern int tcp_keepcnt;
+extern int recv_timeout;
+extern int worker_pool;
+extern int merge_shared;
+extern size_t ctrl_msg_queue_size;
+extern int keyupdate_interval;
+extern int router_forwarding_disabled;
+extern int state_interval;
+extern int shared_reload_interval;
 extern size_t global_counter;
 
 #endif /* LOGREMOTE_H */

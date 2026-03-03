@@ -42,8 +42,7 @@ private:
 
             logDebug2(WM_CONTENTUPDATER, "Data to be published: '%s'", message.c_str());
 
-            const auto [offset, hash, status] = context.spUpdaterBaseContext->fileProcessingCallback(
-                message, context.spUpdaterBaseContext->spStopCondition);
+            const auto [offset, hash, status] = context.spUpdaterBaseContext->fileProcessingCallback(message);
 
             // Check if the operation was successful
             if (!status)
@@ -63,7 +62,7 @@ private:
             // Update the offset and hash
             context.currentOffset = offset;
             context.spUpdaterBaseContext->downloadedFileHash = hash;
-            logDebug2(WM_CONTENTUPDATER, "Data published");
+            logDebug2(WM_CONTENTUPDATER, "Data published. Offset: '%d', Hash: '%s'", offset, hash.c_str());
         }
         else
         {

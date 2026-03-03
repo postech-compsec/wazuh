@@ -29,6 +29,15 @@
 #include "packages/berkeleyRpmDbHelper.h"
 #include "packages/packageLinuxDataRetriever.h"
 #include "linuxInfoHelper.h"
+#include "groups_linux.hpp"
+#include "user_groups_linux.hpp"
+#include "logged_in_users_linux.hpp"
+#include "shadow_linux.hpp"
+#include "sudoers_unix.hpp"
+#include "users_linux.hpp"
+#include "systemd_units_linux.hpp"
+#include "chrome.hpp"
+#include "firefox.hpp"
 
 using ProcessInfo = std::unordered_map<int64_t, std::pair<int32_t, std::string>>;
 
@@ -142,7 +151,7 @@ static std::string getSerialNumber()
     std::string serial;
     std::fstream file{WM_SYS_HW_DIR, std::ios_base::in};
 
-    if (file.is_open())
+    if (file.is_open() && std::filesystem::file_size(WM_SYS_HW_DIR) > 0)
     {
         file >> serial;
     }
@@ -437,9 +446,9 @@ ProcessInfo portProcessInfo(const std::string& procPath, const std::deque<int64_
     auto findInode = [](const std::string & filePath) -> int64_t
     {
         constexpr size_t MAX_LENGTH {256};
-        char buffer[MAX_LENGTH];
+        char buffer[MAX_LENGTH] = "";
 
-        if (-1 == readlink(filePath.c_str(), buffer, MAX_LENGTH))
+        if (-1 == readlink(filePath.c_str(), buffer, MAX_LENGTH - 1))
         {
             throw std::system_error(errno, std::system_category(), "readlink");
         }
@@ -601,11 +610,390 @@ void SysInfo::getPackages(std::function<void(nlohmann::json&)> callback) const
         {"PYPI", UNIX_PYPI_DEFAULT_BASE_DIRS},
         {"NPM", UNIX_NPM_DEFAULT_BASE_DIRS}
     };
-    ModernFactoryPackagesCreator<HAS_STDFILESYSTEM>::getPackages(searchPaths, callback);
+
+    std::unordered_set<std::string> excludePaths;
+
+    FactoryPackagesCreator<LINUX_TYPE>::getPythonPackages(excludePaths);
+
+    ModernFactoryPackagesCreator<HAS_STDFILESYSTEM>::getPackages(searchPaths, callback, excludePaths);
 }
 
 nlohmann::json SysInfo::getHotfixes() const
 {
     // Currently not supported for this OS.
     return nlohmann::json();
+}
+
+nlohmann::json SysInfo::getGroups() const
+{
+    nlohmann::json result;
+    GroupsProvider groupsProvider;
+    UserGroupsProvider userGroupsProvider;
+
+    auto collectedGroups = groupsProvider.collect({});
+
+    for (auto& group : collectedGroups)
+    {
+        nlohmann::json groupItem {};
+
+        groupItem["group_id"] = group["gid"];
+        groupItem["group_name"] = (group.contains("groupname") && !group["groupname"].get<std::string>().empty()) ? group["groupname"] : UNKNOWN_VALUE;
+        groupItem["group_description"] = UNKNOWN_VALUE;
+        groupItem["group_id_signed"] = group["gid_signed"];
+        groupItem["group_uuid"] = UNKNOWN_VALUE;
+        groupItem["group_is_hidden"] = 0;
+
+        std::set<gid_t> gids {static_cast<gid_t>(group["gid"].get<int>())};
+        auto collectedUsersGroups = userGroupsProvider.getUserNamesByGid(gids);
+
+        if (collectedUsersGroups.empty())
+        {
+            groupItem["group_users"] = UNKNOWN_VALUE;
+        }
+        else
+        {
+            std::string usersConcatenated;
+
+            for (const auto& user : collectedUsersGroups)
+            {
+                if (!usersConcatenated.empty())
+                {
+                    usersConcatenated += secondaryArraySeparator;
+                }
+
+                usersConcatenated += user.get<std::string>();
+            }
+
+            groupItem["group_users"] = usersConcatenated;
+        }
+
+        result.push_back(std::move(groupItem));
+
+    }
+
+    return result;
+}
+
+nlohmann::json SysInfo::getUsers() const
+{
+    nlohmann::json result;
+
+    UsersProvider usersProvider;
+    auto collectedUsers = usersProvider.collect();
+
+    LoggedInUsersProvider loggedInUserProvider;
+    auto collectedLoggedInUser = loggedInUserProvider.collect();
+
+    ShadowProvider shadowProvide;
+    auto collectedShadow = shadowProvide.collect();
+
+    UserGroupsProvider userGroupsProvider;
+
+    for (auto& user : collectedUsers)
+    {
+        nlohmann::json userItem {};
+
+        std::string username = (user.contains("username") && !user["username"].get<std::string>().empty()) ? user["username"] : UNKNOWN_VALUE;
+
+        userItem["user_id"] = user["uid"];
+        userItem["user_full_name"] = user["description"];
+        userItem["user_home"] = user["directory"];
+        userItem["user_is_remote"] = user["include_remote"];
+        userItem["user_name"] = username;
+        userItem["user_shell"] = user["shell"];
+        userItem["user_uid_signed"] = user["uid_signed"];
+        userItem["user_group_id_signed"] = user["gid_signed"];
+        userItem["user_group_id"] = user["gid"];
+
+        std::set<uid_t> uid {static_cast<uid_t>(user["uid"].get<int>())};
+        auto collectedUsersGroups = userGroupsProvider.getGroupNamesByUid(uid);
+
+        if (collectedUsersGroups.empty())
+        {
+            userItem["user_groups"] = UNKNOWN_VALUE;
+        }
+        else
+        {
+            std::string accumGroups;
+
+            for (const auto& group : collectedUsersGroups)
+            {
+                if (!accumGroups.empty())
+                {
+                    accumGroups += secondaryArraySeparator;
+                }
+
+                accumGroups += group.get<std::string>();
+            }
+
+            userItem["user_groups"] = accumGroups;
+        }
+
+        // Only in windows
+        userItem["user_type"] = UNKNOWN_VALUE;
+
+        // Macos or windows
+        userItem["user_uuid"] = UNKNOWN_VALUE;
+
+        // Macos
+        userItem["user_is_hidden"] = 0;
+        userItem["user_created"] = 0;
+        userItem["user_auth_failed_count"] = 0;
+        userItem["user_auth_failed_timestamp"] = 0;
+
+        auto matched = false;
+        auto lastLogin = 0;
+
+        userItem["host_ip"] = UNKNOWN_VALUE;
+
+        //TODO: Avoid this iteration, move logic to LoggedInUsersProvider
+        for (auto& item : collectedLoggedInUser)
+        {
+            // By default, user is not logged in.
+            userItem["login_status"] = 0;
+
+            // tty,host,time and pid can take more than one value due to different logins.
+            if (item["user"] == username)
+            {
+                matched = true;
+                userItem["login_status"] = 1;
+
+                auto newDate = item["time"].get<int32_t>();
+
+                if (newDate > lastLogin)
+                {
+                    lastLogin = newDate;
+                    userItem["user_last_login"] = newDate;
+                    userItem["login_tty"] = item["tty"].get<std::string>();
+                    userItem["login_type"] = item["type"].get<std::string>();
+                    userItem["process_pid"] = item["pid"].get<int32_t>();
+                }
+
+                const auto& hostStr = item["host"].get_ref<const std::string&>();
+
+                if (!hostStr.empty())
+                {
+                    userItem["host_ip"] = userItem["host_ip"].get<std::string>() == UNKNOWN_VALUE
+                                          ? hostStr
+                                          : (userItem["host_ip"].get<std::string>() + primaryArraySeparator + hostStr);
+                }
+            }
+        }
+
+        if (!matched)
+        {
+            userItem["login_status"] = 0;
+            userItem["login_tty"] = UNKNOWN_VALUE;
+            userItem["login_type"] = UNKNOWN_VALUE;
+            userItem["process_pid"] = 0;
+            userItem["user_last_login"] = 0;
+        }
+
+        matched = false;
+
+        for (auto& singleShadow : collectedShadow)
+        {
+            // If matches user_name, fill the rest of the fields
+            if (singleShadow["username"] == username)
+            {
+                matched = true;
+                userItem["user_password_expiration_date"] = singleShadow["expire"];
+                userItem["user_password_hash_algorithm"] = singleShadow["hash_alg"];
+                userItem["user_password_inactive_days"] = singleShadow["inactive"];
+                userItem["user_password_last_change"] = singleShadow["last_change"];
+                userItem["user_password_max_days_between_changes"] = singleShadow["max"];
+                userItem["user_password_min_days_between_changes"] = singleShadow["min"];
+                userItem["user_password_status"] = singleShadow["password_status"];
+                userItem["user_password_warning_days_before_expiration"] = singleShadow["warning"];
+            }
+        }
+
+        if (!matched)
+        {
+            userItem["user_password_expiration_date"] = 0;
+            userItem["user_password_hash_algorithm"] = UNKNOWN_VALUE;
+            userItem["user_password_inactive_days"] = 0;
+            userItem["user_password_last_change"] = 0;
+            userItem["user_password_max_days_between_changes"] = 0;
+            userItem["user_password_min_days_between_changes"] = 0;
+            userItem["user_password_status"] = UNKNOWN_VALUE;
+            userItem["user_password_warning_days_before_expiration"] = 0;
+        }
+
+
+        SudoersProvider sudoersProvider;
+        auto collectedSudoers = sudoersProvider.collect();
+
+        // By default, user is not sudoer.
+        userItem["user_roles"] = UNKNOWN_VALUE;
+
+        for (auto& singleSudoer : collectedSudoers)
+        {
+            // Searching in content of header
+            auto header = singleSudoer["header"].get<std::string>();
+
+            if (header.find(username) != std::string::npos)
+            {
+                //TODO: user_roles_sudo_sudo_rule_details has more detailed information.
+                userItem["user_roles"] = "sudo";
+
+            }
+        }
+
+        result.push_back(std::move(userItem));
+    }
+
+    return result;
+}
+
+nlohmann::json SysInfo::getServices() const
+{
+    nlohmann::json result = nlohmann::json::array();
+
+    SystemdUnitsProvider servicesProvider;
+    auto collectedServices = servicesProvider.collect();
+
+    for (auto& svc : collectedServices)
+    {
+        nlohmann::json serviceItem{};
+
+        // ECS mapping based on the provided table
+        serviceItem["service_id"]                            = (svc.contains("id") && !svc["id"].get<std::string>().empty()) ? svc["id"] : UNKNOWN_VALUE;
+        serviceItem["service_name"]                          = serviceItem["service_id"];
+        serviceItem["service_description"]                   = svc.value("description",       UNKNOWN_VALUE);
+        serviceItem["service_type"]                          = UNKNOWN_VALUE;
+        serviceItem["service_state"]                         = svc.value("active_state",      UNKNOWN_VALUE);
+        serviceItem["service_sub_state"]                     = svc.value("sub_state",         UNKNOWN_VALUE);
+        serviceItem["service_enabled"]                       = svc.value("unit_file_state",   UNKNOWN_VALUE);
+        serviceItem["service_start_type"]                    = UNKNOWN_VALUE;
+        serviceItem["service_restart"]                       = UNKNOWN_VALUE;
+        serviceItem["service_frequency"]                     = 0;
+        serviceItem["service_starts_on_mount"]               = 0;
+        serviceItem["service_starts_on_path_modified"]       = UNKNOWN_VALUE;
+        serviceItem["service_starts_on_not_empty_directory"] = UNKNOWN_VALUE;
+        serviceItem["service_inetd_compatibility"]           = 0;
+        serviceItem["process_pid"]                           = 0;
+        serviceItem["process_executable"]                    = svc.value("fragment_path",     UNKNOWN_VALUE);
+        serviceItem["process_args"]                          = UNKNOWN_VALUE;
+        serviceItem["process_user_name"]                     = svc.value("user",              UNKNOWN_VALUE);
+        serviceItem["process_group_name"]                    = UNKNOWN_VALUE;
+        serviceItem["process_working_directory"]             = UNKNOWN_VALUE;
+        serviceItem["process_root_directory"]                = UNKNOWN_VALUE;
+        serviceItem["file_path"]                             = (svc.contains("source_path") && !svc["source_path"].get<std::string>().empty()) ? svc["source_path"] : UNKNOWN_VALUE;
+        serviceItem["service_address"]                       = UNKNOWN_VALUE;
+        serviceItem["log_file_path"]                         = UNKNOWN_VALUE;
+        serviceItem["error_log_file_path"]                   = UNKNOWN_VALUE;
+        serviceItem["service_exit_code"]                     = 0;
+        serviceItem["service_win32_exit_code"]               = 0;
+        serviceItem["service_following"]                     = svc.value("following",         UNKNOWN_VALUE);
+        serviceItem["service_object_path"]                   = svc.value("object_path",       UNKNOWN_VALUE);
+        serviceItem["service_target_ephemeral_id"]           = svc.value("job_id",        0);
+        serviceItem["service_target_type"]                   = svc.value("job_type",          UNKNOWN_VALUE);
+        serviceItem["service_target_address"]                = svc.value("job_path",          UNKNOWN_VALUE);
+
+        result.push_back(std::move(serviceItem));
+    }
+
+    return result;
+}
+
+nlohmann::json SysInfo::getBrowserExtensions() const
+{
+    nlohmann::json result = nlohmann::json::array();
+
+    try
+    {
+        // Collect Chrome extensions
+        chrome::ChromeExtensionsProvider chromeProvider;
+        auto collectedChromeExtensions = chromeProvider.collect();
+
+        for (auto& ext : collectedChromeExtensions)
+        {
+            nlohmann::json extensionItem{};
+
+            // Convert string fields to int
+            auto stringToInt = [&ext](const std::string & fieldName) -> int
+            {
+                if (ext.contains(fieldName))
+                {
+                    try
+                    {
+                        auto valueStr = ext[fieldName].get<std::string>();
+                        return valueStr.empty() ? 0 : std::stoi(valueStr);
+                    }
+                    catch (const std::exception&)
+                    {
+                        return 0;
+                    }
+                }
+
+                return 0;
+            };
+
+            extensionItem["browser_name"]              = (ext.contains("browser_type") && !ext["browser_type"].get<std::string>().empty()) ? ext["browser_type"] : UNKNOWN_VALUE;
+            extensionItem["user_id"]                   = (ext.contains("uid") && !ext["uid"].get<std::string>().empty()) ? ext["uid"] : UNKNOWN_VALUE;
+            extensionItem["package_name"]              = (ext.contains("name") && !ext["name"].get<std::string>().empty()) ? ext["name"] : UNKNOWN_VALUE;
+            extensionItem["package_id"]                = ext.value("identifier",          UNKNOWN_VALUE);
+            extensionItem["package_version"]           = (ext.contains("version") && !ext["version"].get<std::string>().empty()) ? ext["version"] : UNKNOWN_VALUE;
+            extensionItem["package_description"]       = ext.value("description",         UNKNOWN_VALUE);
+            extensionItem["package_vendor"]            = ext.value("author",              UNKNOWN_VALUE);
+            extensionItem["package_build_version"]     = UNKNOWN_VALUE;
+            extensionItem["package_path"]              = ext.value("path",                UNKNOWN_VALUE);
+            extensionItem["browser_profile_name"]      = (ext.contains("profile") && !ext["profile"].get<std::string>().empty()) ? ext["profile"] : UNKNOWN_VALUE;
+            extensionItem["browser_profile_path"]      = (ext.contains("profile_path") && !ext["profile_path"].get<std::string>().empty()) ? ext["profile_path"] : UNKNOWN_VALUE;
+            extensionItem["package_reference"]         = ext.value("update_url",          UNKNOWN_VALUE);
+            extensionItem["package_permissions"]       = ext.value("permissions",         UNKNOWN_VALUE);
+            extensionItem["package_type"]              = UNKNOWN_VALUE;
+            extensionItem["package_enabled"]            = (ext.value("state", std::string("1")) == "1") ? 1 : 0;
+            extensionItem["package_visible"]           = 0;
+            extensionItem["package_autoupdate"]        = 0;
+            extensionItem["package_persistent"]        = stringToInt("persistent");
+            extensionItem["package_from_webstore"]     = stringToInt("from_webstore");
+            extensionItem["browser_profile_referenced"] = stringToInt("referenced");
+            extensionItem["package_installed"]         = ext.value("install_timestamp",  UNKNOWN_VALUE);
+            extensionItem["file_hash_sha256"]          = ext.value("manifest_hash",      UNKNOWN_VALUE);
+
+            result.push_back(std::move(extensionItem));
+        }
+
+        // Collect Firefox extensions
+        FirefoxAddonsProvider firefoxProvider;
+        auto collectedFirefoxExtensions = firefoxProvider.collect();
+
+        for (auto& ext : collectedFirefoxExtensions)
+        {
+            nlohmann::json extensionItem{};
+
+            extensionItem["browser_name"]              = "firefox";
+            extensionItem["user_id"]                   = (ext.contains("uid") && !ext["uid"].get<std::string>().empty()) ? ext["uid"] : UNKNOWN_VALUE;
+            extensionItem["package_name"]              = (ext.contains("name") && !ext["name"].get<std::string>().empty()) ? ext["name"] : UNKNOWN_VALUE;
+            extensionItem["package_id"]                = ext.value("identifier",          UNKNOWN_VALUE);
+            extensionItem["package_version"]           = (ext.contains("version") && !ext["version"].get<std::string>().empty()) ? ext["version"] : UNKNOWN_VALUE;
+            extensionItem["package_description"]       = ext.value("description",         UNKNOWN_VALUE);
+            extensionItem["package_vendor"]            = ext.value("creator",             UNKNOWN_VALUE);
+            extensionItem["package_build_version"]     = UNKNOWN_VALUE;
+            extensionItem["package_path"]              = ext.value("path",                UNKNOWN_VALUE);
+            extensionItem["browser_profile_name"]      = UNKNOWN_VALUE;
+            extensionItem["browser_profile_path"]      = (ext.contains("location") && !ext["location"].get<std::string>().empty()) ? ext["location"] : UNKNOWN_VALUE;
+            extensionItem["package_reference"]         = ext.value("source_url",          UNKNOWN_VALUE);
+            extensionItem["package_permissions"]       = UNKNOWN_VALUE;
+            extensionItem["package_type"]              = ext.value("type",                UNKNOWN_VALUE);
+            extensionItem["package_enabled"] = ext["disabled"].get<bool>() ? 0 : 1;
+            extensionItem["package_visible"] = ext["visible"].get<bool>() ? 1 : 0;
+            extensionItem["package_autoupdate"]        = (ext.contains("autoupdate") && ext["autoupdate"].get<bool>()) ? 1 : 0;
+            extensionItem["package_persistent"]        = 0;
+            extensionItem["package_from_webstore"]     = 0;
+            extensionItem["browser_profile_referenced"] = 0;
+            extensionItem["package_installed"]         = UNKNOWN_VALUE;
+            extensionItem["file_hash_sha256"]          = UNKNOWN_VALUE;
+
+            result.push_back(std::move(extensionItem));
+        }
+    }
+    catch (const std::exception& e)
+    {
+        // Log error but don't fail completely
+    }
+
+    return result;
 }

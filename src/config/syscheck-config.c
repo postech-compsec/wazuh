@@ -92,6 +92,7 @@ int initialize_syscheck_configuration(syscheck_config *syscheck) {
     syscheck->enable_synchronization          = 1;
     syscheck->restart_audit                   = 1;
     syscheck->enable_whodata                  = 0;
+    syscheck->whodata_provider                = AUDIT_PROVIDER;
     syscheck->realtime                        = NULL;
     syscheck->audit_healthcheck               = 1;
     syscheck->process_priority                = 10;
@@ -1632,9 +1633,7 @@ int Read_Syscheck(const OS_XML *xml, XML_NODE node, void *configp, __attribute__
     const char *xml_file_limit = "file_limit";
     const char *xml_enabled = "enabled";
     const char *xml_entries = "entries";
-#ifdef WIN32
     const char *xml_registry_limit = "registry_limit";
-#endif
     const char *xml_ignore = "ignore";
     const char *xml_registry_ignore = "registry_ignore";
 #ifdef WIN32
@@ -1664,6 +1663,7 @@ int Read_Syscheck(const OS_XML *xml, XML_NODE node, void *configp, __attribute__
 #endif
     const char *xml_whodata_options = "whodata";
     const char *xml_audit_key = "audit_key";
+    const char *xml_provider = "provider";
     const char *xml_audit_hc = "startup_healthcheck";
     const char *xml_process_priority = "process_priority";
     const char *xml_synchronization = "synchronization";
@@ -1701,6 +1701,10 @@ int Read_Syscheck(const OS_XML *xml, XML_NODE node, void *configp, __attribute__
         else if (strcmp(node[i]->element, xml_directories) == 0) {
             char dirs[OS_MAXSTR];
 #ifdef WIN32
+            if (is_network_path(node[i]->content)) {
+                mwarn(NETWORK_PATH_CONFIGURED, node[i]->element, node[i]->content);
+                continue;
+            }
             fim_adjust_path(&(node[i]->content));
 #endif
             strncpy(dirs, node[i]->content, sizeof(dirs) - 1);
@@ -1813,7 +1817,6 @@ int Read_Syscheck(const OS_XML *xml, XML_NODE node, void *configp, __attribute__
             OS_ClearNode(children);
         }
 
-#ifdef WIN32
         // Get registry limit
         else if (strcmp(node[i]->element, xml_registry_limit) == 0) {
             if (!(children = OS_GetElementsbyNode(xml, node[i]))) {
@@ -1822,10 +1825,14 @@ int Read_Syscheck(const OS_XML *xml, XML_NODE node, void *configp, __attribute__
             for(j = 0; children[j]; j++) {
                 if (strcmp(children[j]->element, xml_enabled) == 0) {
                     if (strcmp(children[j]->content, "yes") == 0) {
+#ifdef WIN32
                         syscheck->registry_limit_enabled = true;
+#endif
                     }
                     else if (strcmp(children[j]->content, "no") == 0) {
+#ifdef WIN32
                         syscheck->registry_limit_enabled = false;
+#endif
                     }
                     else {
                         mwarn(XML_VALUEERR, children[j]->element, children[j]->content);
@@ -1839,23 +1846,23 @@ int Read_Syscheck(const OS_XML *xml, XML_NODE node, void *configp, __attribute__
                         OS_ClearNode(children);
                         return (OS_INVALID);
                     }
-
+#ifdef WIN32
                     syscheck->db_entry_registry_limit = atoi(children[j]->content);
 
                     if (syscheck->db_entry_registry_limit < 0) {
                         mdebug2("Maximum value allowed for registry_limit is '%d'", MAX_FILE_LIMIT);
                         syscheck->db_entry_registry_limit = MAX_FILE_LIMIT;
                     }
+#endif
                 }
             }
-
+#ifdef WIN32
             if (!syscheck->registry_limit_enabled) {
                 syscheck->db_entry_registry_limit = 0;
             }
-
+#endif
             OS_ClearNode(children);
         }
-#endif
 
         /* Get if xml_scan_on_start */
         else if (strcmp(node[i]->element, xml_scan_on_start) == 0) {
@@ -2049,7 +2056,7 @@ int Read_Syscheck(const OS_XML *xml, XML_NODE node, void *configp, __attribute__
                 if (NULL != (ix = strchr(statcmd, ' '))) {
                     *ix = '\0';
                 }
-                if (stat(statcmd, &statbuf) != 0) {
+                if (w_stat(statcmd, &statbuf) != 0) {
                     mwarn(XML_VALUEERR, node[i]->element, node[i]->content);
                     return (OS_INVALID);
                 }
@@ -2109,6 +2116,17 @@ int Read_Syscheck(const OS_XML *xml, XML_NODE node, void *configp, __attribute__
                         syscheck->restart_audit = 1;
                     else if(strcmp(children[j]->content, "no") == 0)
                         syscheck->restart_audit = 0;
+                    else
+                    {
+                        mwarn(XML_VALUEERR,children[j]->element,children[j]->content);
+                        OS_ClearNode(children);
+                        return(OS_INVALID);
+                    }
+                } else if (strcmp(children[j]->element, xml_provider) == 0) {
+                    if(strcmp(children[j]->content, "ebpf") == 0)
+                        syscheck->whodata_provider = EBPF_PROVIDER;
+                    else if(strcmp(children[j]->content, "audit") == 0)
+                        syscheck->whodata_provider = AUDIT_PROVIDER;
                     else
                     {
                         mwarn(XML_VALUEERR,children[j]->element,children[j]->content);
@@ -2268,6 +2286,7 @@ char *syscheck_opts2str(char *buf, int buflen, int opts) {
         REALTIME_ACTIVE,
         WHODATA_ACTIVE,
         SCHEDULED_ACTIVE,
+        CHECK_TYPE,
 	    0
 	};
     char *check_strings[] = {
@@ -2286,6 +2305,7 @@ char *syscheck_opts2str(char *buf, int buflen, int opts) {
         "realtime",
         "whodata",
         "scheduled",
+        "reg_value_type",
 	    NULL
 	};
 

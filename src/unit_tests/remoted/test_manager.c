@@ -12,6 +12,7 @@
 #include <setjmp.h>
 #include <cmocka.h>
 #include <stdio.h>
+#include <sys/stat.h>
 
 #include "../wrappers/common.h"
 #include "../wrappers/wazuh/os_crypto/sha256_op_wrappers.h"
@@ -109,6 +110,13 @@ static int teardown_test_mode(void ** state) {
 int __wrap_send_msg(const char *agent_id, const char *msg, ssize_t msg_length) {
     check_expected(agent_id);
     check_expected(msg);
+    return 0;
+}
+
+int __wrap_send_msg_with_key_control(const char *agent_id, const char *msg, ssize_t msg_length, bool skip_key_lock) {
+    check_expected(agent_id);
+    check_expected(msg);
+    check_expected(skip_key_lock);
     return 0;
 }
 
@@ -282,6 +290,8 @@ static int test_process_group_setup(void ** state) {
 
     state[0] = group->f_time;
     state[1] = group;
+
+    merge_shared = 1;
 
     return 0;
 }
@@ -1786,6 +1796,7 @@ void test_c_multi_group_call_copy_directory(void **state)
 
     expect_string(__wrap_wreaddir, name, "etc/shared/multi_group_test");
     will_return(__wrap_wreaddir, NULL);
+    will_return(__wrap_closedir, 0);
 
     expect_string(__wrap__mwarn, formatted_msg, "Could not open directory 'etc/shared/multi_group_test'. Group folder was deleted.");
 
@@ -1820,6 +1831,7 @@ void test_c_multi_group_read_dir_fail_no_entry(void **state)
 
     // Open the multi-group files and generate merged //
     will_return(__wrap_opendir, 0);
+    will_return(__wrap_closedir, 0);
     will_return(__wrap_strerror, "Not a directory");
     expect_string(__wrap__mdebug2, formatted_msg, "Opening directory: 'var/multigroups': Not a directory");
 
@@ -1895,6 +1907,7 @@ void test_c_multi_group_Ignore_hidden_files(void **state)
 
     // Open the multi-group files and generate merged //
     will_return(__wrap_opendir, 0);
+    will_return(__wrap_closedir, 0);
     will_return(__wrap_strerror, "No such file or directory");
     expect_string(__wrap__mdebug2, formatted_msg, "Opening directory: 'var/multigroups': No such file or directory");
 
@@ -1931,6 +1944,7 @@ void test_c_multi_group_subdir_fail(void **state)
     // End copy_directory function
 
     will_return(__wrap_opendir, 0);
+    will_return(__wrap_closedir, 0);
     will_return(__wrap_strerror, "ERROR");
     expect_string(__wrap__mdebug2, formatted_msg, "Opening directory: 'var/multigroups': ERROR");
 
@@ -1958,6 +1972,7 @@ void test_c_multi_group_call_c_group(void **state)
 
     // Open the multi-group files and generate merged //
     will_return(__wrap_opendir, 1);
+    will_return(__wrap_closedir, 0);
 
     // Start copy_directory function
     expect_string(__wrap_wreaddir, name, "etc/shared/multi_group_test");
@@ -1969,6 +1984,7 @@ void test_c_multi_group_call_c_group(void **state)
     // End copy_directory function
 
     will_return(__wrap_opendir, 1);
+    will_return(__wrap_closedir, 0);
 
     // Start c_group function
     expect_function_call(__wrap_OSHash_Create);
@@ -2587,8 +2603,8 @@ void test_process_groups_open_directory_fail(void **state)
 void test_process_groups_readdir_fail(void **state)
 {
     will_return(__wrap_opendir, 1);
-
     will_return(__wrap_readdir, NULL);
+    will_return(__wrap_closedir, 0);
 
     process_groups();
 }
@@ -2609,6 +2625,7 @@ void test_process_groups_subdir_null(void **state)
     expect_string(__wrap__mdebug1, formatted_msg, "Could not open directory 'etc/shared/test'");
 
     will_return(__wrap_readdir, NULL);
+    will_return(__wrap_closedir, 0);
 
     process_groups();
 
@@ -2622,10 +2639,9 @@ void test_process_groups_skip(void **state)
     strcpy(entry->d_name, ".");
 
     will_return(__wrap_opendir, 1);
-
     will_return(__wrap_readdir, entry);
-
     will_return(__wrap_readdir, NULL);
+    will_return(__wrap_closedir, 0);
 
     process_groups();
 
@@ -2639,10 +2655,9 @@ void test_process_groups_skip_2(void **state)
     strcpy(entry->d_name, "..");
 
     will_return(__wrap_opendir, 1);
-
     will_return(__wrap_readdir, entry);
-
     will_return(__wrap_readdir, NULL);
+    will_return(__wrap_closedir, 0);
 
     process_groups();
 
@@ -2729,6 +2744,7 @@ void test_process_groups_find_group_null(void **state)
     // End c_group function
 
     will_return(__wrap_readdir, NULL);
+    will_return(__wrap_closedir, 0);
 
     process_groups();
 
@@ -2845,6 +2861,7 @@ void test_process_groups_find_group_changed(void **state)
     will_return(__wrap_OSHash_Clean, NULL);
 
     will_return(__wrap_readdir, NULL);
+    will_return(__wrap_closedir, 0);
 
     process_groups();
 
@@ -2923,6 +2940,7 @@ void test_process_groups_find_group_not_changed(void **state)
     will_return(__wrap_OSHash_Clean, NULL);
 
     will_return(__wrap_readdir, NULL);
+    will_return(__wrap_closedir, 0);
 
     process_groups();
 
@@ -3339,13 +3357,13 @@ void test_process_multi_groups_changed_outside_nocmerged(void **state)
     expect_string(__wrap__mdebug2, formatted_msg, "Opening directory: 'var/multigroups': No such file or directory");
 
     expect_string(__wrap__mdebug2, formatted_msg, "Multigroup 'group1,group2' was modified from outside.");
-    logr.nocmerged = 1;
+    merge_shared = 0;
     expect_value(__wrap_OSHash_Next, self, m_hash);
     will_return(__wrap_OSHash_Next, NULL);
 
     process_multi_groups();
 
-    logr.nocmerged = 0;
+    merge_shared = 1;
 
     os_free(hash_node->key);
     os_free(hash_node);
@@ -4418,6 +4436,7 @@ void test_copy_directory_valid_file_subfolder_file(void **state)
     will_return(__wrap_wreaddir, files2);
 
     will_return(__wrap_opendir, 0);
+    will_return(__wrap_closedir, 0);
 
     expect_function_call(__wrap_OSHash_Create);
     will_return(__wrap_OSHash_Create, 10);
@@ -4448,6 +4467,7 @@ void test_copy_directory_mkdir_fail(void **state)
     will_return(__wrap_wreaddir, files);
 
     will_return(__wrap_opendir, 1);
+    will_return(__wrap_closedir, 0);
 
     expect_string(__wrap__mdebug2, formatted_msg, "Making new directory: subfolder");
 
@@ -4485,6 +4505,7 @@ void test_copy_directory_mkdir_exist(void **state)
     errno = 17;
     expect_string(__wrap_wreaddir, name, "src_path/subfolder");
     will_return(__wrap_wreaddir, NULL);
+    will_return(__wrap_closedir, 0);
 
     expect_string(__wrap__mwarn, formatted_msg, "Could not open directory 'src_path/subfolder'. Group folder was deleted.");
 
@@ -4522,6 +4543,7 @@ void test_copy_directory_file_subfolder_file(void **state)
     will_return(__wrap_w_copy_file, 0);
 
     will_return(__wrap_opendir, 1);
+    will_return(__wrap_closedir, 0);
 
     expect_string(__wrap__mdebug2, formatted_msg, "Making new directory: subfolder");
 
@@ -4569,77 +4591,319 @@ void test_copy_directory_file_subfolder_file(void **state)
     copy_directory("src_path", "dst_path", "group_test");
 }
 
-void test_save_controlmsg_request_error(void **state)
+
+/* Tests validate_control_msg */
+
+void test_validate_control_msg_hc_request_success(void** state)
 {
-    keyentry * key =  NULL;
-    char *r_msg = "req ";
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
-
-    expect_string(__wrap__merror, formatted_msg, "Request control format error.");
-    expect_string(__wrap__mdebug2, formatted_msg, "r_msg = \"req \"");
-
-    save_controlmsg(key, r_msg, msg_length, wdb_sock);
-}
-
-void test_save_controlmsg_request_success(void **state)
-{
-    char r_msg[OS_SIZE_128] = {0};
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
-
-    strcpy(r_msg, "req payload is here");
-
     keyentry key;
-    keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
+    char* r_msg = strdup("req 5 test_payload");
+    size_t msg_length = strlen(r_msg);
+    char* cleaned_msg = NULL;
+    int is_startup = 99, is_shutdown = 99;
 
-    expect_string(__wrap_req_save, counter, "payload");
-    expect_string(__wrap_req_save, buffer, "is here");
-    expect_value(__wrap_req_save, length, OS_SIZE_128 - strlen(HC_REQUEST) - strlen("payload "));
+    keyentry_init(&key, "agent1", "001", "192.168.1.1", "test_key");
+
+    expect_string(__wrap_req_save, counter, "5");
+    expect_string(__wrap_req_save, buffer, "test_payload");
+    expect_value(__wrap_req_save, length, 12);
     will_return(__wrap_req_save, 0);
 
     expect_string(__wrap_rem_inc_recv_ctrl_request, agent_id, "001");
 
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+    int result = validate_control_msg(&key, r_msg, msg_length, &cleaned_msg, &is_startup, &is_shutdown);
 
+    assert_int_equal(result, 0); // Should not be queued
+    assert_int_equal(is_startup, 0);
+    assert_int_equal(is_shutdown, 0);
+    assert_null(cleaned_msg);
+
+    os_free(r_msg);
     free_keyentry(&key);
 }
 
-void test_save_controlmsg_invalid_msg(void **state)
+void test_validate_control_msg_hc_request_error(void** state)
 {
-    char r_msg[OS_SIZE_128] = {0};
-    strcpy(r_msg, "Invalid message");
-
     keyentry key;
-    keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
+    char* r_msg = strdup("req ");
+    size_t msg_length = strlen(r_msg);
+    char* cleaned_msg = NULL;
+    int is_startup = 0, is_shutdown = 0;
 
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
+    keyentry_init(&key, "agent1", "001", "192.168.1.1", "test_key");
 
-    expect_string(__wrap__mwarn, formatted_msg, "Invalid message from agent: 'NEW_AGENT' (001)");
+    expect_string(__wrap__merror, formatted_msg, "Request control format error.");
+    expect_string(__wrap__mdebug2, formatted_msg, "r_msg = \"req \"");
 
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+    int result = validate_control_msg(&key, r_msg, msg_length, &cleaned_msg, &is_startup, &is_shutdown);
 
+    assert_int_equal(result, -1); // Error
+    assert_int_equal(is_startup, 0);
+    assert_int_equal(is_shutdown, 0);
+    assert_null(cleaned_msg);
+
+    free_keyentry(&key);
+    os_free(r_msg);
+}
+
+void test_validate_control_msg_shutdown_success(void** state)
+{
+    keyentry key;
+    char* r_msg = strdup(HC_SHUTDOWN);
+    size_t msg_length = strlen(r_msg);
+    char* cleaned_msg = NULL;
+    int is_startup = 99, is_shutdown = 99;
+
+    keyentry_init(&key, "agent1", "001", "192.168.1.1", "test_key");
+    key.peer_info.ss_family = AF_INET;
+    ((struct sockaddr_in*)&key.peer_info)->sin_addr.s_addr = inet_addr("192.168.1.1");
+
+    expect_any(__wrap_get_ipv4_string, address_size);
+    will_return(__wrap_get_ipv4_string, OS_SUCCESS);
+    will_return(__wrap_get_ipv4_string, "192.168.1.1");
+
+    expect_string(__wrap__mdebug1, formatted_msg, "Agent agent1 sent HC_SHUTDOWN from '192.168.1.1'");
+    expect_string(__wrap_rem_inc_recv_ctrl_shutdown, agent_id, "001");
+
+    // Mock OSHash for agent_data_hash deletion
+    will_return(__wrap_OSHash_Delete_ex, NULL);
+    expect_string(__wrap_OSHash_Delete_ex, key, "001");
+    expect_value(__wrap_OSHash_Delete_ex, self, agent_data_hash);
+
+    // Now expect SendMSG calls in validate_control_msg
+    expect_string(__wrap_SendMSG, message, "1:wazuh-remoted:ossec: Agent stopped: 'agent1->192.168.1.1'.");
+    expect_string(__wrap_SendMSG, locmsg, "[001] (agent1) 192.168.1.1");
+    expect_any(__wrap_SendMSG, loc);
+    will_return(__wrap_SendMSG, -1);
+
+    will_return(__wrap_strerror, "fail");
+    expect_string(__wrap__merror, formatted_msg, "(1210): Queue 'queue/sockets/queue' not accessible: 'fail'");
+
+    expect_string(__wrap_StartMQ, path, DEFAULTQUEUE);
+    expect_value(__wrap_StartMQ, type, WRITE);
+    will_return(__wrap_StartMQ, -1);
+
+    expect_string(__wrap__minfo, formatted_msg, "Successfully reconnected to 'queue/sockets/queue'");
+
+    expect_string(__wrap_SendMSG, message, "1:wazuh-remoted:ossec: Agent stopped: 'agent1->192.168.1.1'.");
+    expect_string(__wrap_SendMSG, locmsg, "[001] (agent1) 192.168.1.1");
+    expect_any(__wrap_SendMSG, loc);
+    will_return(__wrap_SendMSG, -1);
+
+    will_return(__wrap_strerror, "fail");
+    expect_string(__wrap__merror, formatted_msg, "(1210): Queue 'queue/sockets/queue' not accessible: 'fail'");
+
+    int result = validate_control_msg(&key, r_msg, msg_length, &cleaned_msg, &is_startup, &is_shutdown);
+
+    assert_int_equal(result, 1); // Should be queued
+    assert_int_equal(is_startup, 0);
+    assert_int_equal(is_shutdown, 1);
+    assert_non_null(cleaned_msg);
+
+    os_free(cleaned_msg);
+    free_keyentry(&key);
+    free(r_msg);
+}
+
+void test_validate_control_msg_startup_success(void** state)
+{
+    keyentry key;
+    char* r_msg = strdup("agent startup {\"version\":\"v4.6.0\"}");
+    size_t msg_length = strlen(r_msg);
+    char* cleaned_msg = NULL;
+    int is_startup = 99, is_shutdown = 99;
+
+    keyentry_init(&key, "agent1", "001", "192.168.1.1", "test_key");
+    key.peer_info.ss_family = AF_INET;
+    ((struct sockaddr_in*)&key.peer_info)->sin_addr.s_addr = inet_addr("192.168.1.1");
+
+    expect_any(__wrap_get_ipv4_string, address_size);
+    will_return(__wrap_get_ipv4_string, OS_SUCCESS);
+    will_return(__wrap_get_ipv4_string, "192.168.1.1");
+
+    expect_string(__wrap__mdebug1, formatted_msg, "Agent agent1 sent HC_STARTUP from '192.168.1.1'");
+
+    expect_string(__wrap_compare_wazuh_versions, version1, __ossec_version);
+    expect_string(__wrap_compare_wazuh_versions, version2, "v4.6.0");
+    expect_value(__wrap_compare_wazuh_versions, compare_patch, false);
+    will_return(__wrap_compare_wazuh_versions, -1);
+
+    expect_string(__wrap_rem_inc_recv_ctrl_startup, agent_id, "001");
+
+    int result = validate_control_msg(&key, r_msg, msg_length, &cleaned_msg, &is_startup, &is_shutdown);
+
+    assert_int_equal(result, 1);
+    assert_int_equal(is_startup, 1);
+    assert_int_equal(is_shutdown, 0);
+    assert_non_null(cleaned_msg);
+
+    os_free(cleaned_msg);
+    free_keyentry(&key);
+    free(r_msg);
+}
+
+void test_validate_control_msg_keepalive_success(void** state)
+{
+    keyentry key;
+    char* r_msg = strdup("agent keepalive\nrandom_string\n");
+    size_t msg_length = strlen(r_msg);
+    char* cleaned_msg = NULL;
+    int is_startup = 0, is_shutdown = 0;
+
+    keyentry_init(&key, "agent1", "001", "192.168.1.1", "test_key");
+
+    expect_string(__wrap_rem_inc_recv_ctrl_keepalive, agent_id, "001");
+    expect_string(__wrap_send_msg_with_key_control, agent_id, "001");
+    expect_string(__wrap_send_msg_with_key_control, msg, "#!-agent ack ");
+    expect_value(__wrap_send_msg_with_key_control, skip_key_lock, true);
+
+    expect_string(__wrap_rem_inc_send_ack, agent_id, "001");
+
+    int result = validate_control_msg(&key, r_msg, msg_length, &cleaned_msg, &is_startup, &is_shutdown);
+
+    assert_int_equal(result, 1); // Should be queued
+    assert_int_equal(is_startup, 0);
+    assert_int_equal(is_shutdown, 0);
+    assert_non_null(cleaned_msg);
+
+    os_free(cleaned_msg);
+    os_free(r_msg);
     free_keyentry(&key);
 }
 
-void test_save_controlmsg_agent_invalid_version(void **state)
+void test_validate_control_msg_invalid_msg(void** state)
 {
+    keyentry key;
+    char* r_msg = "#!-agent invalid_no_newline";
+    size_t msg_length = strlen(r_msg);
+    char* cleaned_msg = NULL;
+    int is_startup = 0, is_shutdown = 0;
+
+    keyentry_init(&key, "agent1", "001", "192.168.1.1", "test_key");
+
+    expect_string(__wrap__mwarn, formatted_msg, "Invalid message from agent: 'agent1' (001)");
+
+    int result = validate_control_msg(&key, r_msg, msg_length, &cleaned_msg, &is_startup, &is_shutdown);
+
+    assert_int_equal(result, -1); // Error
+    assert_int_equal(is_startup, 0);
+    assert_int_equal(is_shutdown, 0);
+    assert_non_null(cleaned_msg);
+
+    os_free(cleaned_msg);
+    free_keyentry(&key);
+}
+
+void test_validate_control_msg_invalid_msg_2(void** state)
+{
+    keyentry key;
+    char* r_msg = "Invalid message";
+    size_t msg_length = strlen(r_msg);
+    char* cleaned_msg = NULL;
+    int is_startup = 0, is_shutdown = 0;
+
+    keyentry_init(&key, "agent1", "001", "192.168.1.1", "test_key");
+
+    expect_string(__wrap__mwarn, formatted_msg, "Invalid message from agent: 'agent1' (001)");
+
+    int result = validate_control_msg(&key, r_msg, msg_length, &cleaned_msg, &is_startup, &is_shutdown);
+
+    assert_int_equal(result, -1); // Error
+    assert_int_equal(is_startup, 0);
+    assert_int_equal(is_shutdown, 0);
+    assert_non_null(cleaned_msg);
+
+    os_free(cleaned_msg);
+    free_keyentry(&key);
+}
+
+void test_validate_control_msg_invalid_agent_version(void** state)
+{
+    keyentry key;
+    char* r_msg = strdup("agent startup {\"version\":\"v4.6.0\"}");
+    size_t msg_length = strlen(r_msg);
+    char* cleaned_msg = NULL;
+    int is_startup = 99, is_shutdown = 99;
+
+    keyentry_init(&key, "agent1", "001", "192.168.1.1", "test_key");
+
+    expect_string(__wrap__mdebug1, formatted_msg, "Agent agent1 sent HC_STARTUP from ''");
+
+    expect_string(__wrap_compare_wazuh_versions, version1, __ossec_version);
+    expect_string(__wrap_compare_wazuh_versions, version2, "v4.6.0");
+    expect_value(__wrap_compare_wazuh_versions, compare_patch, false);
+    will_return(__wrap_compare_wazuh_versions, -1);
+
+    expect_string(__wrap_rem_inc_recv_ctrl_startup, agent_id, "001");
+
+    int result = validate_control_msg(&key, r_msg, msg_length, &cleaned_msg, &is_startup, &is_shutdown);
+
+    assert_int_equal(result, 1); // We need to queue this message, for saving later
+    assert_int_equal(is_startup, 1);
+    assert_non_null(cleaned_msg);
+
+    assert_string_equal(cleaned_msg, "agent startup {\"version\":\"v4.6.0\"}");
+
+    os_free(cleaned_msg);
+    free_keyentry(&key);
+    free(r_msg);
+}
+
+void test_validate_control_msg_get_agent_version_fail(void** state)
+{
+    keyentry key;
+    char* r_msg = strdup("agent startup {\"test\":\"fail\"}");
+    size_t msg_length = strlen(r_msg);
+    char* cleaned_msg = NULL;
+    int is_startup = 99, is_shutdown = 99;
+
+    keyentry_init(&key, "agent1", "001", "192.168.1.1", "test_key");
+
+    expect_string(__wrap__mdebug1, formatted_msg, "Agent agent1 sent HC_STARTUP from ''");
+    expect_string(__wrap_rem_inc_recv_ctrl_startup, agent_id, "001");
+
+    int result = validate_control_msg(&key, r_msg, msg_length, &cleaned_msg, &is_startup, &is_shutdown);
+
+    // We store the message for later processing, if the version cannot be retrieved
+    // but we need to queue it for wazuh-db processing
+    assert_int_equal(result, 1);
+    assert_int_equal(is_startup, 1);
+    assert_int_equal(is_shutdown, 0);
+    assert_non_null(cleaned_msg);
+
+    assert_string_equal(cleaned_msg, "agent startup {\"test\":\"fail\"}");
+
+    os_free(cleaned_msg);
+    free_keyentry(&key);
+    free(r_msg);
+}
+
+/* Test save_controlmsg function */
+
+void test_save_controlmsg_agent_invalid_version(void** state)
+{
+    int wdb_sock = -1;
     char r_msg[OS_SIZE_128] = {0};
     char s_msg[OS_FLSIZE + 1] = {0};
+
+    bool is_startup = true;
+    bool is_shutdown = false;
+    bool post_startup; // Output parameter for save_controlmsg
     strcpy(r_msg, "agent startup {\"version\":\"v4.6.0\"}");
-    snprintf(s_msg, OS_FLSIZE, "%s%s%s%s%s", CONTROL_HEADER, HC_ERROR, "{\"message\":\"", HC_INVALID_VERSION_RESPONSE, "\"}");
+    snprintf(s_msg,
+             OS_FLSIZE,
+             "%s%s%s%s%s",
+             CONTROL_HEADER,
+             HC_ERROR,
+             "{\"message\":\"",
+             HC_INVALID_VERSION_RESPONSE,
+             "\"}");
 
     keyentry key;
-    keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
+    keyentry_init(&key, "NEW_AGENT", "001", "192.168.1.1", "test_key");
     memset(&key.peer_info, 0, sizeof(struct sockaddr_storage));
 
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
-
-    expect_string(__wrap__mdebug1, formatted_msg, "Agent NEW_AGENT sent HC_STARTUP from ''");
-
-    expect_string(__wrap_compare_wazuh_versions, version1, "v4.5.0");
+    expect_string(__wrap_compare_wazuh_versions, version1, __ossec_version);
     expect_string(__wrap_compare_wazuh_versions, version2, "v4.6.0");
     expect_value(__wrap_compare_wazuh_versions, compare_patch, false);
     will_return(__wrap_compare_wazuh_versions, -1);
@@ -4657,28 +4921,32 @@ void test_save_controlmsg_agent_invalid_version(void **state)
 
     expect_string(__wrap_rem_inc_send_ack, agent_id, "001");
 
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+    save_controlmsg(&key, r_msg, &wdb_sock, &post_startup, is_startup, is_shutdown);
 
     free_keyentry(&key);
 }
 
-void test_save_controlmsg_get_agent_version_fail(void **state)
+void test_save_controlmsg_get_agent_version_fail(void** state)
 {
+    int wdb_sock = -1;
     char r_msg[OS_SIZE_128] = {0};
     char s_msg[OS_FLSIZE + 1] = {0};
+
+    bool is_startup = true;
+    bool is_shutdown = false;
+    bool post_startup; // Output parameter for save_controlmsg
     strcpy(r_msg, "agent startup {\"test\":\"fail\"}");
     snprintf(s_msg, OS_FLSIZE, "%s%s%s%s%s", CONTROL_HEADER, HC_ERROR, "{\"message\":\"", HC_RETRIEVE_VERSION, "\"}");
 
     keyentry key;
-    keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
+    keyentry_init(&key, "NEW_AGENT", "001", "192.168.1.1", "test_key");
+
     memset(&key.peer_info, 0, sizeof(struct sockaddr_storage));
 
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
+    expect_string(__wrap__mwarn, formatted_msg, "Unable to get version from agent '001' on startup message");
 
-    expect_string(__wrap__mdebug1, formatted_msg, "Agent NEW_AGENT sent HC_STARTUP from ''");
-    expect_string(__wrap__merror, formatted_msg, "Error getting version from agent '001'");
-
+    expect_string(__wrap_send_msg, agent_id, "001");
+    expect_string(__wrap_send_msg, msg, s_msg);
     expect_string(__wrap__mdebug2, formatted_msg, "Unable to connect agent: '001': 'Couldn't retrieve version'");
 
     expect_value(__wrap_wdb_update_agent_status_code, id, 1);
@@ -4687,34 +4955,26 @@ void test_save_controlmsg_get_agent_version_fail(void **state)
     will_return(__wrap_wdb_update_agent_status_code, OS_INVALID);
 
     expect_string(__wrap__mwarn, formatted_msg, "Unable to set status code for agent: '001'");
-
-    expect_string(__wrap_send_msg, agent_id, "001");
-    expect_string(__wrap_send_msg, msg, s_msg);
-
     expect_string(__wrap_rem_inc_send_ack, agent_id, "001");
 
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+    save_controlmsg(&key, r_msg, &wdb_sock, &post_startup, is_startup, is_shutdown);
 
     free_keyentry(&key);
 }
 
-void test_save_controlmsg_could_not_add_pending_data(void **state)
+void test_save_controlmsg_could_not_add_pending_data(void** state)
 {
+
+    int wdb_sock = -1;
     char r_msg[OS_SIZE_128] = {0};
     strcpy(r_msg, "Invalid message \n with enter");
 
+    bool is_startup = false;
+    bool is_shutdown = false;
+    bool post_startup; // Output parameter for save_controlmsg
+
     keyentry key;
-    keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
-
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
-
-    expect_string(__wrap_send_msg, agent_id, "001");
-    expect_string(__wrap_send_msg, msg, "#!-agent ack ");
-
-    expect_string(__wrap_rem_inc_send_ack, agent_id, "001");
-
-    expect_string(__wrap_rem_inc_recv_ctrl_keepalive, agent_id, "001");
+    keyentry_init(&key, "NEW_AGENT", "001", "192.168.1.1", "test_key");
 
     expect_function_call(__wrap_OSHash_Create);
     will_return(__wrap_OSHash_Create, 1);
@@ -4733,35 +4993,31 @@ void test_save_controlmsg_could_not_add_pending_data(void **state)
 
     expect_function_call(__wrap_pthread_mutex_unlock);
 
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+    save_controlmsg(&key, r_msg, &wdb_sock, &post_startup, is_startup, is_shutdown);
 
     free_keyentry(&key);
 }
 
-void test_save_controlmsg_unable_to_save_last_keepalive(void **state)
+void test_save_controlmsg_unable_to_save_last_keepalive(void** state)
 {
+    int wdb_sock = -1;
     char r_msg[OS_SIZE_128] = {0};
     strcpy(r_msg, "Invalid message \n with enter");
 
+    bool is_startup = false;
+    bool is_shutdown = false;
+    bool post_startup; // Output parameter for save_controlmsg
+
     keyentry key;
-    keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
-
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
-
-    expect_string(__wrap_send_msg, agent_id, "001");
-    expect_string(__wrap_send_msg, msg, "#!-agent ack ");
-
-    expect_string(__wrap_rem_inc_send_ack, agent_id, "001");
-
-    expect_string(__wrap_rem_inc_recv_ctrl_keepalive, agent_id, "001");
+    keyentry_init(&key, "NEW_AGENT", "001", "192.168.1.1", "test_key");
+    memset(&key.peer_info, 0, sizeof(struct sockaddr_storage));
 
     expect_function_call(__wrap_OSHash_Create);
     will_return(__wrap_OSHash_Create, 1);
     pending_data = OSHash_Create();
 
     pending_data_t data;
-    char * message = strdup("Invalid message \n");
+    char* message = strdup("Invalid message \n");
     data.changed = true;
     data.message = message;
 
@@ -4777,38 +5033,36 @@ void test_save_controlmsg_unable_to_save_last_keepalive(void **state)
     expect_string(__wrap_wdb_update_agent_keepalive, sync_status, "synced");
     will_return(__wrap_wdb_update_agent_keepalive, OS_INVALID);
 
-    expect_string(__wrap__mwarn, formatted_msg, "Unable to save last keepalive and set connection status as active for agent: 001");
+    expect_string(__wrap__mwarn,
+                  formatted_msg,
+                  "Unable to save last keepalive and set connection status as active for agent: 001");
 
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+    save_controlmsg(&key, r_msg, &wdb_sock, &post_startup, is_startup, is_shutdown);
+
     free_keyentry(&key);
     os_free(data.message);
 }
 
-void test_save_controlmsg_update_msg_error_parsing(void **state)
+void test_save_controlmsg_update_msg_error_parsing(void** state)
 {
+    int wdb_sock = -1;
     char r_msg[OS_SIZE_128] = {0};
     strcpy(r_msg, "valid message \n with enter");
 
+    bool is_startup = false;
+    bool is_shutdown = false;
+    bool post_startup; // Output parameter for save_controlmsg
+
     keyentry key;
-    keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
-
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
-
-    expect_string(__wrap_send_msg, agent_id, "001");
-    expect_string(__wrap_send_msg, msg, "#!-agent ack ");
-
-    expect_string(__wrap_rem_inc_send_ack, agent_id, "001");
-
-    expect_string(__wrap_rem_inc_recv_ctrl_keepalive, agent_id, "001");
+    keyentry_init(&key, "NEW_AGENT", "001", "192.168.1.1", "test_key");
 
     expect_function_call(__wrap_OSHash_Create);
     will_return(__wrap_OSHash_Create, 1);
     pending_data = OSHash_Create();
 
-    pending_data_t *data;
+    pending_data_t* data;
     os_calloc(1, sizeof(struct pending_data_t), data);
-    char * message = strdup("different message");
+    char* message = strdup("different message");
     data->changed = true;
     data->message = message;
 
@@ -4820,8 +5074,8 @@ void test_save_controlmsg_update_msg_error_parsing(void **state)
 
     expect_string(__wrap__mdebug2, formatted_msg, "save_controlmsg(): inserting 'valid message \n'");
 
-    groups = (OSHash *)10;
-    multi_groups = (OSHash *)10;
+    groups = (OSHash*)10;
+    multi_groups = (OSHash*)10;
 
     char* group = NULL;
     w_strdup("test_group", group);
@@ -4845,7 +5099,7 @@ void test_save_controlmsg_update_msg_error_parsing(void **state)
     expect_function_call(__wrap_pthread_mutex_unlock);
     expect_function_call(__wrap_pthread_mutex_unlock);
 
-    agent_info_data *agent_data;
+    agent_info_data* agent_data;
     os_calloc(1, sizeof(agent_info_data), agent_data);
     agent_data->id = 1;
 
@@ -4855,41 +5109,35 @@ void test_save_controlmsg_update_msg_error_parsing(void **state)
 
     expect_string(__wrap__merror, formatted_msg, "Error parsing message for agent '001'");
 
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+    save_controlmsg(&key, r_msg, &wdb_sock, &post_startup, is_startup, is_shutdown);
 
     os_free(agent_data);
-
     free_keyentry(&key);
     os_free(data->message);
     os_free(data->group);
     os_free(data);
 }
 
-void test_save_controlmsg_update_msg_unable_to_update_information(void **state)
+void test_save_controlmsg_update_msg_unable_to_update_information(void** state)
 {
+    int wdb_sock = -1;
     char r_msg[OS_SIZE_128] = {0};
     strcpy(r_msg, "valid message \n with enter");
 
+    bool is_startup = false;
+    bool is_shutdown = false;
+    bool post_startup; // Output parameter for save_controlmsg
+
     keyentry key;
-    keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
-
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
-
-    expect_string(__wrap_send_msg, agent_id, "001");
-    expect_string(__wrap_send_msg, msg, "#!-agent ack ");
-
-    expect_string(__wrap_rem_inc_send_ack, agent_id, "001");
-
-    expect_string(__wrap_rem_inc_recv_ctrl_keepalive, agent_id, "001");
+    keyentry_init(&key, "NEW_AGENT", "001", "192.168.1.1", "test_key");
 
     expect_function_call(__wrap_OSHash_Create);
     will_return(__wrap_OSHash_Create, 1);
     pending_data = OSHash_Create();
 
-    pending_data_t *data;
+    pending_data_t* data;
     os_calloc(1, sizeof(struct pending_data_t), data);
-    char * message = strdup("different message");
+    char* message = strdup("different message");
     data->changed = false;
     data->message = message;
 
@@ -4901,10 +5149,10 @@ void test_save_controlmsg_update_msg_unable_to_update_information(void **state)
 
     expect_string(__wrap__mdebug2, formatted_msg, "save_controlmsg(): inserting 'valid message \n'");
 
-    groups = (OSHash *)10;
-    multi_groups = (OSHash *)10;
+    groups = (OSHash*)10;
+    multi_groups = (OSHash*)10;
 
-    group_t *group = NULL;
+    group_t* group = NULL;
     os_calloc(1, sizeof(group_t), group);
     group->name = strdup("test_group");
     memset(&group->merged_sum, 0, sizeof(os_md5));
@@ -4926,7 +5174,7 @@ void test_save_controlmsg_update_msg_unable_to_update_information(void **state)
     expect_function_call(__wrap_pthread_mutex_unlock);
     expect_function_call(__wrap_pthread_mutex_unlock);
 
-    agent_info_data *agent_data;
+    agent_info_data* agent_data;
     os_calloc(1, sizeof(agent_info_data), agent_data);
     agent_data->id = 1;
     os_strdup("managerHost", agent_data->manager_host);
@@ -4953,7 +5201,7 @@ void test_save_controlmsg_update_msg_unable_to_update_information(void **state)
 
     expect_string(__wrap__mdebug1, formatted_msg, "Unable to update information in global.db for agent: 001");
 
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+    save_controlmsg(&key, r_msg, &wdb_sock, &post_startup, is_startup, is_shutdown);
 
     os_free(group->name);
     os_free(group);
@@ -4971,21 +5219,16 @@ void test_save_controlmsg_update_msg_unable_to_update_information(void **state)
 
 void test_save_controlmsg_update_msg_lookfor_agent_group_fail(void **state)
 {
+    int wdb_sock = -1;
     char r_msg[OS_SIZE_128] = {0};
     strcpy(r_msg, "valid message \n with enter");
 
+    bool is_startup = false;
+    bool is_shutdown = false;
+    bool post_startup; // Output parameter for save_controlmsg
+
     keyentry key;
-    keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
-
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
-
-    expect_string(__wrap_send_msg, agent_id, "001");
-    expect_string(__wrap_send_msg, msg, "#!-agent ack ");
-
-    expect_string(__wrap_rem_inc_send_ack, agent_id, "001");
-
-    expect_string(__wrap_rem_inc_recv_ctrl_keepalive, agent_id, "001");
+    keyentry_init(&key, "NEW_AGENT", "001", "192.168.1.1", "test_key");
 
     expect_function_call(__wrap_OSHash_Create);
     will_return(__wrap_OSHash_Create, 1);
@@ -5032,7 +5275,7 @@ void test_save_controlmsg_update_msg_lookfor_agent_group_fail(void **state)
 
     expect_string(__wrap__mdebug1, formatted_msg, "Unable to update information in global.db for agent: 001");
 
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+    save_controlmsg(&key, r_msg, &wdb_sock, &post_startup, is_startup, is_shutdown);
 
     os_free(agent_data->manager_host);
     os_free(agent_data);
@@ -5043,24 +5286,19 @@ void test_save_controlmsg_update_msg_lookfor_agent_group_fail(void **state)
     os_free(data);
 }
 
+
 void test_save_controlmsg_startup(void **state)
 {
+    int wdb_sock = -1;
     char r_msg[OS_SIZE_128] = {0};
     strcpy(r_msg, "agent startup {\"version\":\"v4.5.0\"}");
+
+    bool is_startup = true;
+    bool is_shutdown = false;
+    bool post_startup; // Output parameter for save_controlmsg
+
     keyentry key;
-    keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
-    key.peer_info.ss_family = 0;
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
-
-    expect_string(__wrap_send_msg, agent_id, "001");
-    expect_string(__wrap_send_msg, msg, "#!-agent ack ");
-
-    expect_string(__wrap_rem_inc_send_ack, agent_id, "001");
-
-    expect_string(__wrap_rem_inc_recv_ctrl_startup, agent_id, "001");
-
-    expect_string(__wrap__mdebug1, formatted_msg, "Agent NEW_AGENT sent HC_STARTUP from ''");
+    keyentry_init(&key, "NEW_AGENT", "001", "192.168.1.1", "test_key");
 
     expect_string(__wrap_compare_wazuh_versions, version1, "v4.5.0");
     expect_string(__wrap_compare_wazuh_versions, version2, "v4.5.0");
@@ -5090,31 +5328,29 @@ void test_save_controlmsg_startup(void **state)
 
     expect_string(__wrap__mwarn, formatted_msg, "Unable to save last keepalive and set connection status as pending for agent: 001");
 
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+
+    save_controlmsg(&key, r_msg, &wdb_sock, &post_startup, is_startup, is_shutdown);
 
     free_keyentry(&key);
     os_free(message);
+
 }
 
 void test_save_controlmsg_shutdown(void **state)
 {
+    int wdb_sock = -1;
     char r_msg[OS_SIZE_128] = {0};
     strcpy(r_msg, HC_SHUTDOWN);
+
+    bool is_startup = false;
+    bool is_shutdown = true;
+    bool post_startup; // Output parameter for save_controlmsg
+
     keyentry key;
     keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
     memset(&key.peer_info, 0, sizeof(struct sockaddr_storage));
     key.peer_info.ss_family = AF_INET;
 
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
-
-    expect_any(__wrap_get_ipv4_string, address);
-    expect_any(__wrap_get_ipv4_string, address_size);
-    will_return(__wrap_get_ipv4_string, OS_INVALID);
-
-    expect_string(__wrap__mdebug1, formatted_msg, "Agent NEW_AGENT sent HC_SHUTDOWN from ''");
-
-    expect_string(__wrap_rem_inc_recv_ctrl_shutdown, agent_id, "001");
 
     expect_function_call(__wrap_OSHash_Create);
     will_return(__wrap_OSHash_Create, 1);
@@ -5137,33 +5373,7 @@ void test_save_controlmsg_shutdown(void **state)
     expect_string(__wrap_wdb_update_agent_connection_status, sync_status, "synced");
     will_return(__wrap_wdb_update_agent_connection_status, OS_SUCCESS);
 
-    expect_string(__wrap_SendMSG, message, "1:wazuh-remoted:ossec: Agent stopped: 'NEW_AGENT->10.2.2.5'.");
-    expect_string(__wrap_SendMSG, locmsg, "[001] (NEW_AGENT) 10.2.2.5");
-    expect_any(__wrap_SendMSG, loc);
-    will_return(__wrap_SendMSG, -1);
-
-    will_return(__wrap_strerror, "fail");
-    expect_string(__wrap__merror, formatted_msg, "(1210): Queue 'queue/sockets/queue' not accessible: 'fail'");
-
-    expect_string(__wrap_StartMQ, path, DEFAULTQUEUE);
-    expect_value(__wrap_StartMQ, type, WRITE);
-    will_return(__wrap_StartMQ, -1);
-
-    expect_string(__wrap__minfo, formatted_msg, "Successfully reconnected to 'queue/sockets/queue'");
-
-    expect_string(__wrap_SendMSG, message, "1:wazuh-remoted:ossec: Agent stopped: 'NEW_AGENT->10.2.2.5'.");
-    expect_string(__wrap_SendMSG, locmsg, "[001] (NEW_AGENT) 10.2.2.5");
-    expect_any(__wrap_SendMSG, loc);
-    will_return(__wrap_SendMSG, -1);
-
-    will_return(__wrap_strerror, "fail");
-    expect_string(__wrap__merror, formatted_msg, "(1210): Queue 'queue/sockets/queue' not accessible: 'fail'");
-
-    will_return(__wrap_OSHash_Delete_ex, NULL);
-    expect_string(__wrap_OSHash_Delete_ex, key, "001");
-    expect_value(__wrap_OSHash_Delete_ex, self, agent_data_hash);
-
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+    save_controlmsg(&key, r_msg, &wdb_sock, &post_startup, is_startup, is_shutdown);
 
     free_keyentry(&key);
     os_free(message);
@@ -5171,22 +5381,18 @@ void test_save_controlmsg_shutdown(void **state)
 
 void test_save_controlmsg_shutdown_wdb_fail(void **state)
 {
+    int wdb_sock = -1;
     char r_msg[OS_SIZE_128] = {0};
     strcpy(r_msg, HC_SHUTDOWN);
+
+    bool is_startup = false;
+    bool is_shutdown = true;
+    bool post_startup; // Output parameter for save_controlmsg
+
     keyentry key;
     keyentry_init(&key, "NEW_AGENT", "001", "10.2.2.5", NULL);
     memset(&key.peer_info, 0, sizeof(struct sockaddr_storage));
     key.peer_info.ss_family = AF_INET6;
-    size_t msg_length = sizeof(r_msg);
-    int *wdb_sock = NULL;
-
-    expect_any(__wrap_get_ipv6_string, address);
-    expect_any(__wrap_get_ipv6_string, address_size);
-    will_return(__wrap_get_ipv6_string, OS_INVALID);
-
-    expect_string(__wrap__mdebug1, formatted_msg, "Agent NEW_AGENT sent HC_SHUTDOWN from ''");
-
-    expect_string(__wrap_rem_inc_recv_ctrl_shutdown, agent_id, "001");
 
     expect_function_call(__wrap_OSHash_Create);
     will_return(__wrap_OSHash_Create, 1);
@@ -5211,15 +5417,16 @@ void test_save_controlmsg_shutdown_wdb_fail(void **state)
 
     expect_string(__wrap__mwarn, formatted_msg, "Unable to set connection status as disconnected for agent: 001");
 
-    will_return(__wrap_OSHash_Delete_ex, NULL);
-    expect_string(__wrap_OSHash_Delete_ex, key, "001");
-    expect_value(__wrap_OSHash_Delete_ex, self, agent_data_hash);
+    // will_return(__wrap_OSHash_Delete_ex, NULL);
+    // expect_string(__wrap_OSHash_Delete_ex, key, "001");
+    // expect_value(__wrap_OSHash_Delete_ex, self, agent_data_hash);
 
-    save_controlmsg(&key, r_msg, msg_length, wdb_sock);
+    save_controlmsg(&key, r_msg, &wdb_sock, &post_startup, is_startup, is_shutdown);
 
     free_keyentry(&key);
     os_free(message);
 }
+
 
 int main(void)
 {
@@ -5340,10 +5547,17 @@ int main(void)
         cmocka_unit_test(test_copy_directory_mkdir_fail),
         cmocka_unit_test(test_copy_directory_mkdir_exist),
         cmocka_unit_test(test_copy_directory_file_subfolder_file),
+        // Tests validate_control_msg
+        cmocka_unit_test(test_validate_control_msg_hc_request_success),
+        cmocka_unit_test(test_validate_control_msg_hc_request_error),
+        cmocka_unit_test_setup_teardown(test_validate_control_msg_shutdown_success, setup_globals, teardown_globals),
+        cmocka_unit_test_setup_teardown(test_validate_control_msg_startup_success, setup_globals, teardown_globals),
+        cmocka_unit_test(test_validate_control_msg_keepalive_success),
+        cmocka_unit_test(test_validate_control_msg_invalid_msg),
+        cmocka_unit_test(test_validate_control_msg_invalid_msg_2),
+        cmocka_unit_test_setup_teardown(test_validate_control_msg_invalid_agent_version, setup_globals, teardown_globals),
+        cmocka_unit_test_setup_teardown(test_validate_control_msg_get_agent_version_fail, setup_globals, teardown_globals),
         // Tests save_controlmsg
-        cmocka_unit_test(test_save_controlmsg_request_error),
-        cmocka_unit_test(test_save_controlmsg_request_success),
-        cmocka_unit_test(test_save_controlmsg_invalid_msg),
         cmocka_unit_test_setup_teardown(test_save_controlmsg_agent_invalid_version, setup_globals_no_test_mode, teardown_globals),
         cmocka_unit_test_setup_teardown(test_save_controlmsg_get_agent_version_fail, setup_test_mode, teardown_test_mode),
         cmocka_unit_test_setup_teardown(test_save_controlmsg_could_not_add_pending_data, setup_test_mode, teardown_test_mode),

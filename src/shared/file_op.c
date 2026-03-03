@@ -21,6 +21,8 @@
 #include "unit_tests/wrappers/windows/libc/stdio_wrappers.h"
 #include "unit_tests/wrappers/windows/fileapi_wrappers.h"
 #include "unit_tests/wrappers/windows/handleapi_wrappers.h"
+#include "unit_tests/wrappers/windows/stat64_wrappers.h"
+#include "unit_tests/wrappers/windows/processthreadsapi_wrappers.h"
 #endif
 #endif
 
@@ -28,6 +30,7 @@
 #include <regex.h>
 #else
 #include <aclapi.h>
+#include <winreg.h>
 #endif
 
 /* Vista product information */
@@ -397,6 +400,112 @@ int isVista;
 
 const char *__local_name = "unset";
 
+int waccess(const char *path, int mode) {
+#ifdef WIN32
+    if (is_network_path(path)) {
+        errno = EACCES;
+        mwarn(NETWORK_PATH_EXECUTED, path);
+        return (-1);
+    }
+#endif
+    return access(path, mode);
+}
+
+#ifdef WIN32
+HANDLE wCreateFile(LPCSTR   lpFileName,
+                    DWORD   dwDesiredAccess,
+                    DWORD   dwShareMode,
+                    LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+                    DWORD   dwCreationDisposition,
+                    DWORD   dwFlagsAndAttributes,
+                    HANDLE  hTemplateFile) {
+
+    if (is_network_path(lpFileName)) {
+        errno = EACCES;
+        mwarn(NETWORK_PATH_EXECUTED, lpFileName);
+        return (INVALID_HANDLE_VALUE);
+    }
+    return utf8_CreateFile(lpFileName,
+                           dwDesiredAccess,
+                           dwShareMode,
+                           lpSecurityAttributes,
+                           dwCreationDisposition,
+                           dwFlagsAndAttributes,
+                           hTemplateFile);
+}
+
+BOOL wCreateProcessW(LPCWSTR               lpApplicationName,
+    	             LPWSTR                lpCommandLine,
+    	             LPSECURITY_ATTRIBUTES lpProcessAttributes,
+    	             LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    	             BOOL                  bInheritHandles,
+    	             DWORD                 dwCreationFlags,
+    	             LPVOID                lpEnvironment,
+    	             LPCWSTR               lpCurrentDirectory,
+    	             LPSTARTUPINFOW        lpStartupInfo,
+    	             LPPROCESS_INFORMATION lpProcessInformation) {
+
+    // Convert wide string to narrow string for network path validation
+    char *narrow_path = convert_windows_string(lpCommandLine);
+    if (narrow_path == NULL) {
+        errno = EINVAL;
+        return (false);
+    }
+
+    if (is_network_path(narrow_path)) {
+        errno = EACCES;
+        mwarn(NETWORK_PATH_EXECUTED, narrow_path);
+        free(narrow_path);
+        return (false);
+    }
+
+    free(narrow_path);
+    return CreateProcessW(lpApplicationName,
+    	                  lpCommandLine,
+    	                  lpProcessAttributes,
+    	                  lpThreadAttributes,
+    	                  bInheritHandles,
+    	                  dwCreationFlags,
+    	                  lpEnvironment,
+    	                  lpCurrentDirectory,
+    	                  lpStartupInfo,
+    	                  lpProcessInformation);
+}
+
+int w_stat64(const char * pathname,
+             struct _stat64 * statbuf) {
+    if (is_network_path(pathname)) {
+        errno = EACCES;
+        mwarn(NETWORK_PATH_EXECUTED, pathname);
+        return (-1);
+    }
+    return utf8_stat64(pathname, statbuf);
+}
+#endif
+
+DIR * wopendir(const char *name) {
+#ifdef WIN32
+    if (is_network_path(name)) {
+        errno = EACCES;
+        mwarn(NETWORK_PATH_EXECUTED, name);
+        return (NULL);
+    }
+#endif
+    return opendir(name);
+}
+
+int w_stat(const char * pathname,
+           struct stat * statbuf) {
+#ifdef WIN32
+    if (is_network_path(pathname)) {
+        errno = EACCES;
+        mwarn(NETWORK_PATH_EXECUTED, pathname);
+        return (-1);
+    }
+#endif
+    return stat(pathname, statbuf);
+}
+
 /* Set the name of the starting program */
 void OS_SetName(const char *name)
 {
@@ -409,7 +518,7 @@ time_t File_DateofChange(const char *file)
 {
     struct stat file_status;
 
-    if (stat(file, &file_status) < 0) {
+    if (w_stat(file, &file_status) < 0) {
         return (-1);
     }
 
@@ -420,14 +529,14 @@ time_t File_DateofChange(const char *file)
 ino_t File_Inode(const char *file)
 {
     struct stat buffer;
-    return stat(file, &buffer) ? 0 : buffer.st_ino;
+    return w_stat(file, &buffer) ? 0 : buffer.st_ino;
 }
 
 
 int IsDir(const char *file)
 {
     struct stat file_status;
-    if (stat(file, &file_status) < 0) {
+    if (w_stat(file, &file_status) < 0) {
         return (-1);
     }
     if (S_ISDIR(file_status.st_mode)) {
@@ -442,7 +551,7 @@ int check_path_type(const char *dir)
     DIR *dp;
     int retval;
 
-    if (dp = opendir(dir), dp) {
+    if (dp = wopendir(dir), dp) {
         retval = 2;
         closedir(dp);
     } else if (errno == ENOTDIR){
@@ -456,14 +565,14 @@ int check_path_type(const char *dir)
 
 int IsFile(const char *file) {
     struct stat buf;
-    return (!stat(file, &buf) && S_ISREG(buf.st_mode)) ? 0 : -1;
+    return (!w_stat(file, &buf) && S_ISREG(buf.st_mode)) ? 0 : -1;
 }
 
 #ifndef WIN32
 
 int IsSocket(const char * file) {
     struct stat buf;
-    return (!stat(file, &buf) && S_ISSOCK(buf.st_mode)) ? 0 : -1;
+    return (!w_stat(file, &buf) && S_ISSOCK(buf.st_mode)) ? 0 : -1;
 }
 
 
@@ -477,7 +586,7 @@ int IsLink(const char * file) {
 
 off_t FileSize(const char * path) {
     struct stat buf;
-    return stat(path, &buf) ? -1 : buf.st_size;
+    return w_stat(path, &buf) ? -1 : buf.st_size;
 }
 
 
@@ -491,7 +600,7 @@ float DirSize(const char *path) {
     float file_size = 0.0;
     char *entry;
 
-    if (directory = opendir(path), directory == NULL) {
+    if (directory = wopendir(path), directory == NULL) {
         mdebug2("Couldn't open directory '%s'.", path);
         return -1;
     }
@@ -505,7 +614,7 @@ float DirSize(const char *path) {
         os_malloc(strlen(path) + strlen(dir->d_name) + 2, entry);
         snprintf(entry, strlen(path) + 2 + strlen(dir->d_name), "%s/%s", path, dir->d_name);
 
-        if (stat(entry, &buf) == -1) {
+        if (w_stat(entry, &buf) == -1) {
             os_free(entry);
             closedir(directory);
             return 0;
@@ -629,6 +738,7 @@ int UnmergeFiles(const char *finalpath, const char *optdir, int mode, char ***un
     int state_ok;
     int file_count = 0;
     size_t i = 0, n = 0, files_size = 0;
+    size_t optdir_len = 0;
     char *files;
     char * copy;
     char final_name[2048 + 1];
@@ -641,6 +751,11 @@ int UnmergeFiles(const char *finalpath, const char *optdir, int mode, char ***un
     if (!finalfp) {
         merror("Unable to read merged file: '%s' due to [(%d)-(%s)].", finalpath, errno, strerror(errno));
         return (0);
+    }
+
+    /* Calculate optdir length once for optimization */
+    if (optdir) {
+        optdir_len = strlen(optdir);
     }
 
     /* Finds index of the last element on the list */
@@ -761,24 +876,28 @@ int UnmergeFiles(const char *finalpath, const char *optdir, int mode, char ***un
         }
 
         if (unmerged_files != NULL) {
-            /* Removes path from file name */
-            file_name = strrchr(final_name, '/');
-            if (file_name) {
-                file_name++;
-            }
-            else {
+            char *file_name_copy = NULL;
+
+            /* Calculate relative path from optdir to preserve directory structure */
+            if (optdir_len > 0) {
+                /* Skip optdir and the following '/' to get relative path */
+                if (strncmp(final_name, optdir, optdir_len) == 0 && final_name[optdir_len] == '/') {
+                    file_name = final_name + optdir_len + 1;
+                } else {
+                    /* Fallback: remove path from file name */
+                    file_name = strrchr(final_name, '/');
+                    file_name = file_name ? file_name + 1 : final_name;
+                }
+            } else {
+                /* No optdir specified, use full path */
                 file_name = final_name;
             }
 
-            /* Appends file name to unmerged files list */
-            os_realloc(*unmerged_files, (file_count + 2) * sizeof(char *), *unmerged_files);
-            os_strdup(file_name, *(*unmerged_files + file_count));
+            /* Append relative file path to unmerged files list */
+            os_strdup(file_name, file_name_copy);
+            *unmerged_files = w_strarray_append(*unmerged_files, file_name_copy, file_count);
             file_count++;
         }
-    }
-
-    if (unmerged_files != NULL) {
-        *(*unmerged_files + file_count) = NULL;
     }
 
     fclose(finalfp);
@@ -1156,6 +1275,42 @@ void goDaemon()
     nowDaemon();
 }
 
+// Check if a program is available in the system PATH.
+
+bool is_program_available(const char *program) {
+    if (!program || !*program) {
+        return false;
+    }
+
+    const char *path_env = getenv("PATH");
+    if (!path_env) {
+        return false;
+    }
+
+    char *path = strdup(path_env);
+    if (!path) {
+        return false;
+    }
+
+    bool found = false;
+    char *saveptr = NULL;
+    char *dir = strtok_r(path, ":", &saveptr);
+
+    while (dir) {
+        char fullpath[512];
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", dir, program);
+        if (waccess(fullpath, X_OK) == 0) {
+            found = true;
+            break;
+        }
+
+        dir = strtok_r(NULL, ":", &saveptr);
+    }
+
+    free(path);
+    return found;
+}
+
 #else /* WIN32 */
 
 int checkVista()
@@ -1187,7 +1342,7 @@ int get_creation_date(char *dir, SYSTEMTIME *utc) {
     FILETIME creation_date;
     int retval = 1;
 
-    if (hdle = CreateFile(dir, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, NULL), hdle == INVALID_HANDLE_VALUE) {
+    if (hdle = wCreateFile(dir, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS, NULL), hdle == INVALID_HANDLE_VALUE) {
         return retval;
     }
 
@@ -1206,15 +1361,15 @@ end:
 time_t get_UTC_modification_time(const char *file){
     HANDLE hdle;
     FILETIME modification_date;
-    if (hdle = CreateFile(file, GENERIC_READ, FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL), \
+    if (hdle = wCreateFile(file, GENERIC_READ, FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL), \
         hdle == INVALID_HANDLE_VALUE) {
-        mferror(FIM_WARN_OPEN_HANDLE_FILE, file, GetLastError());
+        mdebug2(FIM_WARN_OPEN_HANDLE_FILE, file, GetLastError());
         return 0;
     }
 
     if (!GetFileTime(hdle, NULL, NULL, &modification_date)) {
         CloseHandle(hdle);
-        mferror(FIM_WARN_GET_FILETIME, file, GetLastError());
+        mdebug2(FIM_WARN_GET_FILETIME, file, GetLastError());
         return 0;
     }
 
@@ -1233,7 +1388,7 @@ char *basename_ex(char *path)
 int rename_ex(const char *source, const char *destination)
 {
     BOOL file_created = FALSE;
-    DWORD dwFileAttributes = GetFileAttributes(destination);
+    DWORD dwFileAttributes = utf8_GetFileAttributes(destination);
 
     if (dwFileAttributes == INVALID_FILE_ATTRIBUTES) {
         // If the destination file does not exist, create it.
@@ -1243,10 +1398,10 @@ int rename_ex(const char *source, const char *destination)
         const DWORD dwCreationDisposition = CREATE_ALWAYS;
         const DWORD dwFlagsAndAttributes = FILE_ATTRIBUTE_NORMAL;
 
-        HANDLE hFile = CreateFile(destination, dwDesiredAccess, dwShareMode, NULL, dwCreationDisposition, dwFlagsAndAttributes, NULL);
+        HANDLE hFile = wCreateFile(destination, dwDesiredAccess, dwShareMode, NULL, dwCreationDisposition, dwFlagsAndAttributes, NULL);
 
         if (hFile == INVALID_HANDLE_VALUE) {
-            mferror("Could not create file (%s) which returned (%lu)", destination, GetLastError());
+            mdebug2("Could not create file (%s) which returned (%lu)", destination, GetLastError());
             return -1;
         }
 
@@ -1254,12 +1409,12 @@ int rename_ex(const char *source, const char *destination)
         file_created = TRUE;
     }
 
-    if (!ReplaceFile(destination, source, NULL, 0, NULL, NULL)) {
-        mferror("Could not move (%s) to (%s) which returned (%lu)", source, destination, GetLastError());
+    if (!utf8_ReplaceFile(destination, source, NULL, 0)) {
+        mdebug2("Could not move (%s) to (%s) which returned (%lu)", source, destination, GetLastError());
 
         if (file_created) {
             // Delete the destination file as it's been created by this function.
-            DeleteFile(destination);
+            utf8_DeleteFile(destination);
         }
 
         return (-1);
@@ -1394,7 +1549,7 @@ int mkstemp_ex(char *tmp_path)
     sa.lpSecurityDescriptor = pSD;
     sa.bInheritHandle = FALSE;
 
-    h = CreateFileA(
+    h = wCreateFile(
             tmp_path,
             GENERIC_WRITE,
             0,
@@ -1442,537 +1597,27 @@ cleanup:
 
 const char *getuname()
 {
-    int ret_size = OS_SIZE_1024 - 2;
     static char ret[OS_SIZE_1024 + 1] = "";
-    char os_v[128 + 1];
-    int add_infoEx = 1;
-
-    typedef void (WINAPI * PGNSI)(LPSYSTEM_INFO);
-    typedef BOOL (WINAPI * PGPI)(DWORD, DWORD, DWORD, DWORD, PDWORD);
-
-    /* See http://msdn.microsoft.com/en-us/library/windows/desktop/ms724429%28v=vs.85%29.aspx */
-    OSVERSIONINFOEX osvi;
-    SYSTEM_INFO si = {0};
-    PGNSI pGNSI;
-    PGPI pGPI;
-    BOOL bOsVersionInfoEx;
-    DWORD dwType;
-
-    ZeroMemory(&osvi, sizeof(OSVERSIONINFOEX));
-    osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEX);
-
-    if (!(bOsVersionInfoEx = GetVersionEx ((OSVERSIONINFO *) &osvi))) {
-        osvi.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-        if (!GetVersionEx((OSVERSIONINFO *)&osvi)) {
-            return (NULL);
-        }
-    }
+    os_info *read_version;
 
     if (ret[0] != '\0') {
         return ret;
     }
 
-    switch (osvi.dwPlatformId) {
-        /* Test for the Windows NT product family */
-        case VER_PLATFORM_WIN32_NT:
-            if (osvi.dwMajorVersion == 6 && (osvi.dwMinorVersion == 0 || osvi.dwMinorVersion == 1) ) {
-                if (osvi.dwMinorVersion == 0) {
-                    if (osvi.wProductType == VER_NT_WORKSTATION ) {
-                        strncat(ret, "Microsoft Windows Vista ", ret_size - 1);
-                    } else {
-                        strncat(ret, "Microsoft Windows Server 2008 ", ret_size - 1);
-                    }
-                } else if (osvi.dwMinorVersion == 1) {
-                    if (osvi.wProductType == VER_NT_WORKSTATION ) {
-                        strncat(ret, "Microsoft Windows 7 ", ret_size - 1);
-                    } else {
-                        strncat(ret, "Microsoft Windows Server 2008 R2 ", ret_size - 1);
-                    }
-                }
+    if (read_version = get_win_version(), read_version) {
+        snprintf(ret, OS_SIZE_1024, "%s [Ver: %s] |%s |%s - %s %s",
+                read_version->os_name ? read_version->os_name : "Microsoft Windows",
+                read_version->os_version ? read_version->os_version : "unknown",
+                read_version->nodename ? read_version->nodename : "unknown",
+                read_version->machine ? read_version->machine : "unknown",
+                __ossec_name, __ossec_version);
 
-                ret_size -= strlen(ret) + 1;
-
-
-                /* Get product version */
-                pGPI = (PGPI) GetProcAddress(
-                              GetModuleHandle(TEXT("kernel32.dll")),
-                              "GetProductInfo");
-
-                if (osvi.dwMajorVersion == 6 && osvi.dwMinorVersion == 0)
-                    pGPI( 6, 0, 0, 0, &dwType);
-                else
-                    pGPI( 6, 1, 0, 0, &dwType);
-
-                switch (dwType) {
-                    case PRODUCT_UNLICENSED:
-                        strncat(ret, PRODUCT_UNLICENSED_C, ret_size - 1);
-                        break;
-                    case PRODUCT_BUSINESS:
-                        strncat(ret, PRODUCT_BUSINESS_C, ret_size - 1);
-                        break;
-                    case PRODUCT_BUSINESS_N:
-                        strncat(ret, PRODUCT_BUSINESS_N_C, ret_size - 1);
-                        break;
-                    case PRODUCT_CLUSTER_SERVER:
-                        strncat(ret, PRODUCT_CLUSTER_SERVER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_DATACENTER_SERVER:
-                        strncat(ret, PRODUCT_DATACENTER_SERVER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_DATACENTER_SERVER_CORE:
-                        strncat(ret, PRODUCT_DATACENTER_SERVER_CORE_C, ret_size - 1);
-                        break;
-                    case PRODUCT_DATACENTER_SERVER_CORE_V:
-                        strncat(ret, PRODUCT_DATACENTER_SERVER_CORE_V_C, ret_size - 1);
-                        break;
-                    case PRODUCT_DATACENTER_SERVER_V:
-                        strncat(ret, PRODUCT_DATACENTER_SERVER_V_C, ret_size - 1);
-                        break;
-                    case PRODUCT_ENTERPRISE:
-                        strncat(ret, PRODUCT_ENTERPRISE_C, ret_size - 1);
-                        break;
-                    case PRODUCT_ENTERPRISE_N:
-                        strncat(ret, PRODUCT_ENTERPRISE_N_C, ret_size - 1);
-                        break;
-                    case PRODUCT_ENTERPRISE_SERVER:
-                        strncat(ret, PRODUCT_ENTERPRISE_SERVER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_ENTERPRISE_SERVER_CORE:
-                        strncat(ret, PRODUCT_ENTERPRISE_SERVER_CORE_C, ret_size - 1);
-                        break;
-                    case PRODUCT_ENTERPRISE_SERVER_CORE_V:
-                        strncat(ret, PRODUCT_ENTERPRISE_SERVER_CORE_V_C, ret_size - 1);
-                        break;
-                    case PRODUCT_ENTERPRISE_SERVER_IA64:
-                        strncat(ret, PRODUCT_ENTERPRISE_SERVER_IA64_C, ret_size - 1);
-                        break;
-                    case PRODUCT_ENTERPRISE_SERVER_V:
-                        strncat(ret, PRODUCT_ENTERPRISE_SERVER_V_C, ret_size - 1);
-                        break;
-                    case PRODUCT_HOME_BASIC:
-                        strncat(ret, PRODUCT_HOME_BASIC_C, ret_size - 1);
-                        break;
-                    case PRODUCT_HOME_BASIC_N:
-                        strncat(ret, PRODUCT_HOME_BASIC_N_C, ret_size - 1);
-                        break;
-                    case PRODUCT_HOME_PREMIUM:
-                        strncat(ret, PRODUCT_HOME_PREMIUM_C, ret_size - 1);
-                        break;
-                    case PRODUCT_HOME_PREMIUM_N:
-                        strncat(ret, PRODUCT_HOME_PREMIUM_N_C, ret_size - 1);
-                        break;
-                    case PRODUCT_HOME_SERVER:
-                        strncat(ret, PRODUCT_HOME_SERVER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_MEDIUMBUSINESS_SERVER_MANAGEMENT:
-                        strncat(ret, PRODUCT_MEDIUMBUSINESS_SERVER_MANAGEMENT_C, ret_size - 1);
-                        break;
-                    case PRODUCT_MEDIUMBUSINESS_SERVER_MESSAGING:
-                        strncat(ret, PRODUCT_MEDIUMBUSINESS_SERVER_MESSAGING_C, ret_size - 1);
-                        break;
-                    case PRODUCT_MEDIUMBUSINESS_SERVER_SECURITY:
-                        strncat(ret, PRODUCT_MEDIUMBUSINESS_SERVER_SECURITY_C, ret_size - 1);
-                        break;
-                    case PRODUCT_SERVER_FOR_SMALLBUSINESS:
-                        strncat(ret, PRODUCT_SERVER_FOR_SMALLBUSINESS_C, ret_size - 1);
-                        break;
-                    case PRODUCT_SMALLBUSINESS_SERVER:
-                        strncat(ret, PRODUCT_SMALLBUSINESS_SERVER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_SMALLBUSINESS_SERVER_PREMIUM:
-                        strncat(ret, PRODUCT_SMALLBUSINESS_SERVER_PREMIUM_C, ret_size - 1);
-                        break;
-                    case PRODUCT_STANDARD_SERVER:
-                        strncat(ret, PRODUCT_STANDARD_SERVER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_STANDARD_SERVER_CORE:
-                        strncat(ret, PRODUCT_STANDARD_SERVER_CORE_C, ret_size - 1);
-                        break;
-                    case PRODUCT_STANDARD_SERVER_CORE_V:
-                        strncat(ret, PRODUCT_STANDARD_SERVER_CORE_V_C, ret_size - 1);
-                        break;
-                    case PRODUCT_STANDARD_SERVER_V:
-                        strncat(ret, PRODUCT_STANDARD_SERVER_V_C, ret_size - 1);
-                        break;
-                    case PRODUCT_STARTER:
-                        strncat(ret, PRODUCT_STARTER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_STORAGE_ENTERPRISE_SERVER:
-                        strncat(ret, PRODUCT_STORAGE_ENTERPRISE_SERVER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_STORAGE_EXPRESS_SERVER:
-                        strncat(ret, PRODUCT_STORAGE_EXPRESS_SERVER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_STORAGE_STANDARD_SERVER:
-                        strncat(ret, PRODUCT_STORAGE_STANDARD_SERVER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_STORAGE_WORKGROUP_SERVER:
-                        strncat(ret, PRODUCT_STORAGE_WORKGROUP_SERVER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_ULTIMATE:
-                        strncat(ret, PRODUCT_ULTIMATE_C, ret_size - 1);
-                        break;
-                    case PRODUCT_ULTIMATE_N:
-                        strncat(ret, PRODUCT_ULTIMATE_N_C, ret_size - 1);
-                        break;
-                    case PRODUCT_WEB_SERVER:
-                        strncat(ret, PRODUCT_WEB_SERVER_C, ret_size - 1);
-                        break;
-                    case PRODUCT_WEB_SERVER_CORE:
-                        strncat(ret, PRODUCT_WEB_SERVER_CORE_C, ret_size - 1);
-                        break;
-
-                }
-                ret_size -= strlen(ret) + 1;
-            } else if (osvi.dwMajorVersion == 6 && (osvi.dwMinorVersion == 2 || osvi.dwMinorVersion == 3)) {
-                // Read Windows Version from registry
-                DWORD dwRet;
-                HKEY RegistryKey;
-                const DWORD size = 1024;
-                TCHAR value[size];
-                DWORD dwCount = size;
-                add_infoEx = 0;
-
-                if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"), 0, KEY_READ | KEY_WOW64_64KEY , &RegistryKey) != ERROR_SUCCESS) {
-                    merror("Error opening Windows registry.");
-                }
-
-                dwRet = RegQueryValueEx(RegistryKey, TEXT("ProductName"), NULL, NULL, (LPBYTE)value, &dwCount);
-                if (dwRet != ERROR_SUCCESS) {
-                    merror("Error reading Windows registry. (Error %u)",(unsigned int)dwRet);
-                    strncat(ret, "Microsoft Windows undefined version", ret_size - 1);
-                }
-                else {
-                    RegCloseKey(RegistryKey);
-                    strncat(ret, "Microsoft ", ret_size - 1);
-                    strncat(ret, value, ret_size - 1);
-                }
-                ret_size -= strlen(ret) + 1;
-            } else if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2) {
-                pGNSI = (PGNSI)(LPSYSTEM_INFO)GetProcAddress(
-                            GetModuleHandle("kernel32.dll"),
-                            "GetNativeSystemInfo");
-                if (NULL != pGNSI) {
-                    pGNSI(&si);
-                } else {
-                    mwarn("It was not possible to retrieve GetNativeSystemInfo from kernek32.dll");
-                }
-
-                if ( GetSystemMetrics(89) )
-                    strncat(ret, "Microsoft Windows Server 2003 R2 ",
-                            ret_size - 1);
-                else if (osvi.wProductType == VER_NT_WORKSTATION &&
-                         si.wProcessorArchitecture == PROCESSOR_ARCHITECTURE_AMD64) {
-                    strncat(ret,
-                            "Microsoft Windows XP Professional x64 Edition ",
-                            ret_size - 1 );
-                } else {
-                    strncat(ret, "Microsoft Windows Server 2003, ", ret_size - 1);
-                }
-
-                ret_size -= strlen(ret) + 1;
-            } else if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 1) {
-                strncat(ret, "Microsoft Windows XP ", ret_size - 1);
-
-                ret_size -= strlen(ret) + 1;
-            } else if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0) {
-                strncat(ret, "Microsoft Windows 2000 ", ret_size - 1);
-
-                ret_size -= strlen(ret) + 1;
-            } else if (osvi.dwMajorVersion <= 4) {
-                strncat(ret, "Microsoft Windows NT ", ret_size - 1);
-
-                ret_size -= strlen(ret) + 1;
-            } else {
-                strncat(ret, "Microsoft Windows Unknown ", ret_size - 1);
-
-                ret_size -= strlen(ret) + 1;
-            }
-
-            /* Test for specific product on Windows NT 4.0 SP6 and later */
-            if (add_infoEx){
-                if (bOsVersionInfoEx) {
-                    /* Test for the workstation type */
-                    if (osvi.wProductType == VER_NT_WORKSTATION &&
-                            si.wProcessorArchitecture != PROCESSOR_ARCHITECTURE_AMD64) {
-                        if ( osvi.dwMajorVersion == 4 ) {
-                            strncat(ret, "Workstation 4.0 ", ret_size - 1);
-                        } else if ( osvi.wSuiteMask & VER_SUITE_PERSONAL ) {
-                            strncat(ret, "Home Edition ", ret_size - 1);
-                        } else {
-                            strncat(ret, "Professional ", ret_size - 1);
-                        }
-
-                        /* Fix size */
-                        ret_size -= strlen(ret) + 1;
-                    }
-
-                    /* Test for the server type */
-                    else if ( osvi.wProductType == VER_NT_SERVER ||
-                              osvi.wProductType == VER_NT_DOMAIN_CONTROLLER ) {
-                        if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 2) {
-                            if (si.wProcessorArchitecture ==
-                                    PROCESSOR_ARCHITECTURE_IA64 ) {
-                                if ( osvi.wSuiteMask & VER_SUITE_DATACENTER )
-                                    strncat(ret,
-                                            "Datacenter Edition for Itanium-based Systems ",
-                                            ret_size - 1);
-                                else if ( osvi.wSuiteMask & VER_SUITE_ENTERPRISE )
-                                    strncat(ret,
-                                            "Enterprise Edition for Itanium-based Systems ",
-                                            ret_size - 1);
-
-                                ret_size -= strlen(ret) + 1;
-                            } else if ( si.wProcessorArchitecture ==
-                                        PROCESSOR_ARCHITECTURE_AMD64 ) {
-                                if ( osvi.wSuiteMask & VER_SUITE_DATACENTER )
-                                    strncat(ret, "Datacenter x64 Edition ",
-                                            ret_size - 1 );
-                                else if ( osvi.wSuiteMask & VER_SUITE_ENTERPRISE )
-                                    strncat(ret, "Enterprise x64 Edition ",
-                                            ret_size - 1 );
-                                else
-                                    strncat(ret, "Standard x64 Edition ",
-                                            ret_size - 1 );
-
-                                ret_size -= strlen(ret) + 1;
-                            } else {
-                                if ( osvi.wSuiteMask & VER_SUITE_DATACENTER )
-                                    strncat(ret, "Datacenter Edition ",
-                                            ret_size - 1 );
-                                else if ( osvi.wSuiteMask & VER_SUITE_ENTERPRISE ) {
-                                    strncat(ret, "Enterprise Edition ", ret_size - 1);
-                                } else if ( osvi.wSuiteMask == VER_SUITE_BLADE ) {
-                                    strncat(ret, "Web Edition ", ret_size - 1 );
-                                } else {
-                                    strncat(ret, "Standard Edition ", ret_size - 1);
-                                }
-
-                                ret_size -= strlen(ret) + 1;
-                            }
-                        } else if (osvi.dwMajorVersion == 5 && osvi.dwMinorVersion == 0) {
-                            if ( osvi.wSuiteMask & VER_SUITE_DATACENTER ) {
-                                strncat(ret, "Datacenter Server ", ret_size - 1);
-                            } else if ( osvi.wSuiteMask & VER_SUITE_ENTERPRISE ) {
-                                strncat(ret, "Advanced Server ", ret_size - 1 );
-                            } else {
-                                strncat(ret, "Server ", ret_size - 1);
-                            }
-
-                            ret_size -= strlen(ret) + 1;
-                        } else if (osvi.dwMajorVersion <= 4) { /* Windows NT 4.0 */
-                            if ( osvi.wSuiteMask & VER_SUITE_ENTERPRISE )
-                                strncat(ret, "Server 4.0, Enterprise Edition ",
-                                        ret_size - 1 );
-                            else {
-                                strncat(ret, "Server 4.0 ", ret_size - 1);
-                            }
-
-                            ret_size -= strlen(ret) + 1;
-                        }
-                    }
-                }
-                /* Test for specific product on Windows NT 4.0 SP5 and earlier */
-                else {
-                    HKEY hKey;
-                    char szProductType[81];
-                    DWORD dwBufLen = 80;
-                    LONG lRet;
-
-                    lRet = RegOpenKeyEx( HKEY_LOCAL_MACHINE,
-                                         "SYSTEM\\CurrentControlSet\\Control\\ProductOptions",
-                                         0, KEY_QUERY_VALUE, &hKey );
-                    if (lRet == ERROR_SUCCESS) {
-                        char __wv[32];
-
-                        lRet = RegQueryValueEx( hKey, "ProductType", NULL, NULL,
-                                                (LPBYTE) szProductType, &dwBufLen);
-                        RegCloseKey( hKey );
-
-                        if ((lRet == ERROR_SUCCESS) && (dwBufLen < 80) ) {
-                            if (lstrcmpi( "WINNT", szProductType) == 0 ) {
-                                strncat(ret, "Workstation ", ret_size - 1);
-                            } else if (lstrcmpi( "LANMANNT", szProductType) == 0 ) {
-                                strncat(ret, "Server ", ret_size - 1);
-                            } else if (lstrcmpi( "SERVERNT", szProductType) == 0 ) {
-                                strncat(ret, "Advanced Server " , ret_size - 1);
-                            }
-
-                            ret_size -= strlen(ret) + 1;
-
-                            memset(__wv, '\0', 32);
-                            snprintf(__wv, 31,
-                                     "%d.%d ",
-                                     (int)osvi.dwMajorVersion,
-                                     (int)osvi.dwMinorVersion);
-
-                            strncat(ret, __wv, ret_size - 1);
-                            ret_size -= strlen(__wv) + 1;
-                        }
-                    }
-                }
-            }
-            /* Display service pack (if any) and build number */
-            if ( osvi.dwMajorVersion == 4 &&
-                    lstrcmpi( osvi.szCSDVersion, "Service Pack 6" ) == 0 ) {
-                HKEY hKey;
-                LONG lRet;
-                char __wp[64];
-
-                memset(__wp, '\0', 64);
-                /* Test for SP6 versus SP6a */
-                lRet = RegOpenKeyEx( HKEY_LOCAL_MACHINE,
-                                     "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Hotfix\\Q246009",
-                                     0, KEY_QUERY_VALUE, &hKey );
-                if ( lRet == ERROR_SUCCESS )
-                    snprintf(__wp, 63, "Service Pack 6a [Ver: %i.%i.%d]",
-                             (int)osvi.dwMajorVersion,
-                             (int)osvi.dwMinorVersion,
-                             (int)osvi.dwBuildNumber & 0xFFFF );
-                else { /* Windows NT 4.0 prior to SP6a */
-                    snprintf(__wp, 63, "%s [Ver: %i.%i.%d]",
-                             osvi.szCSDVersion,
-                             (int)osvi.dwMajorVersion,
-                             (int)osvi.dwMinorVersion,
-                             (int)osvi.dwBuildNumber & 0xFFFF );
-                }
-
-                strncat(ret, __wp, ret_size - 1);
-                ret_size -= strlen(__wp) + 1;
-                RegCloseKey( hKey );
-            } else if (osvi.dwMajorVersion == 6 && (osvi.dwMinorVersion == 2 || osvi.dwMinorVersion == 3)) {
-                // Read Windows Version number from registry
-                char __wp[64];
-                memset(__wp, '\0', 64);
-                DWORD dwRet;
-                HKEY RegistryKey;
-                const DWORD size = 30;
-                TCHAR winver[size];
-                TCHAR wincomp[size];
-                DWORD winMajor = 0;
-                DWORD winMinor = 0;
-                DWORD buildRevision = 0;
-                DWORD dwCount = size;
-                unsigned long type=REG_DWORD;
-
-                if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, TEXT("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"), 0, KEY_READ | KEY_WOW64_64KEY, &RegistryKey) != ERROR_SUCCESS) {
-                    merror("Error opening Windows registry.");
-                }
-
-                // Windows 10
-                dwRet = RegQueryValueEx(RegistryKey, TEXT("CurrentMajorVersionNumber"), NULL, &type, (LPBYTE)&winMajor, &dwCount);
-                if (dwRet == ERROR_SUCCESS) {
-                    dwCount = size;
-                    dwRet = RegQueryValueEx(RegistryKey, TEXT("CurrentMinorVersionNumber"), NULL, &type, (LPBYTE)&winMinor, &dwCount);
-                    if (dwRet != ERROR_SUCCESS) {
-                        merror("Error reading 'CurrentMinorVersionNumber' from Windows registry. (Error %u)",(unsigned int)dwRet);
-                    }
-                    else {
-                        dwCount = size;
-                        dwRet = RegQueryValueEx(RegistryKey, TEXT("CurrentBuildNumber"), NULL, NULL, (LPBYTE)wincomp, &dwCount);
-                        if (dwRet != ERROR_SUCCESS) {
-                            merror("Error reading 'CurrentBuildNumber' from Windows registry. (Error %u)",(unsigned int)dwRet);
-                            snprintf(__wp, 63, " [Ver: %d.%d]", (unsigned int)winMajor, (unsigned int)winMinor);
-                        }
-                        else {
-                            dwCount = size;
-                            dwRet = RegQueryValueEx(RegistryKey, TEXT("UBR"), NULL, &type, (LPBYTE)&buildRevision, &dwCount);
-                            if (dwRet != ERROR_SUCCESS) {
-                                snprintf(__wp,  sizeof(__wp), " [Ver: %d.%d.%s]", (unsigned int)winMajor, (unsigned int)winMinor, wincomp);
-                            }
-                            else {
-                                snprintf(__wp,  sizeof(__wp), " [Ver: %d.%d.%s.%lu]", (unsigned int)winMajor, (unsigned int)winMinor, wincomp, buildRevision);
-                            }
-
-                            char *endptr = NULL, *osVersion = NULL;
-                            const int buildNumber = (int) strtol(wincomp, &endptr, 10);
-
-                            if ('\0' == *endptr && buildNumber >= FIRST_BUILD_WINDOWS_11) {
-                                if (osVersion = strstr(ret, "Microsoft Windows 10"), osVersion != NULL) {
-                                    memcpy(osVersion, "Microsoft Windows 11", strlen("Microsoft Windows 11"));
-                                }
-                            }
-                        }
-                    }
-                    RegCloseKey(RegistryKey);
-                }
-                // Windows 6.2 or 6.3
-                else {
-                    dwRet = RegQueryValueEx(RegistryKey, TEXT("CurrentVersion"), NULL, NULL, (LPBYTE)winver, &dwCount);
-                    if (dwRet != ERROR_SUCCESS) {
-                        merror("Error reading 'Current Version' from Windows registry. (Error %u)",(unsigned int)dwRet);
-                        snprintf(__wp, 63, " [Ver: 6.2]");
-                    }
-                    else {
-                        dwCount = size;
-                        dwRet = RegQueryValueEx(RegistryKey, TEXT("CurrentBuildNumber"), NULL, NULL, (LPBYTE)wincomp, &dwCount);
-                        if (dwRet != ERROR_SUCCESS) {
-                            merror("Error reading 'CurrentBuildNumber' from Windows registry. (Error %u)",(unsigned int)dwRet);
-                            snprintf(__wp, 63, " [Ver: 6.2]");
-                        }
-                        else {
-                            dwCount = size;
-                            dwRet = RegQueryValueEx(RegistryKey, TEXT("UBR"), NULL, &type, (LPBYTE)&buildRevision, &dwCount);
-                            if (dwRet != ERROR_SUCCESS) {
-                                snprintf(__wp, sizeof(__wp), " [Ver: %s.%s]", winver,wincomp);
-                            }
-                            else {
-                                snprintf(__wp, sizeof(__wp), " [Ver: %s.%s.%lu]", winver, wincomp, buildRevision);
-                            }
-                        }
-                    }
-                    RegCloseKey(RegistryKey);
-                }
-
-                strncat(ret, __wp, ret_size - 1);
-                ret_size -= strlen(ret) + 1;
-            } else {
-                char __wp[64];
-
-                memset(__wp, '\0', 64);
-
-                snprintf(__wp, 63, "%s [Ver: %i.%i.%d]",
-                         osvi.szCSDVersion,
-                         (int)osvi.dwMajorVersion,
-                         (int)osvi.dwMinorVersion,
-                         (int)osvi.dwBuildNumber & 0xFFFF );
-
-                strncat(ret, __wp, ret_size - 1);
-                ret_size -= strlen(__wp) + 1;
-            }
-            break;
-
-        /* Test for Windows Me/98/95 */
-        case VER_PLATFORM_WIN32_WINDOWS:
-            if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 0) {
-                strncat(ret, "Microsoft Windows 95 ", ret_size - 1);
-                ret_size -= strlen(ret) + 1;
-            }
-
-            if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 10) {
-                strncat(ret, "Microsoft Windows 98 ", ret_size - 1);
-                ret_size -= strlen(ret) + 1;
-            }
-
-            if (osvi.dwMajorVersion == 4 && osvi.dwMinorVersion == 90) {
-                strncat(ret, "Microsoft Windows Millennium Edition",
-                        ret_size - 1);
-
-                ret_size -= strlen(ret) + 1;
-            }
-            break;
-
-        case VER_PLATFORM_WIN32s:
-            strncat(ret, "Microsoft Win32s", ret_size - 1);
-            ret_size -= strlen(ret) + 1;
-            break;
+        free_osinfo(read_version);
+        return ret;
     }
 
-    /* Add OSSEC-HIDS version */
-    snprintf(os_v, 128, " - %s %s", __ossec_name, __ossec_version);
-    strncat(ret, os_v, ret_size - 1);
-
-    return (ret);
+    snprintf(ret, OS_SIZE_1024, "Microsoft Windows - %s %s", __ossec_name, __ossec_version);
+    return ret;
 }
 
 
@@ -2019,7 +1664,7 @@ FILE * w_fopen_r(const char *file, const char * mode, BY_HANDLE_FILE_INFORMATION
     int fd;
     HANDLE h;
 
-    h = CreateFile(file, GENERIC_READ, FILE_SHARE_DELETE|FILE_SHARE_READ|FILE_SHARE_WRITE,
+    h = wCreateFile(file, GENERIC_READ, FILE_SHARE_DELETE|FILE_SHARE_READ|FILE_SHARE_WRITE,
                    NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) {
         return NULL;
@@ -2030,7 +1675,7 @@ FILE * w_fopen_r(const char *file, const char * mode, BY_HANDLE_FILE_INFORMATION
     }
 
     if (GetFileInformationByHandle(h, lpFileInformation) == 0) {
-        merror(FILE_ERROR, file);
+        mdebug2(FILE_ERROR, file);
     }
 
     if (fd = _open_osfhandle((intptr_t)h, 0), fd == -1) {
@@ -2049,7 +1694,7 @@ FILE * w_fopen_r(const char *file, const char * mode, BY_HANDLE_FILE_INFORMATION
 }
 
 char **expand_win32_wildcards(const char *path) {
-    WIN32_FIND_DATA FindFileData;
+    WIN32_FIND_DATAW fd;
     HANDLE hFind;
     char **pending_expand = NULL;
     char **expanded_paths = NULL;
@@ -2059,6 +1704,12 @@ char **expand_win32_wildcards(const char *path) {
     int pending_expand_index = 0;
     int expanded_index = 0;
     size_t glob_pos = 0;
+
+    if (is_network_path(path)) {
+        errno = EACCES;
+        mwarn(NETWORK_PATH_EXECUTED, path);
+        return NULL;
+    }
 
     os_calloc(2, sizeof(char *), pending_expand);
     os_strdup(path, pending_expand[0]);
@@ -2095,7 +1746,14 @@ char **expand_win32_wildcards(const char *path) {
                 *look_back = '\0';
             }
 
-            hFind = FindFirstFile(pattern, &FindFileData);
+            wchar_t *wpattern = auto_to_wide(pattern);
+            if (!wpattern) {
+                continue;
+            }
+
+            hFind = FindFirstFileW(wpattern, &fd);
+            os_free(wpattern);
+
             if (hFind == INVALID_HANDLE_VALUE) {
                 long unsigned errcode = GetLastError();
                 if (errcode == 2) {
@@ -2112,20 +1770,26 @@ char **expand_win32_wildcards(const char *path) {
                 continue;
             }
             do {
-                if (strcmp(FindFileData.cFileName, ".") == 0 || strcmp(FindFileData.cFileName, "..") == 0) {
+                if (wcscmp(fd.cFileName, L".") == 0 || wcscmp(fd.cFileName, L"..") == 0) {
                     continue;
                 }
 
-                if ((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+                if ((fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
                     continue;
                 }
 
-                if ((FindFileData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0 && next_glob != NULL) {
+                if ((fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0 && next_glob != NULL) {
+                    continue;
+                }
+
+                char *utf8_name = wide_to_utf8(fd.cFileName);
+                if (!utf8_name) {
                     continue;
                 }
 
                 os_strdup(parent_path, expanded_paths[expanded_index]);
-                wm_strcat(&expanded_paths[expanded_index], FindFileData.cFileName, PATH_SEP);
+                wm_strcat(&expanded_paths[expanded_index], utf8_name, PATH_SEP);
+                os_free(utf8_name);
 
                 if (next_glob != NULL) {
                     wm_strcat(&expanded_paths[expanded_index], next_glob, PATH_SEP);
@@ -2134,8 +1798,7 @@ char **expand_win32_wildcards(const char *path) {
                 os_realloc(expanded_paths, (expanded_index + 2) * sizeof(char *), expanded_paths);
                 expanded_index++;
                 expanded_paths[expanded_index] = NULL;
-
-            } while(FindNextFile(hFind, &FindFileData));
+            } while (FindNextFileW(hFind, &fd));
 
             FindClose(hFind);
             // Now, free the memory, as the path that needed to be expanded is no longer needed and it's expansion is
@@ -2150,6 +1813,7 @@ char **expand_win32_wildcards(const char *path) {
         pending_expand = expanded_paths;
     }
 
+    os_free(parent_path);
     return expanded_paths;
 }
 
@@ -2187,14 +1851,74 @@ int cldir_ex(const char *name) {
 }
 
 
-int cldir_ex_ignore(const char * name, const char ** ignore) {
+/**
+ * @brief Check if a relative path should be preserved based on the ignore list
+ *
+ * This function verifies whether a given relative path or any of its descendants
+ * are present in the ignore list. It performs both exact matching and prefix
+ * matching to detect if the path contains protected files in subdirectories.
+ *
+ * @param relative_path The relative path to check (e.g., "subfolder/file.txt")
+ * @param ignore NULL-terminated array of paths to ignore (can be NULL)
+ * @return 1 if the path should be preserved, 0 otherwise
+ *
+ * @note This function uses path prefix matching with '/' as delimiter to avoid
+ *       false positives (e.g., "sub" won't match "subfolder/file.txt")
+ *
+ * Example:
+ * - relative_path = "subfolder", ignore = ["subfolder/file1.txt"] -> returns 1
+ * - relative_path = "file.txt", ignore = ["file.txt"] -> returns 1
+ * - relative_path = "other.txt", ignore = ["file.txt"] -> returns 0
+ */
+static int should_preserve_path(const char * relative_path, const char ** ignore) {
+    int i;
+    size_t path_len;
+
+    if (!ignore || !relative_path) {
+        return 0;
+    }
+
+    path_len = strlen(relative_path);
+
+    for (i = 0; ignore[i]; i++) {
+        const char *ignore_entry = ignore[i];
+
+        // Check if ignore[i] matches the relative path exactly
+        if (strcmp(relative_path, ignore_entry) == 0) {
+            return 1;
+        }
+
+        // Check if ignore[i] is a descendant of relative_path
+        if (strncmp(relative_path, ignore_entry, path_len) == 0 &&
+            ignore_entry[path_len] == '/') {
+            return 1;
+        }
+    }
+
+    return 0;
+}
+
+/**
+ * @brief Internal recursive implementation to clean a directory while preserving ignored paths
+ *
+ * This function recursively removes files and directories within the specified directory,
+ * while preserving any paths that are present in the ignore list. It maintains a reference
+ * to the original base directory throughout the recursion to correctly calculate relative
+ * paths for matching against the ignore list.
+ *
+ * @param name The current directory to clean (changes during recursion)
+ * @param base_dir The original base directory (remains constant during recursion)
+ * @param ignore NULL-terminated array of relative paths to preserve (can be NULL)
+ * @return 0 on success, -1 on error
+ */
+static int cldir_ex_ignore_recursive(const char * name, const char * base_dir, const char ** ignore) {
     DIR *dir;
     struct dirent *dirent = NULL;
     char path[PATH_MAX + 1];
+    char relative_path[PATH_MAX + 1];
+    size_t base_len = strlen(base_dir);
 
-    // Erase content
-
-    dir = opendir(name);
+    dir = wopendir(name);
 
     if (!dir) {
         return -1;
@@ -2202,7 +1926,7 @@ int cldir_ex_ignore(const char * name, const char ** ignore) {
 
     while (dirent = readdir(dir), dirent) {
         // Skip "." and ".."
-        if ((dirent->d_name[0] == '.' && (dirent->d_name[1] == '\0' || (dirent->d_name[1] == '.' && dirent->d_name[2] == '\0'))) || w_str_in_array(dirent->d_name, ignore)) {
+        if (dirent->d_name[0] == '.' && (dirent->d_name[1] == '\0' || (dirent->d_name[1] == '.' && dirent->d_name[2] == '\0'))) {
             continue;
         }
 
@@ -2211,6 +1935,27 @@ int cldir_ex_ignore(const char * name, const char ** ignore) {
             return -1;
         }
 
+        if (strncmp(base_dir, path, base_len) == 0 && path[base_len] == '/') {
+            snprintf(relative_path, PATH_MAX + 1, "%s", path + base_len + 1);
+        } else {
+            snprintf(relative_path, PATH_MAX + 1, "%s", dirent->d_name);
+        }
+
+        if (should_preserve_path(relative_path, ignore)) {
+            if (IsDir(path) == 0) {
+                // Recursively clean the directory, preserving protected files
+                if (cldir_ex_ignore_recursive(path, base_dir, ignore) < 0) {
+                    closedir(dir);
+                    return -1;
+                }
+
+                // If it still contains protected files, rmdir will fail with ENOTEMPTY, which is fine
+                rmdir(path);
+            }
+            continue;
+        }
+
+        // Not in ignore list, remove it
         if (rmdir_ex(path) < 0) {
             closedir(dir);
             return -1;
@@ -2218,6 +1963,10 @@ int cldir_ex_ignore(const char * name, const char ** ignore) {
     }
 
     return closedir(dir);
+}
+
+int cldir_ex_ignore(const char * name, const char ** ignore) {
+    return cldir_ex_ignore_recursive(name, name, ignore);
 }
 
 
@@ -2242,7 +1991,7 @@ int TempFile(File *file, const char *source, int copy) {
 #ifndef WIN32
     struct stat buf;
 
-    if (stat(source, &buf) == 0) {
+    if (w_stat(source, &buf) == 0) {
         if (fchmod(fd, buf.st_mode) < 0) {
             if (fp_src) {
                 fclose(fp_src);
@@ -2690,7 +2439,7 @@ char ** wreaddir(const char * name) {
     char ** files;
     unsigned int i = 0;
 
-    if (dir = opendir(name), !dir) {
+    if (dir = wopendir(name), !dir) {
         return NULL;
     }
 
@@ -2728,9 +2477,10 @@ FILE * wfopen(const char * pathname, const char * mode) {
     FILE * fp;
     int i;
 
-    if (pathname && strchr("\\/", pathname[0]) && strchr("\\/?\"<>|", pathname[1])) {
-        errno = EINVAL;
-        return NULL;
+    if (is_network_path(pathname)) {
+        errno = EACCES;
+        mwarn(NETWORK_PATH_EXECUTED, pathname);
+        return (NULL);
     }
 
     for (i = 0; mode[i]; ++i) {
@@ -2766,7 +2516,7 @@ FILE * wfopen(const char * pathname, const char * mode) {
         return NULL;
     }
 
-    hFile = CreateFile(pathname, dwDesiredAccess, dwShareMode, NULL, dwCreationDisposition, dwFlagsAndAttributes, NULL);
+    hFile = wCreateFile(pathname, dwDesiredAccess, dwShareMode, NULL, dwCreationDisposition, dwFlagsAndAttributes, NULL);
 
     if (hFile == INVALID_HANDLE_VALUE) {
         errno = GetLastError();
@@ -2858,7 +2608,7 @@ int w_uncompress_gzfile(const char *gzfilesrc, const char *gzfiledst) {
 
 #ifdef WIN32
     /* Win32 does not have lstat */
-    if (stat(gzfilesrc, &statbuf) < 0)
+    if (w_stat(gzfilesrc, &statbuf) < 0)
 #else
     if (lstat(gzfilesrc, &statbuf) < 0)
 #endif
@@ -3139,14 +2889,14 @@ DWORD FileSizeWin(const char * file) {
     HANDLE h1;
     BY_HANDLE_FILE_INFORMATION lpFileInfo;
 
-    h1 = CreateFile(file, GENERIC_READ,
+    h1 = wCreateFile(file, GENERIC_READ,
                     FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE,
                     NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (h1 == INVALID_HANDLE_VALUE) {
-        merror(FILE_ERROR, file);
+        mdebug2(FILE_ERROR, file);
     } else if (GetFileInformationByHandle(h1, &lpFileInfo) == 0) {
         CloseHandle(h1);
-        merror(FILE_ERROR, file);
+        mdebug2(FILE_ERROR, file);
     } else {
         CloseHandle(h1);
         return lpFileInfo.nFileSizeHigh + lpFileInfo.nFileSizeLow;
@@ -3156,41 +2906,100 @@ DWORD FileSizeWin(const char * file) {
 }
 
 float DirSize(const char *path) {
-    WIN32_FIND_DATA fdFile;
+    WIN32_FIND_DATAW fdFile;
     HANDLE hFind = NULL;
     float folder_size = 0.0;
     float file_size = 0.0;
 
-    char sPath[2048];
+    wchar_t *wPathInput = auto_to_wide(path);
+    if (!wPathInput) {
+        return 0;
+    }
+
+    wchar_t wsPath[2048];
 
     // Specify a file mask. *.* = We want everything!
-    sprintf(sPath, "%s\\*.*", path);
+    swprintf(wsPath, sizeof(wsPath) / sizeof(wsPath[0]), L"%ls\\*.*", wPathInput);
 
-    if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE) {
-        merror(FILE_ERROR, path);
+    if ((hFind = FindFirstFileW(wsPath, &fdFile)) == INVALID_HANDLE_VALUE) {
+        mdebug2(FILE_ERROR, path);
+        os_free(wPathInput);
         return 0;
     }
 
     do {
-        if (strcmp(fdFile.cFileName, ".") != 0 && strcmp(fdFile.cFileName, "..") != 0) {
+        if (wcscmp(fdFile.cFileName, L".") != 0 && wcscmp(fdFile.cFileName, L"..") != 0) {
             // Build up our file path using the passed in
             //  [path] and the file/foldername we just found:
-            sprintf(sPath, "%s\\%s", path, fdFile.cFileName);
+            swprintf(wsPath, sizeof(wsPath) / sizeof(wsPath[0]), L"%ls\\%ls", wPathInput, fdFile.cFileName);
 
-            if (fdFile.dwFileAttributes &FILE_ATTRIBUTE_DIRECTORY) {
-                folder_size += DirSize(sPath);
+            char *utf8_file = wide_to_utf8(wsPath);
+            if (!utf8_file) {
+                continue;
+            }
+
+            if (fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+                folder_size += DirSize(utf8_file);
             }
             else {
-                if (file_size = FileSizeWin(sPath), file_size != -1) {
+                if (file_size = FileSizeWin(utf8_file), file_size != -1) {
                     folder_size += file_size;
                 }
             }
+            os_free(utf8_file);
         }
-    } while (FindNextFile(hFind, &fdFile));
+    } while (FindNextFileW(hFind, &fdFile));
 
     FindClose(hFind);
-
+    os_free(wPathInput);
     return folder_size;
+}
+
+// Checks if a given path is located on network storage.
+
+bool is_network_path(const char *path) {
+    if (!path || !*path) {
+        return false;
+    }
+
+    // Block any path starting with \\ (UNC, extended-length UNC, device paths)
+    if (strlen(path) >= 2 && path[0] == '\\' && path[1] == '\\') {
+        return true;
+    }
+
+    // Check for mapped network drives
+    if (strlen(path) >= 2 && path[1] == ':') {
+        char drive_letter = toupper(path[0]);
+        char device[] = "X:";
+        device[0] = drive_letter;
+
+        char target[MAX_PATH] = {0};
+        DWORD result = QueryDosDeviceA(device, target, sizeof(target));
+
+        if (result > 0) {
+            if (strncmp(target, "\\Device\\Mup\\", 12) == 0 ||
+                strncmp(target, "\\Device\\LanmanRedirector\\", 25) == 0 ||
+                strncmp(target, "\\DosDevices\\UNC\\", 16) == 0) {
+                return true;
+            }
+
+            if (strncmp(target, "\\Device\\", 8) == 0) {
+                return false;
+            }
+        }
+
+        // Fallback: check registry
+        char registry_path[64];
+        snprintf(registry_path, sizeof(registry_path), "Network\\%c", drive_letter);
+
+        HKEY hkey;
+        if (RegOpenKeyExA(HKEY_CURRENT_USER, registry_path, 0, KEY_READ, &hkey) == ERROR_SUCCESS) {
+            RegCloseKey(hkey);
+            return true;
+        }
+    }
+
+    return false;
 }
 
 #endif
@@ -3497,7 +3306,7 @@ char *w_homedir(char *arg) {
         }
     }
 
-    if ((stat(buff, &buff_stat) < 0) || !S_ISDIR(buff_stat.st_mode)) {
+    if ((w_stat(buff, &buff_stat) < 0) || !S_ISDIR(buff_stat.st_mode)) {
         os_free(buff);
         merror_exit(HOME_ERROR);
     }

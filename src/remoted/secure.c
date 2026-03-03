@@ -15,15 +15,10 @@
 #include "../wazuh_db/helpers/wdb_global_helpers.h"
 #include "router.h"
 #include "sym_load.h"
-#include "utils/flatbuffers/include/syscollector_synchronization_schema.h"
-#include "utils/flatbuffers/include/syscollector_deltas_schema.h"
 #include "agent_messages_adapter.h"
+#include "indexed_queue_op.h"
 
-enum msg_type {
-    MT_INVALID,
-    MT_SYS_DELTAS,
-    MT_SYS_SYNC,
-} msg_type_t;
+
 #ifdef WAZUH_UNIT_TESTING
 // Remove static qualifier when unit testing
 #define STATIC
@@ -32,7 +27,7 @@ enum msg_type {
 #endif
 
 /* Global variables */
-int sender_pool;
+w_indexed_queue_t *control_msg_queue = NULL;
 
 netbuffer_t netbuffer_recv;
 netbuffer_t netbuffer_send;
@@ -48,28 +43,40 @@ OSHash *remoted_agents_state;
 extern remoted_state_t remoted_state;
 ROUTER_PROVIDER_HANDLE router_rsync_handle = NULL;
 ROUTER_PROVIDER_HANDLE router_syscollector_handle = NULL;
+// ROUTER_PROVIDER_HANDLE router_syscheck_handle = NULL; // DISABLED 
 STATIC void handle_outgoing_data_to_tcp_socket(int sock_client);
 STATIC void handle_incoming_data_from_tcp_socket(int sock_client);
 STATIC void handle_incoming_data_from_udp_socket(struct sockaddr_storage * peer_info);
 STATIC void handle_new_tcp_connection(wnotify_t * notify, struct sockaddr_storage * peer_info);
 
 // Headers for syscollector messages: DBSYNC_MQ + WM_SYS_LOCATION and SYSCOLLECTOR_MQ + WM_SYS_LOCATION
-#define DBSYNC_SYSCOLLECTOR_HEADER "5:syscollector:"
+#define DBSYNC_HEADER "5:"
+#define DBSYNC_HEADER_SIZE 2
 #define SYSCOLLECTOR_HEADER "d:syscollector:"
-#define DBSYNC_SYSCOLLECTOR_HEADER_SIZE 15
 #define SYSCOLLECTOR_HEADER_SIZE 15
+#define SYSCHECK_HEADER "8:syscheck:"
+#define SYSCHECK_HEADER_SIZE 11
+
+#define SYSCOLLECTOR_SYNC_HEADER "syscollector:"
+#define SYSCOLLECTOR_SYNC_HEADER_SIZE 13
+#define SYSCHECK_FILE_HEADER "fim_file:"
+#define SYSCHECK_FILE_HEADER_SIZE 9
+#define SYSCHECK_REGISTRY_KEY_HEADER "fim_registry_key:"
+#define SYSCHECK_REGISTRY_KEY_HEADER_SIZE 17
+#define SYSCHECK_REGISTRY_VALUE_HEADER "fim_registry_value:"
+#define SYSCHECK_REGISTRY_VALUE_HEADER_SIZE 19
 
 // Router message forwarder
 void router_message_forward(char* msg, const char* agent_id, const char* agent_ip, const char* agent_name);
 
 // Message handler thread
-static void * rem_handler_main(__attribute__((unused)) void * args);
+static void * rem_handler_main(void * args);
 
 // Key reloader thread
 void * rem_keyupdate_main(__attribute__((unused)) void * args);
 
 /* Handle each message received */
-STATIC void HandleSecureMessage(const message_t *message, int *wdb_sock);
+STATIC void HandleSecureMessage(const message_t *message, w_indexed_queue_t * control_msg_queue);
 
 // Close and remove socket from keystore
 int _close_sock(keystore * keys, int sock);
@@ -110,11 +117,72 @@ char *str_family_address[FAMILY_ADDRESS_SIZE] = {
     "AF_VSOCK", "AF_KCM", "AF_QIPCRTR", "AF_SMC", "AF_XDP", "AF_MCTP"
 };
 
+/**
+ * @brief Structure to hold control message data
+ *
+ */
+typedef struct {
+    keyentry * key; ///< Pointer to the key entry of agent to which the message belongs
+    char * message; ///< Raw message received
+    int is_startup; ///< Validation result: is startup message
+    int is_shutdown; ///< Validation result: is shutdown message
+    bool post_startup; ///< Keystore flag: pending full sync after startup
+} w_ctrl_msg_data_t;
+
+/**
+ * @brief Free control message data
+ *
+ * @param ptr_ctrl_msg_data Pointer to the control message data to be freed
+ * @warning The ctrl_msg_data pointer will be invalid after this function call.
+ */
+static void w_free_ctrl_msg_data(w_ctrl_msg_data_t * ctrl_msg_data) {
+
+    if (ctrl_msg_data == NULL) {
+        return;
+    }
+
+    if (ctrl_msg_data->key) {
+        OS_FreeKey(ctrl_msg_data->key);
+    }
+    os_free(ctrl_msg_data->message);
+    os_free(ctrl_msg_data);
+}
+
+/**
+ * @brief Get key from control message data for indexed queue
+ *
+ * @param data Pointer to w_ctrl_msg_data_t structure
+ * @return Pointer to agent_id string (must not be freed by caller)
+ */
+static char *w_ctrl_msg_get_key(void *data) {
+    w_ctrl_msg_data_t *ctrl_msg_data = (w_ctrl_msg_data_t *)data;
+    if (ctrl_msg_data && ctrl_msg_data->key) {
+        return ctrl_msg_data->key->id;
+    }
+    return NULL;
+}
+
+/**
+ * @brief Thread function to save control messages
+ *
+ * This function is executed by the control message thread pool. It waits for messages to be pushed into the queue and processes them.
+ * Updates the agent's status in wazuhdb and sends the message to the appropriate handler.
+ * @param queue Pointer to the control message queue, which is used to store messages to be processed.
+ * @return void* Null
+ */
+void * save_control_thread(void * queue);
+
+
 /* Handle secure connections */
 void HandleSecure()
 {
     const int protocol = logr.proto[logr.position];
     int n_events = 0;
+
+
+    control_msg_queue = indexed_queue_init(ctrl_msg_queue_size);
+    indexed_queue_set_dispose(control_msg_queue, (void (*)(void *))w_free_ctrl_msg_data);
+    indexed_queue_set_get_key(control_msg_queue, w_ctrl_msg_get_key);
 
     struct sockaddr_storage peer_info;
     memset(&peer_info, 0, sizeof(struct sockaddr_storage));
@@ -168,8 +236,6 @@ void HandleSecure()
 
     /* Create wait_for_msgs threads */
     {
-        sender_pool = getDefine_Int("remoted", "sender_pool", 1, 64);
-
         mdebug2("Creating %d sender threads.", sender_pool);
 
         for (int i = 0; i < sender_pool; i++) {
@@ -190,19 +256,25 @@ void HandleSecure()
         mdebug2("Failed to create router handle for 'syscollector'.");
     }
 
-    if (router_rsync_handle = router_provider_create("rsync-syscollector", false), !router_rsync_handle) {
+    // Disable the syscheck router as FIM events are not to be forwarded
+    // if (router_syscheck_handle = router_provider_create("deltas-syscheck", false), !router_syscheck_handle) {
+    //     mdebug2("Failed to create router handle for 'syscheck'.");
+    // }
+
+    if (router_rsync_handle = router_provider_create("rsync", false), !router_rsync_handle) {
         mdebug2("Failed to create router handle for 'rsync'.");
     }
 
+    // Create upsert control message thread
+    w_create_thread(save_control_thread, (void *) control_msg_queue);
+
     // Create message handler thread pool
     {
-        int worker_pool = getDefine_Int("remoted", "worker_pool", 1, 16);
         // Initialize FD list and counter.
         global_counter = 0;
         rem_initList(FD_LIST_INIT_VALUE);
-        while (worker_pool > 0) {
-            w_create_thread(rem_handler_main, NULL);
-            worker_pool--;
+        for (int i = 0; i < worker_pool; i++) {
+            w_create_thread(rem_handler_main, control_msg_queue);
         }
     }
 
@@ -398,14 +470,14 @@ STATIC void handle_outgoing_data_to_tcp_socket(int sock_client)
 }
 
 // Message handler thread
-void * rem_handler_main(__attribute__((unused)) void * args) {
+void * rem_handler_main(void * args) {
     message_t * message;
-    int wdb_sock = -1;
+    w_indexed_queue_t * control_msg_queue = (w_indexed_queue_t *) args;
     mdebug1("Message handler thread started.");
 
     while (1) {
         message = rem_msgpop();
-        HandleSecureMessage(message, &wdb_sock);
+        HandleSecureMessage(message, control_msg_queue);
         rem_msgfree(message);
     }
 
@@ -414,17 +486,14 @@ void * rem_handler_main(__attribute__((unused)) void * args) {
 
 // Key reloader thread
 void * rem_keyupdate_main(__attribute__((unused)) void * args) {
-    int seconds;
-
     mdebug1("Key reloader thread started.");
-    seconds = getDefine_Int("remoted", "keyupdate_interval", 1, 3600);
 
     while (1) {
         mdebug2("Checking for keys file changes.");
         if (check_keyupdate() == 1) {
             rem_inc_keys_reload();
         }
-        sleep(seconds);
+        sleep(keyupdate_interval);
     }
 }
 
@@ -475,17 +544,7 @@ STATIC void * close_fp_main(void * args) {
     return NULL;
 }
 
-STATIC const char * get_schema(const int type)
-{
-    if (type == MT_SYS_DELTAS) {
-        return syscollector_deltas_SCHEMA;
-    } else if (type == MT_SYS_SYNC) {
-        return syscollector_synchronization_SCHEMA;
-    }
-    return NULL;
-
-}
-STATIC void HandleSecureMessage(const message_t *message, int *wdb_sock) {
+STATIC void HandleSecureMessage(const message_t *message, w_indexed_queue_t * control_msg_queue) {
     int agentid;
     const int protocol = (message->sock == USING_UDP_NO_CLIENT_SOCKET) ? REMOTED_NET_PROTOCOL_UDP : REMOTED_NET_PROTOCOL_TCP;
     char cleartext_msg[OS_MAXSTR + 1];
@@ -762,17 +821,73 @@ STATIC void HandleSecureMessage(const message_t *message, int *wdb_sock) {
                 w_mutex_unlock(&keys.keyentries[agentid]->mutex);
             }
 
+            // Validate control message before unlocking to update startup status safely
+            char *cleaned_msg = NULL;
+            int is_startup = 0, is_shutdown = 0;
+            size_t tmp_msg_length = msg_length - 3; // Exclude the header length (3 characters)
+            int validation_result = validate_control_msg(key, tmp_msg, tmp_msg_length, &cleaned_msg, &is_startup, &is_shutdown);
+
+            // Update keystore startup status immediately after validation
+            if (is_startup) {
+                keys.keyentries[agentid]->post_startup = true;
+            }
+
+            // Read post_startup state before unlocking
+            bool post_startup = keys.keyentries[agentid]->post_startup;
+
             key_unlock();
 
             if (sock_idle >= 0) {
                 _close_sock(&keys, sock_idle);
             }
 
-            // The critical section for readers closes within this function
-            save_controlmsg(key, tmp_msg, msg_length - 3, wdb_sock);
             rem_inc_recv_ctrl(key->id);
 
-            OS_FreeKey(key);
+            if (validation_result == 1) {
+                // Message should be queued for database processing
+                w_ctrl_msg_data_t * ctrl_msg_data;
+                os_calloc(sizeof(w_ctrl_msg_data_t), 1, ctrl_msg_data);
+
+                ctrl_msg_data->key = key;
+
+                os_calloc(msg_length, sizeof(char), ctrl_msg_data->message);
+                // Use cleaned message from validation if available, otherwise use original
+                memcpy(ctrl_msg_data->message, cleaned_msg ? cleaned_msg : tmp_msg, tmp_msg_length);
+
+                // Store validation results in the control message data structure
+                ctrl_msg_data->is_startup = is_startup;
+                ctrl_msg_data->is_shutdown = is_shutdown;
+                ctrl_msg_data->post_startup = post_startup;
+
+                // Use upsert to allow updating existing control messages for the same agent
+                int res = indexed_queue_upsert_ex(control_msg_queue, key->id, ctrl_msg_data);
+                key = NULL;
+
+                switch (res) {
+                case 0:
+                    rem_inc_ctrl_queue_inserted();
+                    break;
+                case 1:
+                    rem_inc_ctrl_queue_replaced();
+                    break;
+                default:
+                    w_free_ctrl_msg_data(ctrl_msg_data);
+                }
+            } else if (validation_result == 0) {
+                // Message was handled directly (HC_REQUEST), don't queue it
+                mdebug2("Control message processed directly, not queued.");
+                OS_FreeKey(key);
+            } else {
+                // Error in validation
+                mwarn("Error validating control message from agent ID '%s'.", key->id);
+                OS_FreeKey(key);
+            }
+
+            // Free cleaned message if allocated
+            if (cleaned_msg) {
+                os_free(cleaned_msg);
+            }
+
         } else {
             key_unlock();
             rem_inc_recv_dequeued();
@@ -816,6 +931,15 @@ STATIC void HandleSecureMessage(const message_t *message, int *wdb_sock) {
         rem_inc_recv_evt(agentid_str);
     }
 
+    if(router_forwarding_disabled == 1) {
+        // If router forwarding is disabled, do not forward events to subscribers
+        mdebug2("Router forwarding is disabled, not forwarding message from agent '%s'.", agentid_str);
+        os_free(agentid_str);
+        os_free(agent_ip);
+        os_free(agent_name);
+        return;
+    }
+
     // Forwarding events to subscribers
     router_message_forward(tmp_msg, agentid_str, agent_ip, agent_name);
 
@@ -830,6 +954,20 @@ void router_message_forward(char* msg, const char* agent_id, const char* agent_i
     int message_header_size = 0;
     int schema_type = -1;
 
+    // Disable forwarding of FIM/syscheck events to Inventory Harvester
+    if (
+        strncmp(msg, SYSCHECK_HEADER, SYSCHECK_HEADER_SIZE) == 0 ||
+        (strncmp(msg, DBSYNC_HEADER, DBSYNC_HEADER_SIZE) == 0 && (
+            strncmp(msg+DBSYNC_HEADER_SIZE, SYSCHECK_FILE_HEADER, SYSCHECK_FILE_HEADER_SIZE) == 0 ||
+            strncmp(msg+DBSYNC_HEADER_SIZE, SYSCHECK_REGISTRY_KEY_HEADER, SYSCHECK_REGISTRY_KEY_HEADER_SIZE) == 0 ||
+            strncmp(msg+DBSYNC_HEADER_SIZE, SYSCHECK_REGISTRY_VALUE_HEADER, SYSCHECK_REGISTRY_VALUE_HEADER_SIZE) == 0
+        ))
+    ) {
+        // FIM event detected, skipping forwarding
+        mdebug2("FIM event detected, not forwarding to Inventory Harvester.");
+        return;
+    }
+
     if(strncmp(msg, SYSCOLLECTOR_HEADER, SYSCOLLECTOR_HEADER_SIZE) == 0) {
         if (!router_syscollector_handle) {
             mdebug2("Router handle for 'syscollector' not available.");
@@ -838,35 +976,45 @@ void router_message_forward(char* msg, const char* agent_id, const char* agent_i
         router_handle = router_syscollector_handle;
         message_header_size = SYSCOLLECTOR_HEADER_SIZE;
         schema_type = MT_SYS_DELTAS;
-    } else if(strncmp(msg, DBSYNC_SYSCOLLECTOR_HEADER, DBSYNC_SYSCOLLECTOR_HEADER_SIZE) == 0) {
+    } else if(strncmp(msg, DBSYNC_HEADER, DBSYNC_HEADER_SIZE) == 0) {
         if (!router_rsync_handle) {
             mdebug2("Router handle for 'rsync' not available.");
             return;
         }
+
+        int message_subheader_size = 0;
+
+        if (strncmp(msg+DBSYNC_HEADER_SIZE, SYSCOLLECTOR_SYNC_HEADER, SYSCOLLECTOR_SYNC_HEADER_SIZE) == 0) {
+            message_subheader_size = SYSCOLLECTOR_SYNC_HEADER_SIZE;
+        } else {
+            mdebug2("DBSYNC message not recognized %s", msg);
+            return;
+        }
+
         router_handle = router_rsync_handle;
-        message_header_size = DBSYNC_SYSCOLLECTOR_HEADER_SIZE;
-        schema_type = MT_SYS_SYNC;
+        message_header_size = DBSYNC_HEADER_SIZE + message_subheader_size;
+        schema_type = MT_SYNC;
+    }
+    else {
+        mdebug2("%s message not recognized %s", agent_id, msg);
     }
 
     if (!router_handle) {
         return;
     }
 
-    char* msg_to_send = NULL;
     char* msg_start = msg + message_header_size;
     size_t msg_size = strnlen(msg_start, OS_MAXSTR - message_header_size);
     if ((msg_size + message_header_size) < OS_MAXSTR) {
-        if (schema_type == MT_SYS_DELTAS) {
-            msg_to_send = adapt_delta_message(msg_start, agent_name, agent_id, agent_ip, agent_data_hash);
-        } else if (schema_type == MT_SYS_SYNC) {
-            msg_to_send = adapt_sync_message(msg_start, agent_name, agent_id, agent_ip, agent_data_hash);
-        }
+        agent_ctx agent_ctx = {
+            .agent_id = agent_id,
+            .agent_name = agent_name,
+            .agent_ip = agent_ip,
+            .agent_version = (char *)OSHash_Get_ex(agent_data_hash, agent_id)
+        };
 
-        if (msg_to_send) {
-            if (router_provider_send_fb(router_handle, msg_to_send, get_schema(schema_type)) != 0) {
-                mdebug2("Unable to forward message for agent %s", agent_id);
-            }
-            cJSON_free(msg_to_send);
+        if (router_provider_send_fb_json(router_handle, msg_start, &agent_ctx, schema_type) != 0) {
+            mdebug2("Unable to forward message '%s' for agent '%s'.", msg_start, agent_id);
         }
     }
 }
@@ -975,6 +1123,44 @@ void *current_timestamp(__attribute__((unused)) void *none)
     while (1) {
         current_ts = time(NULL);
         sleep(1);
+    }
+
+    return NULL;
+}
+
+// Save control message thread
+void * save_control_thread(void * control_msg_queue)
+{
+    assert(control_msg_queue != NULL);
+    w_indexed_queue_t * queue = (w_indexed_queue_t *)control_msg_queue;
+    w_ctrl_msg_data_t * ctrl_msg_data = NULL;
+    int wdb_sock = -1;
+
+    while (FOREVER()) {
+        if ((ctrl_msg_data = (w_ctrl_msg_data_t *)indexed_queue_pop_ex(queue))) {
+            rem_inc_ctrl_queue_processed();
+
+            bool post_startup = ctrl_msg_data->post_startup;
+
+            // Process the control message with the validation results
+            save_controlmsg(ctrl_msg_data->key, ctrl_msg_data->message,
+                          &wdb_sock, &post_startup, ctrl_msg_data->is_startup, ctrl_msg_data->is_shutdown);
+
+            // Update startup flag after processing the first keepalive post-startup
+            if (ctrl_msg_data->post_startup != post_startup) {
+                key_lock_read();
+
+                // Use efficient tree lookup to find the key index
+                int key_index = OS_IsAllowedID(&keys, ctrl_msg_data->key->id);
+                if (key_index >= 0 && key_index < (int)keys.keysize) {
+                    keys.keyentries[key_index]->post_startup = post_startup;
+                }
+
+                key_unlock();
+            }
+
+            w_free_ctrl_msg_data(ctrl_msg_data);
+        }
     }
 
     return NULL;

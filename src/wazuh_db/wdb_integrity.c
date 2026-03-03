@@ -39,6 +39,10 @@ static const char * COMPONENT_NAMES[] = {
     [WDB_SYSCOLLECTOR_NETINFO] = "syscollector-netinfo",
     [WDB_SYSCOLLECTOR_HWINFO] = "syscollector-hwinfo",
     [WDB_SYSCOLLECTOR_OSINFO] = "syscollector-osinfo",
+    [WDB_SYSCOLLECTOR_GROUPS] = "syscollector-groups",
+    [WDB_SYSCOLLECTOR_USERS] = "syscollector-users",
+    [WDB_SYSCOLLECTOR_BROWSER_EXTENSIONS] = "syscollector-browser-extensions",
+    [WDB_SYSCOLLECTOR_SERVICES] = "syscollector-services",
     [WDB_GENERIC_COMPONENT] = ""
 };
 
@@ -57,7 +61,7 @@ extern void mock_assert(const int result, const char* const expression,
 #endif
 
 void wdbi_report_removed(const char* agent_id, wdb_component_t component, sqlite3_stmt* stmt) {
-    if (!router_agent_events_handle) {
+    if (!router_inventory_events_handle) {
         mdebug2("Router handle not available.");
         return;
     }
@@ -66,10 +70,18 @@ void wdbi_report_removed(const char* agent_id, wdb_component_t component, sqlite
     cJSON* j_agent_info = NULL;
     cJSON* j_data = NULL;
     char* msg_to_send = NULL;
-    char* type = NULL;
     int result = SQLITE_ERROR;
 
     do{
+        // Skip JSON creation for disabled FIM events but still step through rows
+        if (component == WDB_FIM || component == WDB_FIM_FILE ||
+            component == WDB_FIM_REGISTRY || component == WDB_FIM_REGISTRY_KEY ||
+            component == WDB_FIM_REGISTRY_VALUE) {
+            result = wdb_step(stmt);
+            continue;
+        }
+
+        ROUTER_PROVIDER_HANDLE router_handle = NULL;
         j_msg_to_send = cJSON_CreateObject();
         j_agent_info = cJSON_CreateObject();
         j_data = cJSON_CreateObject();
@@ -79,9 +91,15 @@ void wdbi_report_removed(const char* agent_id, wdb_component_t component, sqlite
 
         switch (component)
         {
+            case WDB_SYSCOLLECTOR_OSINFO:
+                cJSON_AddStringToObject(j_msg_to_send, "action", "deleteOs");
+                cJSON_AddItemToObject(j_data, "os_name", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                router_handle = router_inventory_events_handle;
+                break;
             case WDB_SYSCOLLECTOR_HOTFIXES:
                 cJSON_AddStringToObject(j_msg_to_send, "action", "deleteHotfix");
                 cJSON_AddItemToObject(j_data, "hotfix", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                router_handle = router_inventory_events_handle;
                 break;
             case WDB_SYSCOLLECTOR_PACKAGES:
                 cJSON_AddStringToObject(j_msg_to_send, "action", "deletePackage");
@@ -91,7 +109,91 @@ void wdbi_report_removed(const char* agent_id, wdb_component_t component, sqlite
                 cJSON_AddItemToObject(j_data, "format", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 3)));
                 cJSON_AddItemToObject(j_data, "location", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 4)));
                 cJSON_AddItemToObject(j_data, "item_id", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 5)));
+                router_handle = router_inventory_events_handle;
                 break;
+            case WDB_SYSCOLLECTOR_PROCESSES:
+                cJSON_AddStringToObject(j_msg_to_send, "action", "deleteProcess");
+                cJSON_AddItemToObject(j_data, "pid", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                router_handle = router_inventory_events_handle;
+                break;
+            case WDB_SYSCOLLECTOR_PORTS:
+                cJSON_AddStringToObject(j_msg_to_send, "action", "deletePort");
+                cJSON_AddItemToObject(j_data, "protocol", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                cJSON_AddItemToObject(j_data, "local_ip", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 1)));
+                cJSON_AddItemToObject(j_data, "local_port", cJSON_CreateNumber(sqlite3_column_int64(stmt, 2)));
+                cJSON_AddItemToObject(j_data, "inode", cJSON_CreateNumber(sqlite3_column_int64(stmt, 3)));
+                cJSON_AddItemToObject(j_data, "item_id", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 4)));
+                router_handle = router_inventory_events_handle;
+                break;
+            case WDB_SYSCOLLECTOR_HWINFO:
+                cJSON_AddStringToObject(j_msg_to_send, "action", "deleteHardware");
+                cJSON_AddItemToObject(j_data, "board_serial", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                router_handle = router_inventory_events_handle;
+                break;
+            case WDB_SYSCOLLECTOR_NETPROTO:
+                cJSON_AddStringToObject(j_msg_to_send, "action", "deleteNetProto");
+                cJSON_AddItemToObject(j_data, "item_id", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                router_handle = router_inventory_events_handle;
+                break;
+            case WDB_SYSCOLLECTOR_NETINFO:
+                cJSON_AddStringToObject(j_msg_to_send, "action", "deleteNetIface");
+                cJSON_AddItemToObject(j_data, "item_id", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                router_handle = router_inventory_events_handle;
+                break;
+            case WDB_SYSCOLLECTOR_NETADDRESS:
+                cJSON_AddStringToObject(j_msg_to_send, "action", "deleteNetworkAddress");
+                cJSON_AddItemToObject(j_data, "item_id", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                router_handle = router_inventory_events_handle;
+                break;
+            case WDB_SYSCOLLECTOR_USERS:
+                cJSON_AddStringToObject(j_msg_to_send, "action", "deleteUser");
+                cJSON_AddItemToObject(j_data, "user_name", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                router_handle = router_inventory_events_handle;
+                break;
+            case WDB_SYSCOLLECTOR_GROUPS:
+                cJSON_AddStringToObject(j_msg_to_send, "action", "deleteGroup");
+                cJSON_AddItemToObject(j_data, "group_name", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                router_handle = router_inventory_events_handle;
+                break;
+            case WDB_SYSCOLLECTOR_BROWSER_EXTENSIONS:
+                cJSON_AddStringToObject(j_msg_to_send, "action", "deleteBrowserExtension");
+                cJSON_AddItemToObject(j_data, "item_id", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                router_handle = router_inventory_events_handle;
+                break;
+            case WDB_SYSCOLLECTOR_SERVICES:
+                cJSON_AddStringToObject(j_msg_to_send, "action", "deleteService");
+                cJSON_AddItemToObject(j_data, "item_id", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+                router_handle = router_inventory_events_handle;
+                break;
+            // DISABLED: RSync deletes for FIM events are not sent to the Inventory Harvester
+            // case WDB_FIM:
+            // case WDB_FIM_FILE:
+            //     cJSON_AddStringToObject(j_msg_to_send, "action", "deleteFile");
+            //     cJSON_AddItemToObject(j_data, "path", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+            //     router_handle = router_fim_events_handle;
+            //     break;
+            // case WDB_FIM_REGISTRY:
+            //     {
+            //         const char *type = (const char*) sqlite3_column_text(stmt, 2);
+            //         if (type && strcmp(type, "registry_key") == 0) {
+            //             cJSON_AddStringToObject(j_msg_to_send, "action", "deleteRegistryKey");
+            //         } else {
+            //             cJSON_AddStringToObject(j_msg_to_send, "action", "deleteRegistryValue");
+            //         }
+            //         cJSON_AddItemToObject(j_data, "full_path", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+            //         router_handle = router_fim_events_handle;
+            //     }
+            //     break;
+            // case WDB_FIM_REGISTRY_KEY:
+            //     cJSON_AddStringToObject(j_msg_to_send, "action", "deleteRegistryKey");
+            //     cJSON_AddItemToObject(j_data, "full_path", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+            //     router_handle = router_fim_events_handle;
+            //     break;
+            // case WDB_FIM_REGISTRY_VALUE:
+            //     cJSON_AddStringToObject(j_msg_to_send, "action", "deleteRegistryValue");
+            //     cJSON_AddItemToObject(j_data, "full_path", cJSON_CreateString((const char*) sqlite3_column_text(stmt, 0)));
+            //     router_handle = router_fim_events_handle;
+            //     break;
             default:
                 break;
         }
@@ -101,7 +203,11 @@ void wdbi_report_removed(const char* agent_id, wdb_component_t component, sqlite
         msg_to_send = cJSON_PrintUnformatted(j_msg_to_send);
 
         if (msg_to_send) {
-            router_provider_send(router_agent_events_handle, msg_to_send, strlen(msg_to_send));
+            if (router_handle) {
+                router_provider_send(router_handle, msg_to_send, strlen(msg_to_send));
+            } else {
+                merror("Invalid handle to send delete message. Agent %s", agent_id);
+            }
         } else {
             mdebug2("Unable to dump delete message to publish. Agent %s", agent_id);
         }
@@ -131,7 +237,11 @@ void wdbi_remove_by_pk(wdb_t *wdb, wdb_component_t component, const char *pk_val
                             [WDB_SYSCOLLECTOR_NETADDRESS] = WDB_STMT_SYSCOLLECTOR_NETADDRESS_DELETE_BY_PK,
                             [WDB_SYSCOLLECTOR_NETINFO] = WDB_STMT_SYSCOLLECTOR_NETINFO_DELETE_BY_PK,
                             [WDB_SYSCOLLECTOR_HWINFO] = WDB_STMT_SYSCOLLECTOR_HWINFO_DELETE_BY_PK,
-                            [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_DELETE_BY_PK };
+                            [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_DELETE_BY_PK,
+                            [WDB_SYSCOLLECTOR_USERS] = WDB_STMT_SYSCOLLECTOR_USERS_DELETE_BY_PK,
+                            [WDB_SYSCOLLECTOR_GROUPS] = WDB_STMT_SYSCOLLECTOR_GROUPS_DELETE_BY_PK,
+                            [WDB_SYSCOLLECTOR_BROWSER_EXTENSIONS] = WDB_STMT_SYSCOLLECTOR_BROWSER_EXTENSIONS_DELETE_BY_PK,
+                            [WDB_SYSCOLLECTOR_SERVICES] = WDB_STMT_SYSCOLLECTOR_SERVICES_DELETE_BY_PK };
 
     assert(component < sizeof(INDEXES) / sizeof(int));
 
@@ -246,7 +356,11 @@ int wdbi_checksum(wdb_t * wdb, wdb_component_t component, os_sha1 hexdigest) {
                             [WDB_SYSCOLLECTOR_NETADDRESS] = WDB_STMT_SYSCOLLECTOR_NETADDRESS_SELECT_CHECKSUM,
                             [WDB_SYSCOLLECTOR_NETINFO] = WDB_STMT_SYSCOLLECTOR_NETINFO_SELECT_CHECKSUM,
                             [WDB_SYSCOLLECTOR_HWINFO] = WDB_STMT_SYSCOLLECTOR_HWINFO_SELECT_CHECKSUM,
-                            [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_SELECT_CHECKSUM };
+                            [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_SELECT_CHECKSUM,
+                            [WDB_SYSCOLLECTOR_USERS] = WDB_STMT_SYSCOLLECTOR_USERS_SELECT_CHECKSUM,
+                            [WDB_SYSCOLLECTOR_GROUPS] = WDB_STMT_SYSCOLLECTOR_GROUPS_SELECT_CHECKSUM,
+                            [WDB_SYSCOLLECTOR_BROWSER_EXTENSIONS] = WDB_STMT_SYSCOLLECTOR_BROWSER_EXTENSIONS_SELECT_CHECKSUM,
+                            [WDB_SYSCOLLECTOR_SERVICES] = WDB_STMT_SYSCOLLECTOR_SERVICES_SELECT_CHECKSUM };
 
     assert(component < sizeof(INDEXES) / sizeof(int));
 
@@ -293,7 +407,11 @@ int wdbi_checksum_range(wdb_t * wdb, wdb_component_t component, const char * beg
                             [WDB_SYSCOLLECTOR_NETADDRESS] = WDB_STMT_SYSCOLLECTOR_NETADDRESS_SELECT_CHECKSUM_RANGE,
                             [WDB_SYSCOLLECTOR_NETINFO] = WDB_STMT_SYSCOLLECTOR_NETINFO_SELECT_CHECKSUM_RANGE,
                             [WDB_SYSCOLLECTOR_HWINFO] = WDB_STMT_SYSCOLLECTOR_HWINFO_SELECT_CHECKSUM_RANGE,
-                            [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_SELECT_CHECKSUM_RANGE };
+                            [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_SELECT_CHECKSUM_RANGE,
+                            [WDB_SYSCOLLECTOR_USERS] = WDB_STMT_SYSCOLLECTOR_USERS_SELECT_CHECKSUM_RANGE,
+                            [WDB_SYSCOLLECTOR_GROUPS] = WDB_STMT_SYSCOLLECTOR_GROUPS_SELECT_CHECKSUM_RANGE,
+                            [WDB_SYSCOLLECTOR_BROWSER_EXTENSIONS] = WDB_STMT_SYSCOLLECTOR_BROWSER_EXTENSIONS_SELECT_CHECKSUM_RANGE,
+                            [WDB_SYSCOLLECTOR_SERVICES] = WDB_STMT_SYSCOLLECTOR_SERVICES_SELECT_CHECKSUM_RANGE };
 
     assert(component < sizeof(INDEXES) / sizeof(int));
 
@@ -352,7 +470,11 @@ int wdbi_delete(wdb_t * wdb, wdb_component_t component, const char * begin, cons
                                    [WDB_SYSCOLLECTOR_NETADDRESS] = WDB_STMT_SYSCOLLECTOR_NETADDRESS_DELETE_AROUND,
                                    [WDB_SYSCOLLECTOR_NETINFO] = WDB_STMT_SYSCOLLECTOR_NETINFO_DELETE_AROUND,
                                    [WDB_SYSCOLLECTOR_HWINFO] = WDB_STMT_SYSCOLLECTOR_HWINFO_DELETE_AROUND,
-                                   [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_DELETE_AROUND };
+                                   [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_DELETE_AROUND,
+                                   [WDB_SYSCOLLECTOR_USERS] = WDB_STMT_SYSCOLLECTOR_USERS_DELETE_AROUND,
+                                   [WDB_SYSCOLLECTOR_GROUPS] = WDB_STMT_SYSCOLLECTOR_GROUPS_DELETE_AROUND,
+                                   [WDB_SYSCOLLECTOR_BROWSER_EXTENSIONS] = WDB_STMT_SYSCOLLECTOR_BROWSER_EXTENSIONS_DELETE_AROUND,
+                                   [WDB_SYSCOLLECTOR_SERVICES] = WDB_STMT_SYSCOLLECTOR_SERVICES_DELETE_AROUND};
     const int INDEXES_RANGE[] = { [WDB_FIM] = WDB_STMT_FIM_DELETE_RANGE,
                                   [WDB_FIM_FILE] = WDB_STMT_FIM_FILE_DELETE_RANGE,
                                   [WDB_FIM_REGISTRY] = WDB_STMT_FIM_REGISTRY_DELETE_RANGE,
@@ -366,7 +488,11 @@ int wdbi_delete(wdb_t * wdb, wdb_component_t component, const char * begin, cons
                                   [WDB_SYSCOLLECTOR_NETADDRESS] = WDB_STMT_SYSCOLLECTOR_NETADDRESS_DELETE_RANGE,
                                   [WDB_SYSCOLLECTOR_NETINFO] = WDB_STMT_SYSCOLLECTOR_NETINFO_DELETE_RANGE,
                                   [WDB_SYSCOLLECTOR_HWINFO] = WDB_STMT_SYSCOLLECTOR_HWINFO_DELETE_RANGE,
-                                  [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_DELETE_RANGE };
+                                  [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_DELETE_RANGE,
+                                  [WDB_SYSCOLLECTOR_USERS] = WDB_STMT_SYSCOLLECTOR_USERS_DELETE_RANGE,
+                                  [WDB_SYSCOLLECTOR_GROUPS] = WDB_STMT_SYSCOLLECTOR_GROUPS_DELETE_RANGE,
+                                  [WDB_SYSCOLLECTOR_BROWSER_EXTENSIONS] = WDB_STMT_SYSCOLLECTOR_BROWSER_EXTENSIONS_DELETE_RANGE,
+                                  [WDB_SYSCOLLECTOR_SERVICES] = WDB_STMT_SYSCOLLECTOR_SERVICES_DELETE_RANGE};
 
     assert(component < sizeof(INDEXES_AROUND) / sizeof(int));
     assert(component < sizeof(INDEXES_RANGE) / sizeof(int));
@@ -585,7 +711,11 @@ int wdbi_query_clear(wdb_t * wdb, wdb_component_t component, const char * payloa
                             [WDB_SYSCOLLECTOR_NETADDRESS] = WDB_STMT_SYSCOLLECTOR_NETADDRESS_CLEAR,
                             [WDB_SYSCOLLECTOR_NETINFO] = WDB_STMT_SYSCOLLECTOR_NETINFO_CLEAR,
                             [WDB_SYSCOLLECTOR_HWINFO] = WDB_STMT_SYSCOLLECTOR_HWINFO_CLEAR,
-                            [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_CLEAR };
+                            [WDB_SYSCOLLECTOR_OSINFO] = WDB_STMT_SYSCOLLECTOR_OSINFO_CLEAR,
+                            [WDB_SYSCOLLECTOR_USERS] = WDB_STMT_SYSCOLLECTOR_USERS_CLEAR,
+                            [WDB_SYSCOLLECTOR_GROUPS] = WDB_STMT_SYSCOLLECTOR_GROUPS_CLEAR,
+                            [WDB_SYSCOLLECTOR_BROWSER_EXTENSIONS] = WDB_STMT_SYSCOLLECTOR_BROWSER_EXTENSIONS_CLEAR,
+                            [WDB_SYSCOLLECTOR_SERVICES] = WDB_STMT_SYSCOLLECTOR_SERVICES_CLEAR };
 
     assert(component < sizeof(INDEXES) / sizeof(int));
 

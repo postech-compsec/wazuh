@@ -241,7 +241,7 @@ WriteLogs()
 {
   LOCALFILES_TMP=`cat ${LOCALFILES_TEMPLATE}`
   HAS_JOURNALD=`command -v journalctl`
-  
+
   # If has journald, add journald to the configuration file
   if [ "X$HAS_JOURNALD" != "X" ]; then
     if [ "$1" = "echo" ]; then
@@ -290,14 +290,14 @@ WriteLogs()
           continue
         fi
       fi
-  
+
       # If log file present or skip file
       if [ -f "$FILE" ] || [ "X$SKIP_CHECK_FILE" = "Xyes" ]; then
         # Print
         if [ "$1" = "echo" ]; then
             echo "    -- $FILE"
         # Add to the configuration file
-        elif [ "$1" = "add" ]; then         
+        elif [ "$1" = "add" ]; then
           echo "  <localfile>" >> $NEWCONFIG
           if [ "$FILE" = "snort" ]; then
             head -n 1 $FILE|grep "\[**\] "|grep -v "Classification:" > /dev/null
@@ -382,7 +382,7 @@ WriteAgent()
         fi
       fi
     fi
-    echo "    <notify_time>10</notify_time>" >> $NEWCONFIG
+    echo "    <notify_time>20</notify_time>" >> $NEWCONFIG
     echo "    <time-reconnect>60</time-reconnect>" >> $NEWCONFIG
     echo "    <auto_restart>yes</auto_restart>" >> $NEWCONFIG
     echo "    <crypto_method>aes</crypto_method>" >> $NEWCONFIG
@@ -775,6 +775,10 @@ InstallCommon()
     ./init/adduser.sh ${WAZUH_USER} ${WAZUH_GROUP} ${INSTALLDIR}
 
   ${INSTALL} -d -m 0750 -o root -g ${WAZUH_GROUP} ${INSTALLDIR}/
+
+  # Install VERSION.json and append commit id if any
+  ${INSTALL} -m 440 -o ${WAZUH_USER} -g ${WAZUH_GROUP} ../VERSION.json ${INSTALLDIR}/VERSION.json
+
   ${INSTALL} -d -m 0770 -o ${WAZUH_USER} -g ${WAZUH_GROUP} ${INSTALLDIR}/logs
   ${INSTALL} -d -m 0750 -o ${WAZUH_USER} -g ${WAZUH_GROUP} ${INSTALLDIR}/logs/wazuh
   ${INSTALL} -m 0660 -o ${WAZUH_USER} -g ${WAZUH_GROUP} /dev/null ${INSTALLDIR}/logs/ossec.log
@@ -882,6 +886,36 @@ InstallCommon()
         if ([ "X${DIST_NAME}" = "Xrhel" ] || [ "X${DIST_NAME}" = "Xcentos" ] || [ "X${DIST_NAME}" = "XCentOS" ]) && [ ${DIST_VER} -le 5 ]; then
             chcon -t textrel_shlib_t ${INSTALLDIR}/lib/libfimdb.so
         fi
+    fi
+
+    if [ ${NUNAME} != 'Darwin' ]
+    then
+    	if [ -f syscheckd/build/lib/libfimebpf.so ]
+    	then
+       		${INSTALL} -m 0750 -o root -g ${WAZUH_GROUP} syscheckd/build/lib/libfimebpf.so ${INSTALLDIR}/lib
+
+       		if ([ "X${DIST_NAME}" = "Xrhel" ] || [ "X${DIST_NAME}" = "Xcentos" ] || [ "X${DIST_NAME}" = "XCentOS" ]) && [ ${DIST_VER} -le 5 ]; then
+       		    chcon -t textrel_shlib_t ${INSTALLDIR}/lib/libfimebpf.so
+       		fi
+      fi
+
+      if [ -f external/libbpf-bootstrap/build/libbpf/libbpf.so ]
+          then
+              ${INSTALL} -m 0750 -o root -g ${WAZUH_GROUP} external/libbpf-bootstrap/build/libbpf/libbpf.so ${INSTALLDIR}/lib
+
+              if ([ "X${DIST_NAME}" = "Xrhel" ] || [ "X${DIST_NAME}" = "Xcentos" ] || [ "X${DIST_NAME}" = "XCentOS" ]) && [ ${DIST_VER} -le 5 ]; then
+                  chcon -t textrel_shlib_t ${INSTALLDIR}/lib/libbpf.so
+              fi
+      fi
+
+      if [ -f external/libbpf-bootstrap/build/modern.bpf.o ]
+          then
+              ${INSTALL} -m 0750 -o root -g ${WAZUH_GROUP} external/libbpf-bootstrap/build/modern.bpf.o ${INSTALLDIR}/lib
+
+              if ([ "X${DIST_NAME}" = "Xrhel" ] || [ "X${DIST_NAME}" = "Xcentos" ] || [ "X${DIST_NAME}" = "XCentOS" ]) && [ ${DIST_VER} -le 5 ]; then
+                  chcon -t textrel_shlib_t ${INSTALLDIR}/lib/modern.bpf.o
+              fi
+      fi
     fi
 
     if [ ${NUNAME} = 'Darwin' ]
@@ -1099,6 +1133,10 @@ InstallLocal()
     if [ ! -f ${INSTALLDIR}/etc/lists/audit-keys ]; then
         ${INSTALL} -m 0660 -o ${WAZUH_USER} -g ${WAZUH_GROUP} -b ../ruleset/lists/audit-keys ${INSTALLDIR}/etc/lists/audit-keys
     fi
+    if [ ! -f ${INSTALLDIR}/etc/lists/malicious-ioc/malicious-ip ]; then
+        ${INSTALL} -d -m 0770 -o ${WAZUH_USER} -g ${WAZUH_GROUP} ${INSTALLDIR}/etc/lists/malicious-ioc
+        ${INSTALL} -m 0660 -o ${WAZUH_USER} -g ${WAZUH_GROUP} -b ../ruleset/lists/malicious-ioc/* ${INSTALLDIR}/etc/lists/malicious-ioc/
+    fi
     if [ ! -f ${INSTALLDIR}/etc/lists/security-eventchannel ]; then
         ${INSTALL} -m 0660 -o ${WAZUH_USER} -g ${WAZUH_GROUP} -b ../ruleset/lists/security-eventchannel ${INSTALLDIR}/etc/lists/security-eventchannel
     fi
@@ -1128,7 +1166,34 @@ InstallLocal()
     # Install templates files
     ${INSTALL} -d -m 0440 -o root -g ${WAZUH_GROUP} ${INSTALLDIR}/templates
     ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/vulnerability_scanner/indexer/template/index-template.json ${INSTALLDIR}/templates/vd_states_template.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-packages.json ${INSTALLDIR}/templates/wazuh-states-inventory-packages.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-processes.json ${INSTALLDIR}/templates/wazuh-states-inventory-processes.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-system.json ${INSTALLDIR}/templates/wazuh-states-inventory-system.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-hardware.json ${INSTALLDIR}/templates/wazuh-states-inventory-hardware.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-networks.json ${INSTALLDIR}/templates/wazuh-states-inventory-networks.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-protocols.json ${INSTALLDIR}/templates/wazuh-states-inventory-protocols.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-interfaces.json ${INSTALLDIR}/templates/wazuh-states-inventory-interfaces.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-hotfixes.json ${INSTALLDIR}/templates/wazuh-states-inventory-hotfixes.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-ports.json ${INSTALLDIR}/templates/wazuh-states-inventory-ports.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-users.json ${INSTALLDIR}/templates/wazuh-states-inventory-users.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-groups.json ${INSTALLDIR}/templates/wazuh-states-inventory-groups.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-browser-extensions.json ${INSTALLDIR}/templates/wazuh-states-inventory-browser-extensions.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-services.json ${INSTALLDIR}/templates/wazuh-states-inventory-services.json
+
     ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/vulnerability_scanner/indexer/template/update-mappings.json ${INSTALLDIR}/templates/vd_states_update_mappings.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-packages-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-packages-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-processes-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-processes-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-system-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-system-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-hardware-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-hardware-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-networks-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-networks-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-protocols-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-protocols-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-interfaces-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-interfaces-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-hotfixes-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-hotfixes-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-ports-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-ports-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-users-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-users-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-groups-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-groups-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-browser-extensions-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-browser-extensions-update.json
+    ${INSTALL} -m 0440 -o root -g ${WAZUH_GROUP} wazuh_modules/inventory_harvester/indexer/template/wazuh-states-inventory-services-update.json ${INSTALLDIR}/templates/wazuh-states-inventory-services-update.json
 
     # Install Task Manager files
     ${INSTALL} -d -m 0770 -o ${WAZUH_USER} -g ${WAZUH_GROUP} ${INSTALLDIR}/queue/tasks
@@ -1150,6 +1215,16 @@ InstallLocal()
     if [ "X${update_only}" = "Xyes" ]; then
       ${MAKEBIN} --quiet -C ../api restore INSTALLDIR=${INSTALLDIR} REVISION=${REVISION}
     fi
+
+    ### Install router library
+    if [ -f build/shared_modules/router/librouter.so ]
+    then
+        ${INSTALL} -m 0750 -o root -g ${WAZUH_GROUP} build/shared_modules/router/librouter.so ${INSTALLDIR}/lib
+
+        if ([ "X${DIST_NAME}" = "Xrhel" ] || [ "X${DIST_NAME}" = "Xcentos" ] || [ "X${DIST_NAME}" = "XCentOS" ]); then
+            chcon -t textrel_shlib_t ${INSTALLDIR}/lib/librouter.so
+        fi
+    fi
 }
 
 TransferShared()
@@ -1161,7 +1236,7 @@ TransferShared()
 
 checkDownloadContent()
 {
-    VD_FILENAME='vd_1.0.0_vd_4.11.0.tar.xz'
+    VD_FILENAME='vd_1.0.0_vd_4.13.0.tar.xz'
     VD_FULL_PATH=${INSTALLDIR}/tmp/${VD_FILENAME}
 
     if [ "X${DOWNLOAD_CONTENT}" = "Xy" ]; then
@@ -1185,14 +1260,6 @@ InstallServer()
             chcon -t textrel_shlib_t ${INSTALLDIR}/lib/libjemalloc.so.2
         fi
     fi
-    if [ -f build/shared_modules/router/librouter.so ]
-    then
-        ${INSTALL} -m 0750 -o root -g ${WAZUH_GROUP} build/shared_modules/router/librouter.so ${INSTALLDIR}/lib
-
-        if ([ "X${DIST_NAME}" = "Xrhel" ] || [ "X${DIST_NAME}" = "Xcentos" ] || [ "X${DIST_NAME}" = "XCentOS" ]); then
-            chcon -t textrel_shlib_t ${INSTALLDIR}/lib/librouter.so
-        fi
-    fi
     if [ -f build/shared_modules/content_manager/libcontent_manager.so ]
     then
         ${INSTALL} -m 0750 -o root -g ${WAZUH_GROUP} build/shared_modules/content_manager/libcontent_manager.so ${INSTALLDIR}/lib
@@ -1207,6 +1274,14 @@ InstallServer()
 
         if ([ "X${DIST_NAME}" = "Xrhel" ] || [ "X${DIST_NAME}" = "Xcentos" ] || [ "X${DIST_NAME}" = "XCentOS" ]); then
             chcon -t textrel_shlib_t ${INSTALLDIR}/lib/libvulnerability_scanner.so
+        fi
+    fi
+    if [ -f build/wazuh_modules/inventory_harvester/libinventory_harvester.so ]
+    then
+        ${INSTALL} -m 0750 -o root -g ${WAZUH_GROUP} build/wazuh_modules/inventory_harvester/libinventory_harvester.so ${INSTALLDIR}/lib
+
+        if ([ "X${DIST_NAME}" = "Xrhel" ] || [ "X${DIST_NAME}" = "Xcentos" ] || [ "X${DIST_NAME}" = "XCentOS" ]); then
+            chcon -t textrel_shlib_t ${INSTALLDIR}/lib/libinventory_harvester.so
         fi
     fi
     if [ -f build/shared_modules/indexer_connector/libindexer_connector.so ]

@@ -28,9 +28,15 @@ from wazuh.core import common, exception
 from wazuh.core import utils
 from wazuh.core.cluster import cluster, utils as cluster_utils
 from wazuh.core.wdb import AsyncWazuhDBConnection, WazuhDBConnection
+from wazuh.core.wdb_http import get_wdb_http_client
 
 IGNORED_WDB_EXCEPTIONS = ['Cannot execute Global database query; FOREIGN KEY constraint failed']
 
+_ALLOWED_PREFIXES = (
+    os.path.join(common.WAZUH_PATH, "queue/cluster"),
+)
+
+ALLOWED_CALLABLES_PACKAGES = ["wazuh", "api"]
 
 class Response:
     """
@@ -597,8 +603,7 @@ class Handler(asyncio.Protocol):
             Dict containing number of updated chunks, error messages (if any) and time spent.
         """
         try:
-            result = await cluster.run_in_pool(self.loop, self.server.task_pool, send_data_to_wdb, data,
-                                               timeout, info_type=info_type)
+            result = await send_data_to_wdb(data, timeout, info_type=info_type)
         except Exception as e:
             print(f'error processing {info_type} chunks in process pool: {str(e)}'.encode())
             with contextlib.suppress(Exception):
@@ -955,7 +960,16 @@ class Handler(asyncio.Protocol):
         bytes
             Response message.
         """
-        self.in_file[data] = {'fd': open(common.WAZUH_PATH + data.decode(), 'wb'), 'checksum': hashlib.sha256()}
+        # Decode path requested by peer node
+        rel = data.decode()
+
+        dst = os.path.realpath(os.path.join(common.WAZUH_PATH, rel.lstrip("/")))
+
+        if not any(os.path.commonpath([dst, root]) == root for root in _ALLOWED_PREFIXES):
+            return b"err", b"Write path not allowed"
+
+        self.in_file[data] = {"fd": open(dst, "wb"), "checksum": hashlib.sha256()}
+
         return b"ok ", b"Ready to receive new file"
 
     def update_file(self, data: bytes) -> Tuple[bytes, bytes]:
@@ -1129,7 +1143,7 @@ class Handler(asyncio.Protocol):
         """
         try:
             exc = json.loads(data.decode(), object_hook=as_wazuh_object)
-        except json.JSONDecodeError as e:
+        except json.JSONDecodeError:
             exc = exception.WazuhClusterError(3000, extra_message=data.decode())
 
         return exc
@@ -1599,6 +1613,28 @@ class SyncWazuhdb(SyncTask):
         self.logger.debug(f"Obtained {len(chunks)} chunks of data in {(time.perf_counter() - start_time):.3f}s.")
         return chunks
 
+    async def retrieve_agents_information(self) -> dict | None:
+        """Collect the agents required information from the local node's database.
+
+        Returns
+        -------
+        dict | None
+            Agents synchronization information or None if there was an error.
+        """
+        start_time = time.perf_counter()
+        try:
+            async with get_wdb_http_client() as wdb_client:
+                agents_sync = await wdb_client.get_agents_sync()
+        except exception.WazuhException as e:
+            self.logger.error(f"Could not obtain data from wazuh-db: {e}")
+            return
+
+        now = time.perf_counter()
+        self.logger.debug(f"Obtained agents synchronization information in {(now - start_time):.3f}s.")
+
+        return agents_sync
+
+
     async def sync(self, start_time: float, chunks: List):
         """Start sending information to master/worker node.
 
@@ -1624,7 +1660,7 @@ class SyncWazuhdb(SyncTask):
                                                                       f'not be sent to the master node: {task_id}')
 
             # Specify under which task_id the JSON can be found in the master/worker.
-            self.logger.debug(f"Sending chunks.")
+            self.logger.debug("Sending chunks.")
             await self.server.send_request(command=self.cmd, data=task_id)
         else:
             self.logger.info(f"Finished in {(utils.get_utc_now().timestamp() - start_time):.3f}s. Updated 0 chunks.")
@@ -1689,7 +1725,7 @@ def error_receiving_agent_information(logger, response, info_type):
     return b'ok', b'Thanks'
 
 
-def send_data_to_wdb(data, timeout, info_type='agent-info'):
+async def send_data_to_wdb(data, timeout, info_type='agent-info'):
     """Send chunks of data to Wazuh-db socket.
 
     Parameters
@@ -1707,36 +1743,45 @@ def send_data_to_wdb(data, timeout, info_type='agent-info'):
         Dict containing number of updated chunks, error messages (if any) and time spent.
     """
     result = {'updated_chunks': 0, 'error_messages': {'chunks': [], 'others': []}, 'time_spent': 0}
-    wdb_conn = WazuhDBConnection()
     before = time.perf_counter()
 
     try:
         with utils.Timeout(timeout):
-            for i, chunk in enumerate(data['chunks']):
-                try:
-                    if info_type == 'agent-info':
-                        wdb_conn.send(f"{data['set_data_command']} {chunk}", raw=True)
-                    elif info_type == 'agent-groups':
+            if info_type == 'agent-info':
+                agents_sync = data['chunks']
+                async with get_wdb_http_client() as wdb_client:
+                    await wdb_client.set_agents_sync(agents_sync)
+
+                result['updated_chunks'] += len(agents_sync)
+            elif info_type == 'agent-groups':
+                wdb_conn = WazuhDBConnection()
+
+                for i, chunk in enumerate(data['chunks']):
+                    try:
                         data['payload']['data'] = json.loads(chunk)[0]['data']
                         wdb_conn.send(
                             f"{data['set_data_command']} {json.dumps(data['payload'], separators=(',', ':'))}",
                             raw=True
                         )
-                    result['updated_chunks'] += 1
-                except TimeoutError as e:
-                    raise e
-                except Exception as e:
-                    error = str(e)
-                    if any(ignored_exception in error for ignored_exception in IGNORED_WDB_EXCEPTIONS):
-                        continue
-                    result['error_messages']['chunks'].append((i, error))
+                        result['updated_chunks'] += 1
+                    except TimeoutError as e:
+                        wdb_conn.close()
+                        raise e
+                    except Exception as e:
+                        error = str(e)
+
+                        if any(ignored_exception in error for ignored_exception in IGNORED_WDB_EXCEPTIONS):
+                            continue
+
+                        result['error_messages']['chunks'].append((i, error))
+
+                wdb_conn.close()
     except TimeoutError:
         result['error_messages']['others'].append(f'Timeout while processing {info_type} chunks.')
     except Exception as e:
         result['error_messages']['others'].append(f'Error while processing {info_type} chunks: {e}')
 
     result['time_spent'] = time.perf_counter() - before
-    wdb_conn.close()
     return result
 
 
@@ -1810,11 +1855,21 @@ def as_wazuh_object(dct: Dict):
                 qualname = encoded_callable['__qualname__'].split('.')
                 classname = qualname[0] if len(qualname) > 1 else None
                 module_path = encoded_callable['__module__']
-                module = import_module(module_path)
+
+                package_name = module_path.split('.')[0]
+                if package_name not in ALLOWED_CALLABLES_PACKAGES:
+                    raise exception.WazuhInternalError(1000,
+                                                       extra_message=f"Decoding callable from module '{module_path}' is not allowed",
+                                                       cmd_error=True)
+                
+                relative_mod = module_path.removeprefix(package_name)
+                module = import_module(relative_mod, package=package_name)
+
                 if classname is None:
                     return getattr(module, funcname)
                 else:
                     return getattr(getattr(module, classname), funcname)
+        
         elif '__wazuh_exception__' in dct:
             wazuh_exception = dct['__wazuh_exception__']
             return getattr(exception, wazuh_exception['__class__']).from_dict(wazuh_exception['__object__'])
@@ -1829,7 +1884,7 @@ def as_wazuh_object(dct: Dict):
             return ast.literal_eval(json.dumps(exc_dict))
         return dct
 
-    except (KeyError, AttributeError):
+    except (KeyError, AttributeError, TypeError, ValueError):
         raise exception.WazuhInternalError(1000,
                                            extra_message=f"Wazuh object cannot be decoded from JSON {dct}",
                                            cmd_error=True)

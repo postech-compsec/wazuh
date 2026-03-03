@@ -197,7 +197,7 @@ class WazuhException(Exception):
         1402: {'message': 'Invalid sort_ascending field',
                'remediation': 'Please, use only true if ascending or false if descending'
                },
-        1403: {'message': 'Not a valid sort field ',
+        1403: {'message': 'Not a valid sort field',
                'remediation': 'Please, use only allowed sort fields'
                },
         1405: {'message': 'Specified limit exceeds maximum allowed',
@@ -207,7 +207,7 @@ class WazuhException(Exception):
                'remediation': 'Please select a limit between 1 and 1000'
                },
         1407: 'Query does not match expected format',
-        1408: 'Field does not exist.',
+        1408: 'Field does not exist',
         1409: 'Invalid query operator',
         1410: 'Selecting more than one field in distinct mode',
         1411: 'TimeFrame is not valid',
@@ -418,6 +418,8 @@ class WazuhException(Exception):
         1913: {'message': 'Error getting manager status, directory /proc is not found or permissions to see its status '
                           'are not granted',
                'remediation': 'Please, ensure /proc exists and permissions are granted'},
+        1914: {'message': 'Failed to reload ruleset',
+               'remediation': 'Check the Wazuh logs for details and verify the ruleset files and permissions.'},
 
         # Database:
         2000: {'message': 'No such database file'},
@@ -433,6 +435,13 @@ class WazuhException(Exception):
                'remediation': 'Restart the Wazuh service to restore the RBAC database to default'},
         2009: {'message': 'Pagination error. Response from wazuh-db was over the maximum socket buffer size'},
         2010: {'message': 'The requested read operation did not complete fully'},
+        2011: {'message': 'Could not connect to the wazuh-db unix socket'},
+        2012: {'message': 'Invalid wazuh-db HTTP request'},
+        2013: {'message': 'Error sending HTTP request'},
+        2014: {'message': 'The wazuh-db client connection timeout has been exceeded'},
+        2015: {'message': 'Invalid request URL scheme'},
+        2016: {'message': 'Invalid unix socket path'},
+        2017: {'message': 'Could not retrieve agents synchronization information from wazuh-db'},
 
         # External services
         2100: {'message': 'Error in CTI service request'},

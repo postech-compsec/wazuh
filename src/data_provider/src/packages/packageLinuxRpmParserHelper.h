@@ -39,6 +39,7 @@ namespace PackageLinuxHelper
 
         if (package.name.compare("gpg-pubkey") != 0 && !package.name.empty())
         {
+
             ret["name"]         = package.name;
             ret["size"]         = package.size;
             ret["install_time"] = package.installTime;
@@ -51,7 +52,6 @@ namespace PackageLinuxHelper
             ret["format"]       = "rpm";
             ret["vendor"]       = package.vendor.empty() ? UNKNOWN_VALUE : package.vendor;
             ret["description"]  = package.description;
-            // The multiarch field won't have a default value
         }
 
         return ret;

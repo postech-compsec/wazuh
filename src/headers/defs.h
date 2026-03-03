@@ -69,7 +69,7 @@
 
 /* Some global names */
 #define __ossec_name    "Wazuh"
-#define __ossec_version "v4.11.1"
+#define __ossec_version "v4.14.3"
 #define __author        "Wazuh Inc."
 #define __contact       "info@wazuh.com"
 #define __site          "http://www.wazuh.com"
@@ -92,7 +92,7 @@ https://www.gnu.org/licenses/gpl.html\n"
 #endif
 
 /* Notify the manager */
-#define NOTIFY_TIME     10      // ... every 10 seconds
+#define NOTIFY_TIME     20      // ... every 20 seconds
 #define RECONNECT_TIME  60      // Time to reconnect
 
 /* User Configuration */

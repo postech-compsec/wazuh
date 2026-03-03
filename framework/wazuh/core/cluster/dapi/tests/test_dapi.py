@@ -33,7 +33,7 @@ with patch('wazuh.common.wazuh_uid'):
         from wazuh.core.manager import get_manager_status
         from wazuh.core.results import WazuhResult, AffectedItemsWazuhResult
         from wazuh import agent, cluster, ciscat, manager, WazuhError, WazuhInternalError
-        from wazuh.core.exception import WazuhClusterError
+        from wazuh.core.exception import WazuhClusterError, WazuhException
         from api.util import raise_if_exc
         from wazuh.core.cluster import local_client
 
@@ -164,7 +164,7 @@ def test_DistributedAPI_distribute_function(api_request, request_type, node, exp
 
     # Mock check_cluster_status and get_node
     with patch('wazuh.core.cluster.dapi.dapi.check_cluster_status', return_value=cluster_enabled):
-        with patch('wazuh.core.cluster.cluster.get_node', return_value={'type': node}):
+        with patch('wazuh.core.cluster.dapi.dapi.node_info', {'type': node}):
             dapi = DistributedAPI(f=api_request, logger=logger, request_type=request_type, f_kwargs=f_kwargs)
             data = raise_if_exc(loop.run_until_complete(dapi.distribute_function()))
             assert data.render()['result'] == expected
@@ -373,10 +373,10 @@ def test_DistributedAPI_get_client(loop_mock):
     assert dapi.get_client()
 
 
-@patch('wazuh.core.cluster.cluster.get_node', return_value={'type': 'worker'})
+@patch('wazuh.core.cluster.dapi.dapi.node_info', {'type': 'worker'})
 @patch('wazuh.core.cluster.dapi.dapi.check_cluster_status', return_value=True)
 @patch('wazuh.core.cluster.local_client.LocalClient.execute', return_value='invalid_json')
-def test_DistributedAPI_remote_request_errors(mock_client_execute, mock_check_cluster_status, mock_get_node):
+def test_DistributedAPI_remote_request_errors(mock_client_execute, mock_check_cluster_status):
     """Check the behaviour when the execute_remote_request function raised an error"""
     # Test execute_remote_request when it raises a JSONDecodeError
     dapi_kwargs = {'f': manager.status, 'logger': logger, 'request_type': 'local_master'}
@@ -475,7 +475,7 @@ def test_DistributedAPI_get_solver_node(mock_cluster_status, mock_agents_overvie
     common.cluster_nodes.set(['master'])
 
     with patch('wazuh.core.cluster.dapi.dapi.get_nodes_info', new=AsyncMock(return_value=nodes_info_result)):
-        with patch('wazuh.core.cluster.cluster.get_node', return_value={'type': 'master', 'node': 'unknown'}):
+        with patch('wazuh.core.cluster.dapi.dapi.node_info', {'type': 'master', 'node': 'unknown'}):
             dapi_kwargs = {'f': manager.status, 'logger': logger, 'request_type': 'distributed_master',
                            'f_kwargs': {'agent_list': ['001', '002']}, 'nodes': ['master']}
             raise_if_exc_routine(dapi_kwargs=dapi_kwargs)
@@ -531,8 +531,8 @@ def test_DistributedAPI_check_wazuh_status(status_mock, api_request):
     'restarting',
     'stopped'
 ])
-@patch('wazuh.core.cluster.cluster.get_node', return_value={'node': 'random_node'})
-def test_DistributedAPI_check_wazuh_status_exception(node_info_mock, status_value):
+@patch('wazuh.core.cluster.dapi.dapi.node_info', {'node': 'random_node'})
+def test_DistributedAPI_check_wazuh_status_exception(status_value):
     """Test exceptions from `check_wazuh_status` method from class DistributedAPI."""
     statuses = {process: status_value for process in sorted(get_manager_status())}
     with patch('wazuh.core.manager.get_manager_status',
@@ -546,6 +546,205 @@ def test_DistributedAPI_check_wazuh_status_exception(node_info_mock, status_valu
             assert e._extra_message['node_name'] == 'random_node'
             extra_message = ', '.join([f'{key}->{statuses[key]}' for key in dapi.basic_services if key in statuses])
             assert e._extra_message['not_ready_daemons'] == extra_message
+
+
+class TestDistributedAPIRunLocal:
+    """Test suite for DistributedAPI.run_local static method."""
+
+    @pytest.fixture
+    def mock_function(self):
+        """Create a mock function for testing."""
+        return MagicMock(return_value="test_result")
+
+    @pytest.fixture
+    def sample_kwargs(self):
+        """Sample function kwargs."""
+        return {"arg1": "value1", "arg2": "value2"}
+
+    @pytest.fixture
+    def sample_context_vars(self):
+        """Sample context variables."""
+        return {
+            "rbac_permissions": {"rbac_mode": "black"},
+            "broadcasting": False,
+            "nodes": ["node1", "node2"],
+            "current_user": "test_user",
+            "origin_module": "framework",
+        }
+
+    @patch("wazuh.core.common.reset_context_cache")
+    @patch("wazuh.core.common.cluster_nodes")
+    @patch("wazuh.core.common.origin_module")
+    @patch("wazuh.core.common.current_user")
+    @patch("wazuh.core.common.broadcast")
+    @patch("wazuh.core.common.rbac")
+    def test_run_local_successful_execution(
+        self,
+        mock_rbac_ctx,
+        mock_broadcast_ctx,
+        mock_current_user_ctx,
+        mock_origin_module_ctx,
+        mock_cluster_nodes_ctx,
+        mock_reset_context_cache,
+        mock_function,
+        sample_kwargs,
+        sample_context_vars,
+    ):
+        """Test successful execution of run_local method."""
+        # Arrange
+        mock_broadcast_token = "test_token"
+        mock_broadcast_ctx.set.return_value = mock_broadcast_token
+
+        result = DistributedAPI.run_local(
+            f=mock_function, f_kwargs=sample_kwargs, **sample_context_vars
+        )
+
+        # Assert
+        # Verify all context variables are set
+        mock_rbac_ctx.set.assert_called_once_with(
+            sample_context_vars["rbac_permissions"]
+        )
+        mock_broadcast_ctx.set.assert_called_once_with(
+            sample_context_vars["broadcasting"]
+        )
+        mock_cluster_nodes_ctx.set.assert_called_once_with(
+            sample_context_vars["nodes"]
+        )
+        mock_current_user_ctx.set.assert_called_once_with(
+            sample_context_vars["current_user"]
+        )
+        mock_origin_module_ctx.set.assert_called_once_with(
+            sample_context_vars["origin_module"]
+        )
+
+        # Verify function is called with correct kwargs
+        mock_function.assert_called_once_with(**sample_kwargs)
+
+        # Verify cleanup is called
+        mock_reset_context_cache.assert_called_once()
+        mock_broadcast_ctx.reset.assert_called_once_with(mock_broadcast_token)
+
+        # Verify return value
+        assert result == "test_result"
+
+    @patch("wazuh.core.common.reset_context_cache")
+    @patch("wazuh.core.common.cluster_nodes")
+    @patch("wazuh.core.common.origin_module")
+    @patch("wazuh.core.common.current_user")
+    @patch("wazuh.core.common.broadcast")
+    @patch("wazuh.core.common.rbac")
+    def test_run_local_with_wazuh_exception(
+        self,
+        mock_rbac_ctx,
+        mock_broadcast_ctx,
+        mock_current_user_ctx,
+        mock_origin_module_ctx,
+        mock_cluster_nodes_ctx,
+        mock_reset_context_cache,
+        mock_function,
+        sample_kwargs,
+        sample_context_vars,
+    ):
+        """Test that WazuhException is re-raised properly."""
+        mock_broadcast_token = "test_token"
+        mock_broadcast_ctx.set.return_value = mock_broadcast_token
+
+        wazuh_exception = WazuhException("Test error")
+        mock_function.side_effect = wazuh_exception
+
+        with pytest.raises(WazuhException) as exc_info:
+            DistributedAPI.run_local(
+                f=mock_function, f_kwargs=sample_kwargs, **sample_context_vars
+            )
+
+        # Verify it's the same exception instance
+        assert exc_info.value is wazuh_exception
+
+        # Verify all context variables were set before exception
+        mock_rbac_ctx.set.assert_called_once_with(
+            sample_context_vars["rbac_permissions"]
+        )
+        mock_broadcast_ctx.set.assert_called_once_with(
+            sample_context_vars["broadcasting"]
+        )
+        mock_cluster_nodes_ctx.set.assert_called_once_with(
+            sample_context_vars["nodes"]
+        )
+        mock_current_user_ctx.set.assert_called_once_with(
+            sample_context_vars["current_user"]
+        )
+        mock_origin_module_ctx.set.assert_called_once_with(
+            sample_context_vars["origin_module"]
+        )
+
+        # Verify cleanup is still called in finally block
+        mock_reset_context_cache.assert_called_once()
+        mock_broadcast_ctx.reset.assert_called_once_with(mock_broadcast_token)
+
+    @patch("wazuh.core.common.reset_context_cache")
+    @patch("wazuh.core.common.broadcast")
+    def test_run_local_with_other_exception(
+        self, 
+        mock_broadcast_ctx,
+        mock_reset_context_cache,
+        mock_function, 
+        sample_kwargs, 
+        sample_context_vars
+    ):
+        """Test that non-WazuhException exceptions are not caught."""
+        mock_broadcast_token = "test_token"
+        mock_broadcast_ctx.set.return_value = mock_broadcast_token
+
+        other_exception = ValueError("Some other error")
+        mock_function.side_effect = other_exception
+
+        with pytest.raises(ValueError) as exc_info:
+            with (
+                patch("wazuh.core.common.cluster_nodes"),
+                patch("wazuh.core.common.origin_module"),
+                patch("wazuh.core.common.current_user"),
+                patch("wazuh.core.common.rbac"),
+            ):
+                DistributedAPI.run_local(
+                    f=mock_function, f_kwargs=sample_kwargs, **sample_context_vars
+                )
+
+        # Verify it's the same exception instance
+        assert exc_info.value is other_exception
+
+        # Verify cleanup is still called in finally block
+        mock_reset_context_cache.assert_called_once()
+        mock_broadcast_ctx.reset.assert_called_once_with(mock_broadcast_token)
+
+    @patch("wazuh.core.common.reset_context_cache")
+    @patch("wazuh.core.common.broadcast")
+    def test_run_local_cleanup_called_even_if_reset_context_cache_fails(
+        self, 
+        mock_broadcast_ctx,
+        mock_reset_context_cache,
+        mock_function, 
+        sample_kwargs, 
+        sample_context_vars
+    ):
+        """Test that broadcast.reset is called even if reset_context_cache fails."""
+        mock_broadcast_token = "test_token"
+        mock_broadcast_ctx.set.return_value = mock_broadcast_token
+        mock_reset_context_cache.side_effect = Exception("Reset failed")
+
+        with pytest.raises(Exception):
+            with (
+                patch("wazuh.core.common.cluster_nodes"),
+                patch("wazuh.core.common.origin_module"),
+                patch("wazuh.core.common.current_user"),
+                patch("wazuh.core.common.rbac"),
+            ):
+                DistributedAPI.run_local(
+                    f=mock_function, f_kwargs=sample_kwargs, **sample_context_vars
+                )
+
+        # Verify both cleanup methods were attempted
+        mock_reset_context_cache.assert_called_once()
+        mock_broadcast_ctx.reset.assert_called_once_with(mock_broadcast_token)
 
 
 @patch("asyncio.Queue")

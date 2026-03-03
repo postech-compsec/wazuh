@@ -12,22 +12,146 @@
 #define GT(X, Y) (X > Y ? true : false)
 #define LT(X, Y) (X < Y ? true : false)
 #define EQ(X, Y) (X == Y ? true : false)
+#define GE(X, Y) (X >= Y ? true : false)
+#define LE(X, Y) (X <= Y ? true : false)
+
+typedef enum hw_fields {
+    CPU_CORES,
+    CPU_MHZ,
+    RAM_TOTAL,
+    RAM_FREE,
+    RAM_USAGE
+} hw_fields;
+
+const char * HWINFO_FIELDS[] = {
+    [CPU_CORES] = "cpu_cores",
+    [CPU_MHZ] = "cpu_mhz",
+    [RAM_TOTAL] = "ram_total",
+    [RAM_FREE] = "ram_free",
+    [RAM_USAGE] = "ram_usage"
+};
+
+typedef enum group_fields {
+    GROUP_ID
+} group_fields;
+
+const char * GROUPINFO_FIELDS[] = {
+    [GROUP_ID] = "group_id"
+};
+
+typedef enum user_fields {
+    USER_ID,
+    USER_GROUP_ID,
+    USER_CREATED,
+    USER_LAST_LOGIN,
+    USER_AUTH_FAILED_COUNT,
+    USER_AUTH_FAILED_TIMESTAMP,
+    USER_PASSWORD_LAST_CHANGE,
+    USER_PASSWORD_EXPIRATION_DATE,
+    USER_PASSWORD_INACTIVE_DAYS,
+    USER_PASSWORD_MAX_DAYS_BETWEEN_CHANGES,
+    USER_PASSWORD_MIN_DAYS_BETWEEN_CHANGES,
+    USER_PASSWORD_WARNING_DAYS_BEFORE_EXPIRATION,
+    PROCESS_PID
+} user_fields;
+
+const char * USERINFO_FIELDS[] = {
+    [USER_ID] = "user_id",
+    [USER_GROUP_ID] = "user_group_id",
+    [USER_CREATED] = "user_created",
+    [USER_LAST_LOGIN] = "user_last_login",
+    [USER_AUTH_FAILED_COUNT] = "user_auth_failed_count",
+    [USER_AUTH_FAILED_TIMESTAMP] = "user_auth_failed_timestamp",
+    [USER_PASSWORD_LAST_CHANGE] = "user_password_last_change",
+    [USER_PASSWORD_EXPIRATION_DATE] = "user_password_expiration_date",
+    [USER_PASSWORD_INACTIVE_DAYS] = "user_password_inactive_days",
+    [USER_PASSWORD_MAX_DAYS_BETWEEN_CHANGES] = "user_password_max_days_between_changes",
+    [USER_PASSWORD_MIN_DAYS_BETWEEN_CHANGES] = "user_password_min_days_between_changes",
+    [USER_PASSWORD_WARNING_DAYS_BEFORE_EXPIRATION] = "user_password_warning_days_before_expiration",
+    [PROCESS_PID] = "process_pid"
+};
+
+typedef enum service_fields {
+    SERVICE_FREQUENCY,
+    SERVICE_PROCESS_PID,
+    SERVICE_TARGET_EPHEMERAL_ID,
+    SERVICE_EXIT_CODE,
+    SERVICE_WIN32_EXIT_CODE
+} service_fields;
+
+const char * SERVICEINFO_FIELDS[] = {
+    [SERVICE_FREQUENCY] = "service_frequency",
+    [SERVICE_PROCESS_PID] = "service_process_pid",
+    [SERVICE_TARGET_EPHEMERAL_ID] = "service_target_ephemeral_id",
+    [SERVICE_EXIT_CODE] = "service_exit_code",
+    [SERVICE_WIN32_EXIT_CODE] = "service_win32_exit_code"
+};
+
+#define IS_VALID_GROUPS_VALUE(field_name, field_value) ( \
+    !strcmp(field_name, GROUPINFO_FIELDS[GROUP_ID]) ? \
+        GE(field_value, 0) : true \
+)
 
 #define IS_VALID_HWINFO_VALUE(field_name, field_value) ( \
-    !strncmp(field_name, "cpu_cores", 9) ? \
+    !strcmp(field_name, HWINFO_FIELDS[CPU_CORES]) ? \
         GT(field_value, 0) : \
-    !strncmp(field_name, "cpu_mhz", 7) ? \
+    !strcmp(field_name, HWINFO_FIELDS[CPU_MHZ]) ? \
         GT(field_value, 0) : \
-    !strncmp(field_name, "ram_total", 9) ? \
+    !strcmp(field_name, HWINFO_FIELDS[RAM_TOTAL]) ? \
         GT(field_value, 0) : \
-    !strncmp(field_name, "ram_free", 8) ? \
+    !strcmp(field_name, HWINFO_FIELDS[RAM_FREE]) ? \
         GT(field_value, 0) : \
-    !strncmp(field_name, "ram_usage", 9) ? \
-        (GT(field_value, 0) && (EQ(field_value, 100) || LT(field_value, 100))): true \
+    !strcmp(field_name, HWINFO_FIELDS[RAM_USAGE]) ? \
+        (GT(field_value, 0) && (LE(field_value, 100))): true \
+)
+
+#define IS_VALID_USERS_VALUE(field_name, field_value) ( \
+    !strcmp(field_name, USERINFO_FIELDS[USER_ID]) ? \
+        GE(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[USER_GROUP_ID]) ? \
+        GE(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[USER_CREATED]) ? \
+        GT(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[USER_LAST_LOGIN]) ? \
+        GT(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[USER_AUTH_FAILED_COUNT]) ? \
+        GE(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[USER_AUTH_FAILED_TIMESTAMP]) ? \
+        GT(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[USER_PASSWORD_LAST_CHANGE]) ? \
+        GT(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[USER_PASSWORD_EXPIRATION_DATE]) ? \
+        GT(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[USER_PASSWORD_INACTIVE_DAYS]) ? \
+        GE(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[USER_PASSWORD_MAX_DAYS_BETWEEN_CHANGES]) ? \
+        GE(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[USER_PASSWORD_MIN_DAYS_BETWEEN_CHANGES]) ? \
+        GE(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[USER_PASSWORD_WARNING_DAYS_BEFORE_EXPIRATION]) ? \
+        GE(field_value, 0) : \
+    !strcmp(field_name, USERINFO_FIELDS[PROCESS_PID]) ? \
+        GE(field_value, 0) : true \
+)
+
+#define IS_VALID_SERVICE_VALUE(field_name, field_value) ( \
+    !strcmp(field_name, SERVICEINFO_FIELDS[SERVICE_FREQUENCY]) ? \
+        GE(field_value, 0) : \
+    !strcmp(field_name, SERVICEINFO_FIELDS[SERVICE_PROCESS_PID]) ? \
+        GE(field_value, 0) : \
+    !strcmp(field_name, SERVICEINFO_FIELDS[SERVICE_TARGET_EPHEMERAL_ID]) ? \
+        GE(field_value, 0) : \
+    !strcmp(field_name, SERVICEINFO_FIELDS[SERVICE_EXIT_CODE]) ? \
+        GE(field_value, 0) : \
+    !strcmp(field_name, SERVICEINFO_FIELDS[SERVICE_WIN32_EXIT_CODE]) ? \
+        GE(field_value, 0) : true \
 )
 
 #define IS_VALID_VALUE(table_name, field_name, field_value) (\
-    !strncmp(table_name, "sys_hwinfo", 10) ? IS_VALID_HWINFO_VALUE(field_name, field_value) : true \
+    !strcmp(table_name, "sys_hwinfo") ? IS_VALID_HWINFO_VALUE(field_name, field_value) : \
+    !strcmp(table_name, "sys_users") ? IS_VALID_USERS_VALUE(field_name, field_value) : \
+    !strcmp(table_name, "sys_groups") ? IS_VALID_GROUPS_VALUE(field_name, field_value) : \
+    !strcmp(table_name, "sys_services") ? IS_VALID_SERVICE_VALUE(field_name, field_value) : true \
 )
 
 STATIC bool wdb_dbsync_stmt_bind_from_json(sqlite3_stmt * stmt, int index, field_type_t type, const cJSON * value, const char * field_name,
@@ -70,31 +194,52 @@ bool wdb_upsert_dbsync(wdb_t * wdb, struct kv const * kv_value, cJSON * data) {
         char query[QUERY_MAX_SIZE] = {0};
         int query_actual_size = 0;
 
+        // kv_value->value hardcoded value that never exceeds OS_SIZE_256
         query_actual_size += snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size - 1,
                                       "INSERT INTO %s VALUES( ", kv_value->value);
 
         struct column_list const * column = NULL;
         for (column = kv_value->column_list; column; column = column->next) {
-            query_actual_size += snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size - 1, "?");
+            // "?," plus null terminator
+            if (3 + query_actual_size > QUERY_MAX_SIZE) {
+                merror("Exceeding maximum query size of %d bytes adding values placeholders.", QUERY_MAX_SIZE);
+                return false;
+            }
+            query_actual_size += snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size, "?");
             if (column->next) {
-                query_actual_size += snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size - 1, ",");
+                query_actual_size += snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size, ",");
             }
         }
 
+        // ") ON CONFLICT DO UPDATE SET " plus null terminator
+        if (29 + query_actual_size > QUERY_MAX_SIZE) {
+            merror("Exceeding maximum query size of %d bytes adding conflict clause.", QUERY_MAX_SIZE);
+            return false;
+        }
         query_actual_size +=
-            snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size - 1, ") ON CONFLICT DO UPDATE SET ");
+            snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size, ") ON CONFLICT DO UPDATE SET ");
 
         bool first_condition_element = true;
         for (column = kv_value->column_list; column; column = column->next) {
             const char * field_name = column->value.target_name;
             if (!column->value.is_aux_field && !column->value.is_pk) {
                 if (first_condition_element) {
+                    // "=?" plus null terminator
+                    if (strlen(field_name) + query_actual_size + 3 > QUERY_MAX_SIZE) {
+                        merror("Exceeding maximum query size of %d bytes adding first field.", QUERY_MAX_SIZE);
+                        return false;
+                    }
                     query_actual_size +=
-                        snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size - 1, "%s=?", field_name);
+                        snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size, "%s=?", field_name);
                     first_condition_element = false;
                 } else {
+                    // ",%s=?" plus null terminator
+                    if (strlen(field_name) + query_actual_size + 4 > QUERY_MAX_SIZE) {
+                        merror("Exceeding maximum query size of %d bytes adding subsequent fields.", QUERY_MAX_SIZE);
+                        return false;
+                    }
                     query_actual_size +=
-                        snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size - 1, ",%s=?", field_name);
+                        snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size, ",%s=?", field_name);
                 }
             }
         }
@@ -159,6 +304,7 @@ bool wdb_delete_dbsync(wdb_t * wdb, struct kv const * kv_value, cJSON * data) {
         char query[OS_SIZE_2048] = {0};
         int query_actual_size = 0;
 
+        // kv_value->value hardcoded value that never exceeds OS_SIZE_256
         query_actual_size += snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size - 1,
                                       "DELETE FROM %s WHERE ", kv_value->value);
 
@@ -169,11 +315,21 @@ bool wdb_delete_dbsync(wdb_t * wdb, struct kv const * kv_value, cJSON * data) {
             const char * field_name = column->value.target_name;
             if (column->value.is_pk) {
                 if (first_condition_element) {
+                    // "=?" plus null terminator
+                    if (strlen(field_name) + query_actual_size + 3 > QUERY_MAX_SIZE) {
+                        merror("Exceeding maximum query size of %d bytes adding first pk.", QUERY_MAX_SIZE);
+                        return false;
+                    }
                     query_actual_size +=
-                        snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size - 1, "%s=?", field_name);
+                        snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size, "%s=?", field_name);
                     first_condition_element = false;
                 } else {
-                    query_actual_size += snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size - 1,
+                    // " AND " plus "=?" plus null terminator
+                    if (strlen(field_name) + query_actual_size + 8 > QUERY_MAX_SIZE) {
+                        merror("Exceeding maximum query size of %d bytes adding subsequent pks.", QUERY_MAX_SIZE);
+                        return false;
+                    }
+                    query_actual_size += snprintf(query + query_actual_size, QUERY_MAX_SIZE - query_actual_size,
                                                   " AND %s=?", field_name);
                 }
             }
@@ -319,17 +475,33 @@ STATIC bool wdb_dbsync_stmt_bind_from_json(sqlite3_stmt * stmt, int index, field
                 case cJSON_String: {
                     char * endptr;
                     const long long long_value = strtoll(value->valuestring, &endptr, 10);
-                    if (NULL != endptr && '\0' == *endptr &&
-                        SQLITE_OK == sqlite3_bind_int64(stmt, index, (sqlite3_int64) long_value)) {
+                    int sqlite3_bind = SQLITE_ERROR;
+                    if (NULL != endptr && '\0' == *endptr) {
+                        if (IS_VALID_VALUE(table_name, field_name, long_value)) {
+                            sqlite3_bind = sqlite3_bind_int64(stmt, index, (sqlite3_int64) long_value);
+                        } else {
+                            sqlite3_bind = sqlite3_bind_null(stmt, index);
+                        }
+
+                        if (SQLITE_OK == sqlite3_bind) {
+                            ret_val = true;
+                        }
+                    }
+                    break;
+                }
+                case cJSON_Number: {
+                    int sqlite3_bind = SQLITE_ERROR;
+                    if (IS_VALID_VALUE(table_name, field_name, value->valuedouble)) {
+                        sqlite3_bind = sqlite3_bind_int64(stmt, index, (sqlite3_int64) value->valuedouble);
+                    } else {
+                        sqlite3_bind = sqlite3_bind_null(stmt, index);
+                    }
+
+                    if (SQLITE_OK == sqlite3_bind) {
                         ret_val = true;
                     }
                     break;
                 }
-                case cJSON_Number:
-                    if (SQLITE_OK == sqlite3_bind_int64(stmt, index, (sqlite3_int64) value->valuedouble)) {
-                        ret_val = true;
-                    }
-                    break;
                 }
                 break;
             }
