@@ -931,6 +931,7 @@ ifeq (${FUZZ_MODE},full)
 	${MAKE} ${MAKE_PARALLEL} CC=${AFL_CC} CXX=${AFL_CXX} TARGET=server ${BUILD_SERVER}
 	${MAKE} ${MAKE_PARALLEL} FUZZ_MODE=full ${FUZZ_TARGET_LIST}
 else ifeq (${FUZZ_MODE},partial)
+	${MAKE} build_flatbuffers_schemas
 	${MAKE} ${MAKE_PARALLEL} FUZZ_MODE=partial ${FUZZ_TARGET_LIST}
 else
 	$(error Invalid FUZZ_MODE='${FUZZ_MODE}'. Supported values: partial, full)
