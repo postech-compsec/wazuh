@@ -8,12 +8,14 @@
  * Foundation.
  */
 
-#ifdef WAZUH_UNIT_TESTING
+
+// @compsec disable STATIC for fuzz
+// #ifdef WAZUH_UNIT_TESTING
 // Remove static qualifier when unit testing
 #define STATIC
-#else
-#define STATIC static
-#endif
+// #else
+// #define STATIC static
+// #endif
 
 #include <shared.h>
 #include "os_net/os_net.h"
