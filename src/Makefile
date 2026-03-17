@@ -419,6 +419,15 @@ ifeq ($(filter ${TARGET},server local),${TARGET})
 	WAZUH_LDFLAGS+=-Lbuild/shared_modules/router
 endif
 
+# COMPSEC-FUZZ: runtime linker paths for local fuzz harness execution.
+ifeq (${TARGET},fuzzer)
+	# Allow running fuzz harnesses directly from src without extra LD_LIBRARY_PATH.
+	WAZUH_COMPSEC_HOME ?= $(abspath ..)
+	OSSEC_LDFLAGS+='-Wl,-rpath,$$ORIGIN'
+	OSSEC_LDFLAGS+=-Wl,-rpath,${WAZUH_COMPSEC_HOME}/src
+	WAZUH_LDFLAGS+=-Wl,-rpath,${WAZUH_COMPSEC_HOME}/src/build/shared_modules/router
+endif
+
 ifneq (,$(filter ${CLEANFULL},YES yes y Y 1))
 	DEFINES+=-DCLEANFULL
 endif
@@ -669,8 +678,40 @@ ifeq (${TARGET},local)
 	DEFINES+=-DLOCAL
 endif
 
+# COMPSEC-FUZZ: fuzzing build controls and selectable harness list.
+AFL_CC ?= afl-clang-lto
+AFL_CXX ?= afl-clang-lto++
+FUZZ_MODE ?= partial
+FUZZ_TARGETS ?= fuzz-remoted
+JOBS ?=
+SUPPORTED_FUZZ_TARGETS := fuzz-remoted fuzz-key-request fuzz-local-dispatch fuzz-decode-sca fuzz-decode-event fuzz-decode-winevt fuzz-arforward fuzz-syscom fuzz-asyscom fuzz-dispatch-dbsync fuzz-dispatch-upgrade-module fuzz-wm-agent-upgrade-parse-message fuzz-writer-log
+
+ifneq ($(strip ${JOBS}),)
+MAKE_PARALLEL := -j${JOBS}
+endif
+
+ifneq ($(strip ${FUZZ_TARGETS}),)
+FUZZ_TARGET_LIST := ${FUZZ_TARGETS}
+else
+FUZZ_TARGET_LIST := fuzz-remoted
+endif
+
+INVALID_FUZZ_TARGETS := $(filter-out ${SUPPORTED_FUZZ_TARGETS},${FUZZ_TARGET_LIST})
+ifneq ($(strip ${INVALID_FUZZ_TARGETS}),)
+$(error Invalid FUZZ_TARGETS: ${INVALID_FUZZ_TARGETS}. Supported values: ${SUPPORTED_FUZZ_TARGETS})
+endif
+
 
 .PHONY: build
+.PHONY: print-supported-fuzz-targets
+
+# COMPSEC-FUZZ: keep default build goal explicit after adding helper goals.
+.DEFAULT_GOAL := build
+
+# COMPSEC-FUZZ: helper target used by build_fuzzer.sh when FUZZ_TARGETS=all.
+print-supported-fuzz-targets:
+	@echo ${SUPPORTED_FUZZ_TARGETS}
+
 build: ${TARGET}
 ifneq (${TARGET},failtarget)
 	${MAKE} settings
@@ -685,6 +726,7 @@ endif
 .PHONY: failtarget
 failtarget:
 	@echo "TARGET is required: "
+	@echo "   make TARGET=fuzzer   to build fuzzing harnesses"
 	@echo "   make TARGET=server   to build the server"
 	@echo "   make TARGET=local      - local version of server"
 	@echo "   make TARGET=hybrid     - hybrid version of server"
@@ -716,6 +758,9 @@ help: failtarget
 	@echo "   make DISABLE_CISCAT=yes      						Not to build the CIS-CAT module (for unsupported systems). Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
 	@echo "   make OPTIMIZE_CPYTHON=yes    						Enable this flag to optimize the python interpreter build, which is performed when used PYTHON_SOURCE. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
 	@echo "   make PYTHON_SOURCE=yes       						Used along the deps target. Downloads the sources needed to build the python interpreter. Allowed values are 1, yes, YES, y and Y, otherwise, the flag is ignored"
+	@echo "   make TARGET=fuzzer FUZZ_MODE=partial FUZZ_TARGETS=\"fuzz-remoted\"   Build selected harnesses with partial instrumentation"
+	@echo "   make TARGET=fuzzer FUZZ_MODE=full FUZZ_TARGETS=\"fuzz-remoted fuzz-decode-event\"   Build full server + selected harnesses with AFL"
+	@echo "   make TARGET=fuzzer FUZZ_MODE=full FUZZ_TARGETS=\"fuzz-remoted\" JOBS=8   Build using parallel jobs"
 	@echo "   make IMAGE_TRUST_CHECKS=1     					This flag controls the dll and exe files signature verification mechanism. Allowed values are 0 (disabled), 1 (warning only) and 2 (full enforce). The default value is 1."
 	@echo "   make CA_NAME="DigiCert Assured ID Root CA" 		This flag controls the CA name used to verify the dll and exe files signature. The default value is DigiCert Assured ID Root CA."
 	@echo "   make deps HTTP_REQUEST_BRANCH=main 				Build dependencies for http-request tool from selected branch/tag only if submodule isn't checked out, valid at make deps stage. Allowed values are any existing branch/tag.
@@ -741,6 +786,8 @@ settings:
 	@echo
 	@echo "General settings:"
 	@echo "    TARGET:             ${TARGET}"
+	@echo "    FUZZ_MODE:          ${FUZZ_MODE}"
+	@echo "    FUZZ_TARGETS:       ${FUZZ_TARGET_LIST}"
 	@echo "    V:                  ${V}"
 	@echo "    DEBUG:              ${DEBUG}"
 	@echo "    DEBUGAD             ${DEBUGAD}"
@@ -835,7 +882,7 @@ ifneq (${uname_S},AIX)
 	${STRIP_TOOL} -x $@
 endif
 
-.PHONY: server local hybrid agent selinux
+.PHONY: fuzzer server local hybrid agent selinux
 
 ifeq (${MAKECMDGOALS},server)
 $(error Do not use 'server' directly, use 'TARGET=server')
@@ -865,6 +912,22 @@ endif
 agent: external ${CPPLIBDEPS}
 	${MAKE} ${BUILD_CMAKE_PROJECTS}
 	${MAKE} ${BUILD_AGENT}
+
+ifeq (${MAKECMDGOALS},fuzzer)
+$(error Do not use 'fuzzer' directly, use 'TARGET=fuzzer')
+endif
+# COMPSEC-FUZZ: full/partial fuzz workflows and AFL toolchain orchestration.
+fuzzer: external ${CPPLIBDEPS}
+ifeq (${FUZZ_MODE},full)
+	rm -rf syscheckd/build
+	${MAKE} ${MAKE_PARALLEL} CC=${AFL_CC} CXX=${AFL_CXX} TARGET=server CMAKE_OPTS="${CMAKE_OPTS} -DCMAKE_C_COMPILER=${AFL_CC} -DCMAKE_CXX_COMPILER=${AFL_CXX}" ${BUILD_CMAKE_PROJECTS} build_server_fuzzer_prereqs
+	${MAKE} ${MAKE_PARALLEL} CC=${AFL_CC} CXX=${AFL_CXX} TARGET=server ${BUILD_SERVER}
+	${MAKE} ${MAKE_PARALLEL} FUZZ_MODE=full ${FUZZ_TARGET_LIST}
+else ifeq (${FUZZ_MODE},partial)
+	${MAKE} ${MAKE_PARALLEL} FUZZ_MODE=partial ${FUZZ_TARGET_LIST}
+else
+	$(error Invalid FUZZ_MODE='${FUZZ_MODE}'. Supported values: partial, full)
+endif
 
 ifneq (,$(filter ${USE_SELINUX},YES yes y Y 1))
 server local hybrid agent: selinux
@@ -1385,7 +1448,8 @@ $(DBUS_LIB):
 ################################
 
 TAR := tar -xf
-GUNZIP := gunzip
+# COMPSEC-FUZZ: force non-interactive decompression in deps/full-fuzz flows.
+GUNZIP := gunzip -f
 GZIP := gzip
 CURL := curl -so
 DEPS_VERSION = 49
@@ -1610,6 +1674,17 @@ WAZUHEXT_LIB = libwazuhext.$(SHARED)
 WAZUH_LIB = libwazuhshared.$(SHARED)
 endif
 BUILD_LIBS = libwazuh.a $(WAZUHEXT_LIB)
+
+FUZZER_CC_CMD = AFL_USE_ASAN=1 ${AFL_CC}
+FUZZER_CFLAGS = ${OSSEC_CFLAGS} -O0
+
+$(SUPPORTED_FUZZ_TARGETS): $(BUILD_LIBS)
+
+ifeq (${FUZZ_MODE},partial)
+$(SUPPORTED_FUZZ_TARGETS): CC=${AFL_CC}
+$(SUPPORTED_FUZZ_TARGETS): CXX=${AFL_CXX}
+$(SUPPORTED_FUZZ_TARGETS): CMAKE_OPTS+=-DCMAKE_C_COMPILER=${AFL_CC} -DCMAKE_CXX_COMPILER=${AFL_CXX}
+endif
 
 $(BUILD_SERVER) $(BUILD_AGENT) $(WINDOWS_BINS) $(WINDOWS_BINS): $(BUILD_LIBS)
 
@@ -1874,6 +1949,16 @@ endif
 build_wazuh_cmake: $(WAZUHEXT_LIB) $(EXTERNAL_LIBS_NO_WHOLE) build_syscollector
 	mkdir -p build && cd build && cmake .. -DTARGET=${TARGET} ${CMAKE_OPTS} ${WAZUH_RELEASE_TYPE} ${WAZUH_TEST} && ${MAKE}
 
+# COMPSEC-FUZZ: full-mode prerequisites for schema generation and router.
+build_flatbuffers_schemas:
+	mkdir -p build && cd build && cmake .. -DTARGET=server ${CMAKE_OPTS} ${WAZUH_RELEASE_TYPE} ${WAZUH_TEST} && ${MAKE} compile_schemas_input
+
+build_router:
+	mkdir -p build && cd build && cmake .. -DTARGET=server ${CMAKE_OPTS} ${WAZUH_RELEASE_TYPE} ${WAZUH_TEST} && ${MAKE} router
+
+build_server_fuzzer_prereqs:
+	mkdir -p build && cd build && cmake .. -DTARGET=server ${CMAKE_OPTS} ${WAZUH_RELEASE_TYPE} ${WAZUH_TEST} && ${MAKE} compile_schemas_input router
+
 #### Wazuh modules ##
 wmodules_c := $(wildcard wazuh_modules/wm*.c) $(wildcard wazuh_modules/agent_upgrade/*.c)
 
@@ -2130,6 +2215,52 @@ remoted/%.o: remoted/%.c
 wazuh-remoted: ${remoted_o}
 	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
+#### FUZZING (COMPSEC-FUZZ) - remoted #########
+
+fuzz_remoted_c := $(wildcard fuzz_remoted/*.c)
+fuzz_remoted_o := $(fuzz_remoted_c:.c=.o)
+
+fuzz_remoted/%.o: fuzz_remoted/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
+
+remoted_o_for_fuzzing = $(filter-out remoted/main.o, $(remoted_o))
+
+fuzz-remoted: ${fuzz_remoted_o} ${remoted_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+#### FUZZING (COMPSEC-FUZZ) - AR_Forward #########
+
+fuzz_arforward_c := $(wildcard fuzz_arforward/*.c)
+fuzz_arforward_o := $(fuzz_arforward_c:.c=.o)
+
+fuzz_arforward/%.o: fuzz_arforward/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
+
+fuzz-arforward: ${fuzz_arforward_o} ${remoted_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+#### FUZZING (COMPSEC-FUZZ) - authd key_request #########
+
+fuzz_key_request_c := $(wildcard fuzz_key_request/*.c)
+fuzz_key_request_o := $(fuzz_key_request_c:.c=.o)
+
+fuzz_key_request/%.o: fuzz_key_request/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
+
+fuzz-key-request: ${fuzz_key_request_o}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+#### FUZZING (COMPSEC-FUZZ) - authd local_dispatch #########
+
+fuzz_local_dispatch_c := $(wildcard fuzz_local_dispatch/*.c)
+fuzz_local_dispatch_o := $(fuzz_local_dispatch_c:.c=.o)
+
+fuzz_local_dispatch/%.o: fuzz_local_dispatch/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
+
+fuzz-local-dispatch: ${fuzz_local_dispatch_o}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
 #### wazuh-agentd ####
 
 client_agent_c := $(wildcard client-agent/*.c)
@@ -2313,6 +2444,25 @@ librootcheck.a: ${rootcheck_o_lib}
 wazuh-syscheckd: librootcheck.a libwazuh.a ${WAZUHEXT_LIB} build_shared_modules
 	cd syscheckd && mkdir -p build && cd build && cmake ${SYSCHECK_OS} ${CMAKE_OPTS} -DCMAKE_C_FLAGS="${DEFINES} -pipe -Wall -Wextra -std=gnu99" ${SYSCHECK_TEST} ${SYSCHECK_RELEASE_TYPE} .. && ${MAKE}
 
+#### FUZZING (COMPSEC-FUZZ) - syscom_main #########
+
+fuzz_syscom_c := $(wildcard fuzz_syscom/*.c)
+fuzz_syscom_o := $(fuzz_syscom_c:.c=.o)
+
+SYSCHK_BUILD_DIR := syscheckd/build
+SYSCHK_STATIC_LIBS := $(SYSCHK_BUILD_DIR)/lib/libsyscheckd_core.a
+
+syscheckd_built:
+	cd syscheckd && mkdir -p build && cd build && \
+	cmake ${SYSCHECK_OS} ${CMAKE_OPTS} -DBUILD_FOR_FUZZING=ON -DCMAKE_C_FLAGS="${DEFINES} -pipe -Wall -Wextra -std=gnu99" .. && \
+	${MAKE}
+
+fuzz_syscom/%.o: fuzz_syscom/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -I./syscheckd -DARGV0=\"wazuh-syscheckd\" -c $< -o $@
+
+fuzz-syscom: ${fuzz_syscom_o} syscheckd_built
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} ${fuzz_syscom_o} ${SYSCHK_STATIC_LIBS} libwazuh.a librootcheck.a ${WAZUHEXT_LIB} ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
 #### Monitor #######
 
 monitor_c := $(wildcard monitord/*.c)
@@ -2459,6 +2609,75 @@ wazuh-logtest-legacy: ${analysisd_test_o} ${output_o} ${format_o} analysisd/test
 
 wazuh-analysisd: ${analysisd_live_o} analysisd/analysisd-live.o ${output_o} ${format_o} alerts.a cdb.a decoders-live.a analysisd/logmsg.o
 	${OSSEC_CCBIN} ${OSSEC_LDFLAGS} $^ ${OSSEC_LIBS} -o $@
+
+#### FUZZING (COMPSEC-FUZZ) - analysisd #########
+
+fuzz_decode_sca_c := $(wildcard fuzz_decode_sca/*.c)
+fuzz_decode_sca_o := $(fuzz_decode_sca_c:.c=.o)
+fuzz_decode_event_c := $(wildcard fuzz_decode_event/*.c)
+fuzz_decode_event_o := $(fuzz_decode_event_c:.c=.o)
+fuzz_writer_log_c := $(wildcard fuzz_writer_log/*.c)
+fuzz_writer_log_o := $(fuzz_writer_log_c:.c=.o)
+fuzz_decode_winevt_c := $(wildcard fuzz_decode_winevt/*.c)
+fuzz_decode_winevt_o := $(fuzz_decode_winevt_c:.c=.o)
+fuzz_dispatch_dbsync_c := $(wildcard fuzz_dispatch_dbsync/*.c)
+fuzz_dispatch_dbsync_o := $(fuzz_dispatch_dbsync_c:.c=.o)
+fuzz_dispatch_upgrade_module_c := $(wildcard fuzz_dispatch_upgrade_module/*.c)
+fuzz_dispatch_upgrade_module_o := $(fuzz_dispatch_upgrade_module_c:.c=.o)
+fuzz_asyscom_c := $(wildcard fuzz_asyscom/*.c)
+fuzz_asyscom_o := $(fuzz_asyscom_c:.c=.o)
+fuzz_wm_agent_upgrade_parse_message_c := $(wildcard fuzz_wm_agent_upgrade_parse_message/*.c)
+fuzz_wm_agent_upgrade_parse_message_o := $(fuzz_wm_agent_upgrade_parse_message_c:.c=.o)
+
+fuzz_decode_sca/%.o: fuzz_decode_sca/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz_decode_event/%.o: fuzz_decode_event/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz_writer_log/%.o: fuzz_writer_log/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -I./analysisd/alerts -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz_decode_winevt/%.o: fuzz_decode_winevt/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz_dispatch_dbsync/%.o: fuzz_dispatch_dbsync/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz_dispatch_upgrade_module/%.o: fuzz_dispatch_upgrade_module/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz_asyscom/%.o: fuzz_asyscom/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+fuzz_wm_agent_upgrade_parse_message/%.o: fuzz_wm_agent_upgrade_parse_message/%.c
+	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
+
+analysisd_o_for_fuzzing = ${analysisd_live_o} analysisd/analysisd-test.o ${output_o} ${format_o} alerts.a cdb.a decoders-live.a analysisd/logmsg.o
+
+fuzz-decode-sca: ${fuzz_decode_sca_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+fuzz-decode-event: ${fuzz_decode_event_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+fuzz-writer-log: ${fuzz_writer_log_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+fuzz-decode-winevt: ${fuzz_decode_winevt_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+fuzz-dispatch-dbsync: ${fuzz_dispatch_dbsync_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+fuzz-dispatch-upgrade-module: ${fuzz_dispatch_upgrade_module_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+fuzz-asyscom: ${fuzz_asyscom_o} ${analysisd_o_for_fuzzing}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
+
+fuzz-wm-agent-upgrade-parse-message: ${fuzz_wm_agent_upgrade_parse_message_o}
+	${FUZZER_CC_CMD} ${OSSEC_LDFLAGS} ${WAZUH_LDFLAGS} $^ ${OSSEC_LIBS} ${WAZUH_LIBS} -o $@
 
 ### wazuh-modulesd ##
 
@@ -2741,7 +2960,10 @@ win32/netsh.exe: win32/netsh_resource.o win32/version-app.o active-response/acti
 #### Clean #########
 ####################
 
-clean: clean-test clean-internals clean-external clean-windows clean-framework clean-config
+clean: clean-test clean-internals clean-external clean-windows clean-framework clean-config clean-fuzzer
+
+clean-fuzzer:
+	rm -f fuzz-*
 
 clean-test:
 	rm -Rf coverage-report/
@@ -2801,8 +3023,11 @@ ifneq ($(wildcard external/cpython/*),)
 	-cd ${EXTERNAL_CPYTHON} && ${MAKE} clean && ${MAKE} distclean
 endif
 
+
 clean-deps:
 	rm -rf $(EXTERNAL_DIR) $(EXTERNAL_TAR) shared_modules/http-request/* shared_modules/http-request/.??*
+# COMPSEC-FUZZ: remove cpython archives to avoid overwrite prompts on next deps.
+	rm -f external/$(CPYTHON).tar external/$(CPYTHON).tar.gz
 
 clean-internals: clean-unit-tests
 	rm -f $(BUILD_SERVER)
