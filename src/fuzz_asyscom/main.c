@@ -36,3 +36,5 @@ int main()
 
     return 0;
 }
+
+__attribute__((noreturn)) void OS_ReadMSG(char* ut_str) {}
