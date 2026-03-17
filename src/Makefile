@@ -684,6 +684,7 @@ AFL_CXX ?= afl-clang-lto++
 FUZZ_MODE ?= partial
 FUZZ_TARGETS ?= fuzz-remoted
 JOBS ?=
+FUZZING_DIR ?= fuzzing
 SUPPORTED_FUZZ_TARGETS := fuzz-remoted fuzz-key-request fuzz-local-dispatch fuzz-decode-sca fuzz-decode-event fuzz-decode-winevt fuzz-arforward fuzz-syscom fuzz-asyscom fuzz-dispatch-dbsync fuzz-dispatch-upgrade-module fuzz-wm-agent-upgrade-parse-message fuzz-writer-log
 
 ifneq ($(strip ${JOBS}),)
@@ -691,7 +692,11 @@ MAKE_PARALLEL := -j${JOBS}
 endif
 
 ifneq ($(strip ${FUZZ_TARGETS}),)
+ifeq ($(strip ${FUZZ_TARGETS}),all)
+FUZZ_TARGET_LIST := ${SUPPORTED_FUZZ_TARGETS}
+else
 FUZZ_TARGET_LIST := ${FUZZ_TARGETS}
+endif
 else
 FUZZ_TARGET_LIST := fuzz-remoted
 endif
@@ -708,7 +713,7 @@ endif
 # COMPSEC-FUZZ: keep default build goal explicit after adding helper goals.
 .DEFAULT_GOAL := build
 
-# COMPSEC-FUZZ: helper target used by build_fuzzer.sh when FUZZ_TARGETS=all.
+# COMPSEC-FUZZ: helper target to inspect supported fuzz targets.
 print-supported-fuzz-targets:
 	@echo ${SUPPORTED_FUZZ_TARGETS}
 
@@ -2217,10 +2222,10 @@ wazuh-remoted: ${remoted_o}
 
 #### FUZZING (COMPSEC-FUZZ) - remoted #########
 
-fuzz_remoted_c := $(wildcard fuzz_remoted/*.c)
+fuzz_remoted_c := $(wildcard $(FUZZING_DIR)/fuzz_remoted/*.c)
 fuzz_remoted_o := $(fuzz_remoted_c:.c=.o)
 
-fuzz_remoted/%.o: fuzz_remoted/%.c
+$(FUZZING_DIR)/fuzz_remoted/%.o: $(FUZZING_DIR)/fuzz_remoted/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
 
 remoted_o_for_fuzzing = $(filter-out remoted/main.o, $(remoted_o))
@@ -2230,10 +2235,10 @@ fuzz-remoted: ${fuzz_remoted_o} ${remoted_o_for_fuzzing}
 
 #### FUZZING (COMPSEC-FUZZ) - AR_Forward #########
 
-fuzz_arforward_c := $(wildcard fuzz_arforward/*.c)
+fuzz_arforward_c := $(wildcard $(FUZZING_DIR)/fuzz_arforward/*.c)
 fuzz_arforward_o := $(fuzz_arforward_c:.c=.o)
 
-fuzz_arforward/%.o: fuzz_arforward/%.c
+$(FUZZING_DIR)/fuzz_arforward/%.o: $(FUZZING_DIR)/fuzz_arforward/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./remoted -DARGV0=\"wazuh-remoted\" -c $^ -o $@
 
 fuzz-arforward: ${fuzz_arforward_o} ${remoted_o_for_fuzzing}
@@ -2241,10 +2246,10 @@ fuzz-arforward: ${fuzz_arforward_o} ${remoted_o_for_fuzzing}
 
 #### FUZZING (COMPSEC-FUZZ) - authd key_request #########
 
-fuzz_key_request_c := $(wildcard fuzz_key_request/*.c)
+fuzz_key_request_c := $(wildcard $(FUZZING_DIR)/fuzz_key_request/*.c)
 fuzz_key_request_o := $(fuzz_key_request_c:.c=.o)
 
-fuzz_key_request/%.o: fuzz_key_request/%.c
+$(FUZZING_DIR)/fuzz_key_request/%.o: $(FUZZING_DIR)/fuzz_key_request/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
 
 fuzz-key-request: ${fuzz_key_request_o}
@@ -2252,10 +2257,10 @@ fuzz-key-request: ${fuzz_key_request_o}
 
 #### FUZZING (COMPSEC-FUZZ) - authd local_dispatch #########
 
-fuzz_local_dispatch_c := $(wildcard fuzz_local_dispatch/*.c)
+fuzz_local_dispatch_c := $(wildcard $(FUZZING_DIR)/fuzz_local_dispatch/*.c)
 fuzz_local_dispatch_o := $(fuzz_local_dispatch_c:.c=.o)
 
-fuzz_local_dispatch/%.o: fuzz_local_dispatch/%.c
+$(FUZZING_DIR)/fuzz_local_dispatch/%.o: $(FUZZING_DIR)/fuzz_local_dispatch/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./os_auth -DARGV0=\"wazuh-authd\" -c $^ -o $@
 
 fuzz-local-dispatch: ${fuzz_local_dispatch_o}
@@ -2446,7 +2451,7 @@ wazuh-syscheckd: librootcheck.a libwazuh.a ${WAZUHEXT_LIB} build_shared_modules
 
 #### FUZZING (COMPSEC-FUZZ) - syscom_main #########
 
-fuzz_syscom_c := $(wildcard fuzz_syscom/*.c)
+fuzz_syscom_c := $(wildcard $(FUZZING_DIR)/fuzz_syscom/*.c)
 fuzz_syscom_o := $(fuzz_syscom_c:.c=.o)
 
 SYSCHK_BUILD_DIR := syscheckd/build
@@ -2457,7 +2462,7 @@ syscheckd_built:
 	cmake ${SYSCHECK_OS} ${CMAKE_OPTS} -DBUILD_FOR_FUZZING=ON -DCMAKE_C_FLAGS="${DEFINES} -pipe -Wall -Wextra -std=gnu99" .. && \
 	${MAKE}
 
-fuzz_syscom/%.o: fuzz_syscom/%.c
+$(FUZZING_DIR)/fuzz_syscom/%.o: $(FUZZING_DIR)/fuzz_syscom/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -I./syscheckd -DARGV0=\"wazuh-syscheckd\" -c $< -o $@
 
 fuzz-syscom: ${fuzz_syscom_o} syscheckd_built
@@ -2612,45 +2617,45 @@ wazuh-analysisd: ${analysisd_live_o} analysisd/analysisd-live.o ${output_o} ${fo
 
 #### FUZZING (COMPSEC-FUZZ) - analysisd #########
 
-fuzz_decode_sca_c := $(wildcard fuzz_decode_sca/*.c)
+fuzz_decode_sca_c := $(wildcard $(FUZZING_DIR)/fuzz_decode_sca/*.c)
 fuzz_decode_sca_o := $(fuzz_decode_sca_c:.c=.o)
-fuzz_decode_event_c := $(wildcard fuzz_decode_event/*.c)
+fuzz_decode_event_c := $(wildcard $(FUZZING_DIR)/fuzz_decode_event/*.c)
 fuzz_decode_event_o := $(fuzz_decode_event_c:.c=.o)
-fuzz_writer_log_c := $(wildcard fuzz_writer_log/*.c)
+fuzz_writer_log_c := $(wildcard $(FUZZING_DIR)/fuzz_writer_log/*.c)
 fuzz_writer_log_o := $(fuzz_writer_log_c:.c=.o)
-fuzz_decode_winevt_c := $(wildcard fuzz_decode_winevt/*.c)
+fuzz_decode_winevt_c := $(wildcard $(FUZZING_DIR)/fuzz_decode_winevt/*.c)
 fuzz_decode_winevt_o := $(fuzz_decode_winevt_c:.c=.o)
-fuzz_dispatch_dbsync_c := $(wildcard fuzz_dispatch_dbsync/*.c)
+fuzz_dispatch_dbsync_c := $(wildcard $(FUZZING_DIR)/fuzz_dispatch_dbsync/*.c)
 fuzz_dispatch_dbsync_o := $(fuzz_dispatch_dbsync_c:.c=.o)
-fuzz_dispatch_upgrade_module_c := $(wildcard fuzz_dispatch_upgrade_module/*.c)
+fuzz_dispatch_upgrade_module_c := $(wildcard $(FUZZING_DIR)/fuzz_dispatch_upgrade_module/*.c)
 fuzz_dispatch_upgrade_module_o := $(fuzz_dispatch_upgrade_module_c:.c=.o)
-fuzz_asyscom_c := $(wildcard fuzz_asyscom/*.c)
+fuzz_asyscom_c := $(wildcard $(FUZZING_DIR)/fuzz_asyscom/*.c)
 fuzz_asyscom_o := $(fuzz_asyscom_c:.c=.o)
-fuzz_wm_agent_upgrade_parse_message_c := $(wildcard fuzz_wm_agent_upgrade_parse_message/*.c)
+fuzz_wm_agent_upgrade_parse_message_c := $(wildcard $(FUZZING_DIR)/fuzz_wm_agent_upgrade_parse_message/*.c)
 fuzz_wm_agent_upgrade_parse_message_o := $(fuzz_wm_agent_upgrade_parse_message_c:.c=.o)
 
-fuzz_decode_sca/%.o: fuzz_decode_sca/%.c
+$(FUZZING_DIR)/fuzz_decode_sca/%.o: $(FUZZING_DIR)/fuzz_decode_sca/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
 
-fuzz_decode_event/%.o: fuzz_decode_event/%.c
+$(FUZZING_DIR)/fuzz_decode_event/%.o: $(FUZZING_DIR)/fuzz_decode_event/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
 
-fuzz_writer_log/%.o: fuzz_writer_log/%.c
+$(FUZZING_DIR)/fuzz_writer_log/%.o: $(FUZZING_DIR)/fuzz_writer_log/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -I./analysisd/alerts -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
 
-fuzz_decode_winevt/%.o: fuzz_decode_winevt/%.c
+$(FUZZING_DIR)/fuzz_decode_winevt/%.o: $(FUZZING_DIR)/fuzz_decode_winevt/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
 
-fuzz_dispatch_dbsync/%.o: fuzz_dispatch_dbsync/%.c
+$(FUZZING_DIR)/fuzz_dispatch_dbsync/%.o: $(FUZZING_DIR)/fuzz_dispatch_dbsync/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
 
-fuzz_dispatch_upgrade_module/%.o: fuzz_dispatch_upgrade_module/%.c
+$(FUZZING_DIR)/fuzz_dispatch_upgrade_module/%.o: $(FUZZING_DIR)/fuzz_dispatch_upgrade_module/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
 
-fuzz_asyscom/%.o: fuzz_asyscom/%.c
+$(FUZZING_DIR)/fuzz_asyscom/%.o: $(FUZZING_DIR)/fuzz_asyscom/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
 
-fuzz_wm_agent_upgrade_parse_message/%.o: fuzz_wm_agent_upgrade_parse_message/%.c
+$(FUZZING_DIR)/fuzz_wm_agent_upgrade_parse_message/%.o: $(FUZZING_DIR)/fuzz_wm_agent_upgrade_parse_message/%.c
 	${FUZZER_CC_CMD} ${FUZZER_CFLAGS} -DPORTABLE_UNALIGNED_ACCESS=0 -I./analysisd -I./analysisd/decoders -DARGV0=\"wazuh-analysisd\" -c $^ -o $@
 
 analysisd_o_for_fuzzing = ${analysisd_live_o} analysisd/analysisd-test.o ${output_o} ${format_o} alerts.a cdb.a decoders-live.a analysisd/logmsg.o

@@ -97,15 +97,6 @@ if ! [[ "${VERBOSE}" =~ ^[01]$ ]]; then
     exit 1
 fi
 
-if [[ "${TARGETS,,}" == "all" ]]; then
-    SUPPORTED_TARGETS_RAW="$(make -s TARGET=fuzzer print-supported-fuzz-targets)"
-    if [[ -z "${SUPPORTED_TARGETS_RAW}" ]]; then
-        echo "Failed to read supported fuzz targets from Makefile." >&2
-        exit 1
-    fi
-    TARGETS="${SUPPORTED_TARGETS_RAW}"
-fi
-
 mkdir -p "$(dirname "${LOG_FILE}")"
 
 if [[ "${VERBOSE}" == "1" ]]; then
