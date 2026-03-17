@@ -65,13 +65,13 @@ void _fuzz_writer_log(const char* msg)
     os_calloc(1, sizeof(Eventinfo), lf_cpy);
     w_copy_event_for_log(lf, lf_cpy);
     if (Config.custom_alert_output) {
-        __crt_ftell = ftell(_aflog);
-        OS_CustomLog(lf_cpy, Config.custom_alert_output_format);
+        set_global_alert_second_id(ftell(_aflog));
+        OS_CustomLog(lf, Config.custom_alert_output_format);
     } else if (Config.alerts_log) {
-        __crt_ftell = ftell(_aflog);
-        OS_Log(lf_cpy, _aflog);
+        set_global_alert_second_id(ftell(_aflog));
+        OS_Log(lf, _aflog);
     } else if (Config.jsonout_output) {
-        __crt_ftell = ftell(_jflog);
+        set_global_alert_second_id(ftell(_jflog));
     }
 
     // if (Config.jsonout_output) {
