@@ -67,6 +67,8 @@ void _fuzz_decode_sca(const char* msg)
 
     os_calloc(1, sizeof(Eventinfo), lf);
     os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+    Config.g_rules_hash = OSHash_Create();
+    
     Zero_Eventinfo(lf);
 
     if (msg[0] == SCA_MQ)

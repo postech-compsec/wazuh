@@ -26,8 +26,10 @@ void _fuzz_dispatch_dbsync(const char* msg)
 
     os_calloc(1, sizeof(Eventinfo), lf);
     os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+    Config.g_rules_hash = OSHash_Create();
 
     Zero_Eventinfo(lf);
+
 
     if (msg[0] == DBSYNC_MQ) {
         if (OS_CleanMSG(msg, lf) < 0)

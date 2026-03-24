@@ -12,6 +12,8 @@ void _fuzz_decode_winevt(const char* msg)
 
     os_calloc(1, sizeof(Eventinfo), lf);
     os_calloc(Config.decoder_order_size, sizeof(DynamicField), lf->fields);
+    Config.g_rules_hash = OSHash_Create();
+
     Zero_Eventinfo(lf);
 
     if (msg[0] == WIN_EVT_MQ)
